@@ -1051,13 +1051,26 @@ function sqRun() {
   const q = $('sqIn').value.trim();
   if (q.length < 3) { $('sqRes').innerHTML = ''; return }
   const cq = normC(q), ql = q.toLowerCase();
-  const res = CACHE.pad.filter(p => (cq.length >= 3 && p.cedula.startsWith(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(ql)).slice(0, 8);
+  const res = CACHE.pad.filter(p => (cq.length >= 3 && p.cedula.startsWith(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(ql)).slice(0, 5);
   $('sqRes').innerHTML = res.length ? res.map(p => {
     const a = asignDe(p.cedula);
-    return '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div style="flex:1"><b>' + esc(apeP(p) + ', ' + nomP(p)) + '</b> <span class="mono" style="font-size:11.5px;color:var(--mut)">' + fC(p.letra, p.cedula) + '</span><div style="font-size:12px;color:var(--mut)">' + p.edad + 'a · ' + p.sexo + ' · ' + esc(p.nombre_cv || '') + '</div></div>' +
-      (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">★ RECLUTADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="closeModal();openRec(' + a.r.id + ')">✓ ' + esc(nomP(padBy(a.r.cedula) || { p_nombre: '—' })) + '</button>') : '<span class="chip chip-gr">LIBRE</span>') +
+    const rec = a && a.tipo === 'reclutador';
+    return '<div style="background:#f8fafd;border:1px solid var(--line2);border-radius:8px;padding:12px 14px;margin-bottom:8px">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="uava" style="width:36px;height:36px;font-size:14px">' + ini(apeP(p) + ', ' + nomP(p)) + '</span><div style="flex:1;min-width:0"><b style="font-size:14px;color:var(--navy)">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:12px;color:var(--mut)">' + fC(p.letra, p.cedula) + '</div></div>' +
+        (a ? (rec ? '<span class="chip chip-b">★ RECLUTADOR</span>' : '<span class="chip chip-g">✓ ASIGNADO #' + a.pos + '</span>') : '<span class="chip chip-gr">LIBRE</span>') + '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-size:12px">' +
+        '<div><span style="color:var(--mut)">Edad:</span> <b>' + (p.edad || '—') + '</b> años</div>' +
+        '<div><span style="color:var(--mut)">Sexo:</span> <b>' + p.sexo + '</b></div>' +
+        '<div style="grid-column:span 2"><span style="color:var(--mut)">Fecha nac.:</span> <b>' + esc(p.fecha_nac || '—') + '</b></div>' +
+        '<div style="grid-column:span 2"><span style="color:var(--mut)">Centro:</span> <b>' + esc(p.nombre_cv || '—') + '</b> <span class="mono" style="font-size:10px;color:var(--mut)">(' + esc(p.centro_votacion || '') + ')</span></div>' +
+        '<div><span style="color:var(--mut)">Municipio:</span> <b>' + esc(p.municipio || '—') + '</b></div>' +
+        '<div><span style="color:var(--mut)">Parroquia:</span> <b>' + esc(p.parroquia || '—') + '</b></div>' +
+        '<div style="grid-column:span 2"><span style="color:var(--mut)">Estado:</span> <b>' + esc(p.estado || '—') + '</b> <span class="mono" style="font-size:10px;color:var(--mut)">(' + esc(p.codigo_estado || '') + ')</span></div>' +
+        (p.es_manual ? '<div style="grid-column:span 2"><span class="chip chip-r">REGISTRO MANUAL</span></div>' : '') +
+      '</div>' +
+      (a && !rec ? '<div style="margin-top:8px;text-align:right"><button class="btn btn-w btn-xs" onclick="closeModal();openRec(' + a.r.id + ')">' + ic('search', 12) + ' Ver lista del reclutador</button></div>' : '') +
       '</div>';
-  }).join('') : '<div class="empty">Sin coincidencias.</div>';
+  }).join('') : '<div class="empty">' + ic('search', 24) + '<p>Sin coincidencias para "<b>' + esc(q) + '</b>"</p></div>';
 }
 
 /* ═══════════ GRÁFICAS ═══════════ */
