@@ -124,7 +124,13 @@ label.fl{color:var(--navy);font-weight:700;font-size:12.5px;display:block;margin
 #loading .sub{font-size:12px;color:#c8d4e2;margin-top:8px;text-align:center;padding:0 30px}
 @media(max-width:1100px){.g3,.g4{grid-template-columns:1fr 1fr}.g2,.gC{grid-template-columns:1fr}}
 @media(max-width:760px){.g3,.g4{grid-template-columns:1fr}#hdr{flex-direction:column;align-items:flex-start}.hdr-r{text-align:left}}
-@media print{#toolbar,#tabs,.hdr-r,#toasts{display:none!important}#main{padding:0}.panel{box-shadow:none}}
+@media print{#toolbar,#tabs,.hdr-r,#toasts,#mOv{display:none!important}body{background:#fff}#main{padding:0}.panel{box-shadow:none;border:1px solid #ddd;break-inside:avoid}.panel-h{background:var(--navy)!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tbl{width:100%;border-collapse:collapse}.tbl th,.tbl td{border:1px solid #ccc;padding:6px 8px;font-size:11px}.tbl th{background:var(--navy)!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.kcard{border:1px solid #ddd;break-inside:avoid}.empty{display:none!important}.btn{display:none!important}.chip{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media print{.print-only{display:block!important}.no-print{display:none!important}}
+.print-only{display:none}
+.pdf-header{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--navy);padding-bottom:12px;margin-bottom:16px}
+.pdf-header h1{font-size:18px;color:var(--navy);flex:1}
+.pdf-header .meta{font-size:10px;color:#666;text-align:right}
+.pdf-footer{margin-top:20px;padding-top:10px;border-top:2px solid var(--navy);font-size:9px;color:#888;display:flex;justify-content:space-between}
 </style>
 </head>
 <body>
@@ -180,6 +186,7 @@ label.fl{color:var(--navy);font-weight:700;font-size:12.5px;display:block;margin
 <div id="mOv" onclick="if(event.target===this)closeModal()"><div class="win" id="mBox"></div></div>
 <div id="toasts"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 <script>
 /* ═══════════ CLIENTE TURSO (vía API proxy) ═══════════ */
 const API_URL = '/api/turso';
@@ -748,6 +755,96 @@ const IC = {
 };
 const ic = (n, s = 16) => '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + IC[n] + '</svg>';
 
+/* ═══════════ IMPRESIÓN / PDF / COMPARTIR ═══════════ */
+function _pdfOpts(title) {
+  return {
+    margin: [10, 10, 10, 10],
+    filename: title.replace(/[^a-z0-9áéíóúñ ]/gi, '_').toLowerCase() + '.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+    jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
+  };
+}
+function _pdfHeader(title, subtitle) {
+  const now = new Date();
+  const fecha = now.toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' });
+  const hora = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+  return '<div style="font-family:Roboto,Arial,sans-serif;padding:16px;color:#22303e">' +
+    '<div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #123c69;padding-bottom:10px;margin-bottom:14px">' +
+      '<div style="width:40px;height:40px;background:#123c69;border-radius:8px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>' +
+      '<div style="flex:1"><div style="font-size:17px;font-weight:700;color:#123c69">COMANDO 1×10 — ERP ELECTORAL</div>' +
+      '<div style="font-size:10px;color:#5c6b7a">' + (subtitle || 'Sistema Integral de Gestión') + '</div></div>' +
+      '<div style="text-align:right;font-size:9.5px;color:#5c6b7a"><div>' + fecha + '</div><div>' + hora + '</div></div></div>' +
+    '<h2 style="font-size:15px;color:#123c69;margin:0 0 12px">' + esc(title) + '</h2>';
+}
+function _pdfFooter() {
+  return '<div style="margin-top:16px;padding-top:8px;border-top:2px solid #123c69;font-size:8.5px;color:#888;display:flex;justify-content:space-between">' +
+    '<span>COMANDO 1×10 — ERP ELECTORAL</span><span>Generado: ' + new Date().toLocaleString('es-VE') + '</span></div></div>';
+}
+function _pdfTable(headers, rows) {
+  let h = '<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:8px"><thead><tr>';
+  headers.forEach(c => { h += '<th style="background:#123c69;color:#fff;padding:5px 6px;text-align:left;font-weight:600;border:1px solid #0d2f52">' + c + '</th>' });
+  h += '</tr></thead><tbody>';
+  rows.forEach((row, i) => {
+    const bg = i % 2 === 0 ? '#fff' : '#f4f6f9';
+    h += '<tr style="background:' + bg + '">';
+    row.forEach((c, j) => { h += '<td style="padding:4px 6px;border:1px solid #ddd;vertical-align:top">' + (c === null || c === undefined ? '—' : c) + '</td>' });
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  return h;
+}
+function printSection(elId, title) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const w = window.open('', '_blank');
+  w.document.write('<!DOCTYPE html><html><head><title>' + esc(title) + '</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">' +
+    '<style>body{font:12px/1.5 Roboto,Arial,sans-serif;color:#22303e;padding:20px}' +
+    '.tbl{width:100%;border-collapse:collapse;font-size:10.5px}.tbl th{background:#123c69;color:#fff;padding:6px 8px;text-align:left;border:1px solid #0d2f52}' +
+    '.tbl td{padding:5px 7px;border:1px solid #ddd}.tbl tr:nth-child(even){background:#f4f6f9}' +
+    '.chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:600}' +
+    '.chip-b{background:#e3f2fd;color:#1565c0}.chip-g{background:#e8f5e9;color:#2e7d32}.chip-gr{background:#f1f3f4;color:#5c6b7a}.chip-r{background:#ffebee;color:#c62828}.chip-y{background:#fff8e1;color:#f57f17}' +
+    '.mono{font-family:Consolas,monospace}' +
+    '@media print{body{padding:0}}' +
+    '</style></head><body>' + el.innerHTML + '</body></html>');
+  w.document.close();
+  setTimeout(() => { w.print(); w.close(); }, 400);
+}
+function downloadPDF(elId, title) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;font-family:Roboto,Arial,sans-serif;color:#22303e;background:#fff;padding:24px';
+  tmp.innerHTML = _pdfHeader(title) + el.innerHTML + _pdfFooter();
+  document.body.appendChild(tmp);
+  toast('Generando PDF...', 'info');
+  html2pdf().set(_pdfOpts(title)).from(tmp).save().then(() => {
+    document.body.removeChild(tmp);
+    toast('PDF descargado', 'ok');
+  }).catch(() => { document.body.removeChild(tmp); toast('Error al generar PDF', 'err') });
+}
+function sharePDF(elId, title) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!navigator.share) { toast('Compartir no soportado en este navegador', 'err'); return }
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;font-family:Roboto,Arial,sans-serif;color:#22303e;background:#fff;padding:24px';
+  tmp.innerHTML = _pdfHeader(title) + el.innerHTML + _pdfFooter();
+  document.body.appendChild(tmp);
+  html2pdf().set({ ..._pdfOpts(title), returnTemp: true }).from(tmp).outputPdf('blob').then(blob => {
+    document.body.removeChild(tmp);
+    const file = new File([blob], title.replace(/[^a-z0-9]/gi, '_') + '.pdf', { type: 'application/pdf' });
+    navigator.share({ title: title, text: 'COMANDO 1×10 — ' + title, files: [file] }).catch(() => toast('Cancelado', 'err'));
+  }).catch(() => { document.body.removeChild(tmp); toast('Error al generar PDF', 'err') });
+}
+function buildActionBtns(elId, title) {
+  return '<div class="no-print" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">' +
+    '<button class="btn btn-w btn-xs" onclick="printSection(\'' + elId + '\',\'' + esc(title) + '\')">' + ic('file', 13) + ' Imprimir</button>' +
+    '<button class="btn btn-navy btn-xs" onclick="downloadPDF(\'' + elId + '\',\'' + esc(title) + '\')">' + ic('dl', 13) + ' Descargar PDF</button>' +
+    '<button class="btn btn-w btn-xs" onclick="sharePDF(\'' + elId + '\',\'' + esc(title) + '\')">' + ic('bolt', 13) + ' Compartir</button></div>';
+}
+
 function toast(msg, type, ms) {
   const t = document.createElement('div');
   t.className = 'toast ' + (type || '');
@@ -849,7 +946,7 @@ async function inicializarTurso() {
   if (users[0].n === 0) {
     const seeds = [
       ['admin', 'admin123', 'Lcda. Mariela Quintero', 'A', 'Administradora del Sistema'],
-      ['jefe', 'jefe123', 'Gualberto Rodríguez', 'J', 'Jefe de Comando'],
+      ['jefe', 'jefe123', 'Gualberto Martinez', 'J', 'Jefe de Comando'],
       ['operador', 'operador123', 'Pedro Rivas', 'O', 'Operador de Sala'],
       ['cdiaz', 'operador123', 'Carmen Díaz', 'O', 'Operadora Territorial']
     ];
@@ -1114,8 +1211,8 @@ function renderDash() {
   const top = CACHE.centros.map(c => ({ l: c.nombre, v: CACHE.pad.filter(p => p.centro_votacion === c.codigo).length })).sort((a, b) => b.v - a.v).slice(0, 8);
   const cob = CACHE.pad.length ? regs / CACHE.pad.length : 0;
 
-  $('sec-dash').innerHTML = panel('Sala Situacional / Indicadores Generales',
-    '<div class="grid g4">' +
+  $('sec-dash').innerHTML = panel('Sala Situacional / Indicadores Generales <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'dashContent\',\'Sala Situacional — Indicadores Generales\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'dashContent\',\'Sala Situacional — Indicadores Generales\')">' + ic('dl', 13) + ' PDF</button></div>',
+    '<div id="dashContent"><div class="grid g4">' +
     kc('Padrón CNE (Turso)', CACHE.pad.length, 'electores en la nube') +
     kc('Reclutadores activos', CACHE.recl.length, buckets[0] + ' con lista completa') +
     kc('Personas en listas 1×10', regs, (100 * cob).toFixed(1) + '% del padrón', cob * 100) +
@@ -1133,7 +1230,7 @@ function renderDash() {
     '<div class="grid g2">' +
     panel('Actividad en Tiempo Real <span class="chip chip-g" style="margin-left:auto">● TURSO</span>', '<div id="feedList" style="max-height:320px;overflow:auto"></div>') +
     panel('Reclutadores Destacados', '<div id="leadList"></div>') +
-    '</div>';
+    '</div></div>';
 
   donut('listas', [
     { l: 'Completas 10/10', v: buckets[0], c: '#43a047' },
@@ -1274,15 +1371,15 @@ function renderRecl() {
   const comp = CACHE.recl.filter(r => r.lista.length === 10).length, vac = CACHE.recl.filter(r => !r.lista.length).length;
   $('sec-recl').innerHTML = panel('Reclutadores / Gestión de Listas 1×10',
     '<div class="grid g4" style="margin-bottom:14px">' + kc('Reclutadores', CACHE.recl.length, 'desplegados') + kc('Listas completas', comp, (CACHE.recl.length ? (100 * comp / CACHE.recl.length).toFixed(0) : 0) + '%', CACHE.recl.length ? 100 * comp / CACHE.recl.length : 0, comp === CACHE.recl.length && comp > 0) + kc('En progreso', CACHE.recl.length - comp - vac, '1 a 9 registros') + kc('Vacías', vac, 'por activar') + '</div>' +
-    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:2"><label class="fl">Buscar</label><input class="inp" id="rq2" value="' + esc(qq) + '" oninput="renderRecl()"></div><div style="flex:0;align-self:end"><button class="btn btn-navy" onclick="openNewRecl()">' + ic('users', 14) + ' Nuevo reclutador</button></div></div>' +
-    '<div class="grid g3">' + (list.map(r => {
+    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:2"><label class="fl">Buscar</label><input class="inp" id="rq2" value="' + esc(qq) + '" oninput="renderRecl()"></div><div style="flex:0;align-self:end"><div style="display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'reclContent\',\'Reclutadores — Gestión de Listas 1×10\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'reclContent\',\'Reclutadores — Gestión de Listas 1×10\')">' + ic('dl', 13) + ' PDF</button><button class="btn btn-navy" onclick="openNewRecl()">' + ic('users', 14) + ' Nuevo reclutador</button></div></div></div>' +
+    '<div id="reclContent"><div class="grid g3">' + (list.map(r => {
       const p = padBy(r.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : r.cedula;
       const n = r.lista.length;
       return '<div class="kcard" style="cursor:pointer" onclick="openRec(' + r.id + ')"><div style="display:flex;gap:10px;align-items:center"><span class="uava">' + ini(nm) + '</span><div style="min-width:0;flex:1"><b style="font-size:13.5px;color:var(--navy)">' + esc(nm) + '</b><div class="mono" style="font-size:11px;color:var(--mut)">' + fC(p ? p.letra : 'V', r.cedula) + '</div></div><span class="chip chip-b">' + esc(r.estructura || '—') + '</span></div>' +
         '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);margin-top:9px"><span>Progreso</span><b class="mono" style="color:' + (n >= 10 ? 'var(--green)' : 'var(--navy)') + '">' + n + '/10</b></div><div class="pbar"><i class="' + (n >= 10 ? 'full' : '') + '" style="width:' + (n * 10) + '%"></i></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:9px">' + (n >= 10 ? '<span class="chip chip-g">✓ COMPLETA</span>' : n === 0 ? '<span class="chip chip-gr">VACÍA</span>' : n >= 7 ? '<span class="chip chip-t">AVANZADA ' + n + '/10</span>' : '<span class="chip chip-y">EN PROCESO ' + n + '/10</span>') + '<span class="mono" style="font-size:10.5px;color:var(--mut)">📞 ' + esc(r.telefono || '—') + '</span></div>' +
         '<div style="display:flex;gap:7px;margin-top:9px"><button class="btn btn-navy btn-xs" style="flex:1;justify-content:center" onclick="event.stopPropagation();openRec(' + r.id + ')">' + ic('search', 12) + ' Ver / cotejar</button><button class="btn btn-w btn-xs" onclick="event.stopPropagation();REG.rec=' + r.id + ';go(\'registro\')">' + ic('target', 12) + ' Registrar</button></div></div>';
-    }).join('') || '<div class="empty">Sin reclutadores.</div>') + '</div>');
+    }).join('') || '<div class="empty">Sin reclutadores.</div>') + '</div></div>');
   _refocus(prevFocus);
 }
 function openRec(id) {
@@ -1370,10 +1467,14 @@ function renderPadron() {
     '<div><label class="fl">Centro</label><select class="inp" onchange="PADF.centro=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option>' + CACHE.centros.map(c => '<option value="' + c.codigo + '" ' + (f.centro === c.codigo ? 'selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></div>' +
     '<div style="max-width:95px"><label class="fl">Edad mín.</label><input class="inp" type="number" value="' + f.e1 + '" onchange="PADF.e1=this.value;PADF.pg=1;renderPadron()"></div>' +
     '<div style="max-width:95px"><label class="fl">Edad máx.</label><input class="inp" type="number" value="' + f.e2 + '" onchange="PADF.e2=this.value;PADF.pg=1;renderPadron()"></div>' +
-    '<div style="flex:0;align-self:end"><button class="btn btn-w" onclick="expPadron()">' + ic('dl', 14) + ' CSV</button></div></div>' +
-    '<table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th><th>Centro de votación</th><th>Municipio / Parroquia</th><th>Estatus 1×10</th></tr></thead><tbody>' +
+    '<div style="flex:0;align-self:end"><div style="display:flex;gap:6px">' +
+    '<button class="btn btn-w" onclick="expPadron()">' + ic('dl', 14) + ' CSV</button>' +
+    '<button class="btn btn-w" onclick="printSection(\'padronContent\',\'Padrón CNE — Electores\')">' + ic('file', 14) + ' Imprimir</button>' +
+    '<button class="btn btn-navy" onclick="downloadPDF(\'padronContent\',\'Padrón CNE — Electores\')">' + ic('dl', 14) + ' PDF</button>' +
+    '</div></div></div>' +
+    '<div id="padronContent"><table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th><th>Centro de votación</th><th>Municipio / Parroquia</th><th>Estatus 1×10</th></tr></thead><tbody>' +
     (rows.map(p => { const a = asignDe(p.cedula); return '<tr><td class="mono" style="font-weight:700">' + fC(p.letra, p.cedula) + (p.es_manual ? ' <span class="chip chip-r">MANUAL</span>' : '') + '</td><td>' + esc(apeP(p)) + '</td><td>' + esc(nomP(p)) + '</td><td>' + (p.edad || 0) + '</td><td>' + p.sexo + '</td><td class="mono" style="font-size:11px">' + esc(p.fecha_nac || '') + '</td><td style="max-width:190px">' + esc(p.nombre_cv) + ' <span class="mono" style="font-size:10px;color:var(--mut)">' + p.centro_votacion + '</span></td><td>' + esc(p.municipio) + ' / ' + esc(p.parroquia) + '</td><td>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">★ RECLUTADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="openRec(' + a.r.id + ')">✓ #' + a.pos + '</button>') : '<span class="chip chip-gr">LIBRE</span>') + '</td></tr>' }).join('') || '<tr><td colspan="9"><div class="empty">Sin resultados.</div></td></tr>') +
-    '</tbody></table><div class="pager">' + Array.from({ length: Math.min(pgs, 20) }, (_, i) => '<button class="pg' + (i + 1 === f.pg ? ' on' : '') + '" onclick="PADF.pg=' + (i + 1) + ';renderPadron()">' + (i + 1) + '</button>').join('') + (pgs > 20 ? '<span style="align-self:center;color:var(--mut);font-size:12px">… ' + pgs + ' págs</span>' : '') + '</div>');
+    '</tbody></table></div><div class="pager">' + Array.from({ length: Math.min(pgs, 20) }, (_, i) => '<button class="pg' + (i + 1 === f.pg ? ' on' : '') + '" onclick="PADF.pg=' + (i + 1) + ';renderPadron()">' + (i + 1) + '</button>').join('') + (pgs > 20 ? '<span style="align-self:center;color:var(--mut);font-size:12px">… ' + pgs + ' págs</span>' : '') + '</div>');
   _refocus(prevFocus);
 }
 function expPadron() {
@@ -1384,11 +1485,11 @@ function expPadron() {
 
 /* ═══════════ CENTROS ═══════════ */
 function renderCentros() {
-  $('sec-centros').innerHTML = panel('Centros Electorales / Catálogo CNE <span style="margin-left:auto;display:flex;gap:8px"><span class="chip chip-b">' + CACHE.centros.length + ' centro(s)</span><span class="chip chip-y">' + CACHE.pad.length + ' electores</span></span>',
-    '<div class="grid g3">' + CACHE.centros.map(c => {
+  $('sec-centros').innerHTML = panel('Centros Electorales / Catálogo CNE <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'cenContent\',\'Centros Electorales — Catálogo CNE\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'cenContent\',\'Centros Electorales — Catálogo CNE\')">' + ic('dl', 13) + ' PDF</button><span class="chip chip-b">' + CACHE.centros.length + ' centro(s)</span><span class="chip chip-y">' + CACHE.pad.length + ' electores</span></div>',
+    '<div id="cenContent"><div class="grid g3">' + CACHE.centros.map(c => {
       const list = CACHE.pad.filter(p => p.centro_votacion === c.codigo); const M = list.filter(p => p.sexo === 'M').length; const enL = list.filter(p => asignDe(p.cedula)).length;
       return '<div class="kcard" style="cursor:pointer" onclick="openCentro(\'' + c.codigo + '\')"><div style="display:flex;justify-content:space-between"><span class="mono chip chip-gr">' + c.codigo + '</span><span class="chip chip-t">' + (c.mesas || 1) + ' mesa(s)</span></div><b style="display:block;font-size:14px;color:var(--navy);margin:8px 0 2px">' + esc(c.nombre) + '</b><div style="font-size:12px;color:var(--mut)">' + ic('pin', 12) + ' ' + esc(c.municipio) + ' · ' + esc(c.parroquia) + ' · ' + esc(c.estado) + '</div><div style="display:flex;align-items:flex-end;gap:12px;margin-top:10px"><div><div style="font-size:27px;font-weight:700;color:var(--navy)">' + list.length + '</div><div style="font-size:10.5px;color:var(--mut);font-weight:700">ELECTORES</div></div><div style="flex:1"><div style="font-size:11px;color:var(--mut);margin-bottom:3px"><b style="color:var(--navy)">' + enL + '</b> en listas 1×10</div><div class="stack" style="height:12px;margin:0"><i style="width:' + (list.length ? 100 * M / list.length : 0) + '%;background:#1e88e5"></i><i style="width:' + (list.length ? 100 * (list.length - M) / list.length : 0) + '%;background:#e53935"></i></div><div style="font-size:10.5px;color:var(--mut);margin-top:3px">' + M + ' M · ' + (list.length - M) + ' F</div></div></div></div>';
-    }).join('') + '</div>');
+    }).join('') + '</div></div>');
 }
 function openCentro(cod) {
   const c = cenBy(cod); if (!c) return;
@@ -1429,8 +1530,8 @@ function renderRep() {
     const g2 = {}; CACHE.pad.forEach(p => g2[p.municipio] = (g2[p.municipio] || 0) + 1);
     desg = Object.entries(g2).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v }));
   }
-  $('sec-rep').innerHTML = panel('Reportes / Análisis Cruzado <button class="btn btn-w btn-xs" style="margin-left:auto" onclick="expRep()">' + ic('dl', 12) + ' CSV</button>',
-    '<div class="filter-bar" style="margin-bottom:14px">' +
+  $('sec-rep').innerHTML = panel('Reportes / Análisis Cruzado <div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-w btn-xs" onclick="expRep()">' + ic('dl', 12) + ' CSV</button><button class="btn btn-w btn-xs" onclick="printSection(\'repContent\',\'Reportes — Análisis Cruzado\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'repContent\',\'Reportes — Análisis Cruzado\')">' + ic('dl', 13) + ' PDF</button></div>',
+    '<div id="repContent"><div class="filter-bar" style="margin-bottom:14px">' +
     '<div style="flex:2"><label class="fl">Centro electoral</label><select class="inp" onchange="REPF.centro=this.value;renderRep()"><option value="">— TODOS —</option>' + CACHE.centros.map(c => '<option value="' + c.codigo + '" ' + (f.centro === c.codigo ? 'selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></div>' +
     '<div style="max-width:100px"><label class="fl">Sexo</label><select class="inp" onchange="REPF.sexo=this.value;renderRep()"><option value="">Todos</option><option value="M" ' + (f.sexo === 'M' ? 'selected' : '') + '>M</option><option value="F" ' + (f.sexo === 'F' ? 'selected' : '') + '>F</option></select></div>' +
     '<div style="max-width:95px"><label class="fl">Edad desde</label><input class="inp" type="number" value="' + (f.e1 || '') + '" onchange="REPF.e1=this.value;renderRep()"></div>' +
@@ -1438,7 +1539,7 @@ function renderRep() {
     '<div class="grid g4" style="margin-bottom:14px">' + kc('Electores del corte', list.length, f.centro ? esc(cenBy(f.centro).nombre) : 'todos los centros') + kc('En listas 1×10', list.filter(p => asignDe(p.cedula)).length, (list.length ? (100 * list.filter(p => asignDe(p.cedula)).length / list.length).toFixed(1) : 0) + '%') + kc('Centros con data', CACHE.centros.length, 'electores cruzados') + kc('Edad promedio', list.length ? (list.reduce((a, p) => a + (p.edad || 0), 0) / list.length).toFixed(1) : 0, 'M:' + list.filter(p => p.sexo === 'M').length + ' F:' + list.filter(p => p.sexo === 'F').length) + '</div>' +
     '<div class="grid g2" style="margin-bottom:14px">' + panel(f.centro ? 'Desglose por municipio' : 'Votantes por centro', '<div id="ch-repC"></div>') + panel('Rango etario del corte', '<div id="ch-repE"></div>') + '</div>' +
     panel(ic('pin', 15) + ' Desglose por municipio',
-      (desg.length ? '<table class="tbl"><thead><tr><th>Municipio</th><th>Votantes</th><th>%</th></tr></thead><tbody>' + desg.map(x => '<tr><td><b>' + esc(x.l) + '</b></td><td class="mono">' + x.v + '</td><td>' + (list.length ? (100 * x.v / list.length).toFixed(1) : 0) + '%</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sin datos.</div>')));
+      (desg.length ? '<table class="tbl"><thead><tr><th>Municipio</th><th>Votantes</th><th>%</th></tr></thead><tbody>' + desg.map(x => '<tr><td><b>' + esc(x.l) + '</b></td><td class="mono">' + x.v + '</td><td>' + (list.length ? (100 * x.v / list.length).toFixed(1) : 0) + '%</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sin datos.</div>') + '</div>'));
   hbars('repC', byC.map((x, i) => ({ ...x, c: f.centro ? (x.local ? '#43a047' : '#e53935') : PAL[i % PAL.length] })));
   vbars('repE', R.map(r => ({ l: r[2], v: list.filter(p => (p.edad || 0) >= r[0] && (p.edad || 0) <= r[1]).length })));
 }
@@ -1640,7 +1741,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
     $('qchips').innerHTML = [
-      ['jefe', 'jefe123', 'Gualberto Rodríguez', 'JEFE DE COMANDO'],
+      ['jefe', 'jefe123', 'Gualberto Martinez', 'JEFE DE COMANDO'],
       ['admin', 'admin123', 'Lcda. Mariela Quintero', 'ADMINISTRADORA'],
       ['operador', 'operador123', 'Pedro Rivas', 'OPERADOR'],
       ['cdiaz', 'operador123', 'Carmen Díaz', 'OPERADORA']
