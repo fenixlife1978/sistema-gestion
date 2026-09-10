@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -131,6 +131,26 @@ label.fl{color:var(--navy);font-weight:700;font-size:12.5px;display:block;margin
 .pdf-header h1{font-size:18px;color:var(--navy);flex:1}
 .pdf-header .meta{font-size:10px;color:#666;text-align:right}
 .pdf-footer{margin-top:20px;padding-top:10px;border-top:2px solid var(--navy);font-size:9px;color:#888;display:flex;justify-content:space-between}
+</style>
+<style>
+html,body{width:100%;overflow-x:hidden;max-width:100vw}
+#hdr{overflow:hidden;min-width:0}
+.hdr-l{min-width:0;overflow:hidden}
+#hdr h1{font-size:clamp(14px,2.5vw,22px)}
+#hdrInfo{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#toolbar{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#toolbar::-webkit-scrollbar{display:none}
+#tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+#main{padding:14px 12px 60px;overflow-x:hidden}
+.panel-h{overflow:hidden}
+.filter-bar{gap:8px}.filter-bar>div{min-width:90px}
+.panel-b{overflow-x:auto}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.gC{grid-template-columns:1fr}
+.g2,.g3,.g4{grid-template-columns:1fr}
+@media(min-width:761px){.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.gC{grid-template-columns:330px 1fr}}
+@media(max-width:600px){#hdr{padding:10px 12px;gap:10px}#hdr h1{font-size:15px}#clock{font-size:14px}#hdrInfo{font-size:11px}.tab{min-width:0;padding:6px 10px;font-size:11.5px}#main{padding:10px 8px 50px}.panel-b{padding:10px}.kcard{padding:10px}.filter-bar{flex-direction:column}.filter-bar>div{min-width:0;flex:1 1 100%}.btn{padding:7px 12px;font-size:12px}.qchips{grid-template-columns:1fr}.win{max-width:96vw}}
 </style>
 </head>
 <body>
