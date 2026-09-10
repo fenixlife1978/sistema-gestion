@@ -861,7 +861,7 @@ const kc = (l, v, s, bar, full) => '<div class="kcard"><div class="kl">' + l + '
 
 /* ═══════════ ESTADO GLOBAL ═══════════ */
 let USER = null, CUR = 'dash', REG = { rec: null }, LAST_REC = null;
-let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = {};
+let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '' };
 let CACHE = { pad: [], centros: [], recl: [], act: [], users: [] };
 
 /* ═══════════ ESQUEMA TURSO (AUTO-MIGRACIÓN) ═══════════ */
@@ -1485,8 +1485,12 @@ function expPadron() {
 
 /* ═══════════ CENTROS ═══════════ */
 function renderCentros() {
-  $('sec-centros').innerHTML = panel('Centros Electorales / Catálogo CNE <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'cenContent\',\'Centros Electorales — Catálogo CNE\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'cenContent\',\'Centros Electorales — Catálogo CNE\')">' + ic('dl', 13) + ' PDF</button><span class="chip chip-b">' + CACHE.centros.length + ' centro(s)</span><span class="chip chip-y">' + CACHE.pad.length + ' electores</span></div>',
-    '<div id="cenContent"><div class="grid g3">' + CACHE.centros.map(c => {
+  const munis = [...new Set(CACHE.centros.map(c => c.municipio))].sort();
+  const filtered = CACHE.centros.filter(c => !CENF.municipio || c.municipio === CENF.municipio);
+  const totalElect = filtered.reduce((a, c) => a + CACHE.pad.filter(p => p.centro_votacion === c.codigo).length, 0);
+  $('sec-centros').innerHTML = panel('Centros Electorales / Catálogo CNE <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'cenContent\',\'Centros Electorales — Catálogo CNE\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'cenContent\',\'Centros Electorales — Catálogo CNE\')">' + ic('dl', 13) + ' PDF</button><span class="chip chip-b">' + filtered.length + ' centro(s)</span><span class="chip chip-y">' + totalElect + ' electores</span></div>',
+    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:2"><label class="fl">Municipio</label><select class="inp" onchange="CENF.municipio=this.value;renderCentros()"><option value="">— TODOS —</option>' + munis.map(m => '<option value="' + esc(m) + '" ' + (CENF.municipio === m ? 'selected' : '') + '>' + esc(m) + '</option>').join('') + '</select></div></div>' +
+    '<div id="cenContent"><div class="grid g3">' + filtered.map(c => {
       const list = CACHE.pad.filter(p => p.centro_votacion === c.codigo); const M = list.filter(p => p.sexo === 'M').length; const enL = list.filter(p => asignDe(p.cedula)).length;
       return '<div class="kcard" style="cursor:pointer" onclick="openCentro(\'' + c.codigo + '\')"><div style="display:flex;justify-content:space-between"><span class="mono chip chip-gr">' + c.codigo + '</span><span class="chip chip-t">' + (c.mesas || 1) + ' mesa(s)</span></div><b style="display:block;font-size:14px;color:var(--navy);margin:8px 0 2px">' + esc(c.nombre) + '</b><div style="font-size:12px;color:var(--mut)">' + ic('pin', 12) + ' ' + esc(c.municipio) + ' · ' + esc(c.parroquia) + ' · ' + esc(c.estado) + '</div><div style="display:flex;align-items:flex-end;gap:12px;margin-top:10px"><div><div style="font-size:27px;font-weight:700;color:var(--navy)">' + list.length + '</div><div style="font-size:10.5px;color:var(--mut);font-weight:700">ELECTORES</div></div><div style="flex:1"><div style="font-size:11px;color:var(--mut);margin-bottom:3px"><b style="color:var(--navy)">' + enL + '</b> en listas 1×10</div><div class="stack" style="height:12px;margin:0"><i style="width:' + (list.length ? 100 * M / list.length : 0) + '%;background:#1e88e5"></i><i style="width:' + (list.length ? 100 * (list.length - M) / list.length : 0) + '%;background:#e53935"></i></div><div style="font-size:10.5px;color:var(--mut);margin-top:3px">' + M + ' M · ' + (list.length - M) + ' F</div></div></div></div>';
     }).join('') + '</div></div>');
@@ -1514,6 +1518,7 @@ function renderRep() {
   const f = REPF;
   const list = CACHE.pad.filter(p => {
     if (f.centro && p.centro_votacion !== f.centro) return false;
+    if (f.municipio && p.municipio !== f.municipio) return false;
     if (f.sexo && p.sexo !== f.sexo) return false;
     if (f.e1 && (p.edad || 0) < +f.e1) return false;
     if (f.e2 && (p.edad || 0) > +f.e2) return false;
@@ -1533,6 +1538,7 @@ function renderRep() {
   $('sec-rep').innerHTML = panel('Reportes / Análisis Cruzado <div style="display:flex;gap:6px;margin-left:auto"><button class="btn btn-w btn-xs" onclick="expRep()">' + ic('dl', 12) + ' CSV</button><button class="btn btn-w btn-xs" onclick="printSection(\'repContent\',\'Reportes — Análisis Cruzado\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'repContent\',\'Reportes — Análisis Cruzado\')">' + ic('dl', 13) + ' PDF</button></div>',
     '<div id="repContent"><div class="filter-bar" style="margin-bottom:14px">' +
     '<div style="flex:2"><label class="fl">Centro electoral</label><select class="inp" onchange="REPF.centro=this.value;renderRep()"><option value="">— TODOS —</option>' + CACHE.centros.map(c => '<option value="' + c.codigo + '" ' + (f.centro === c.codigo ? 'selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></div>' +
+    '<div style="flex:1"><label class="fl">Municipio</label><select class="inp" onchange="REPF.municipio=this.value;REPF.centro=\'\';renderRep()"><option value="">— TODOS —</option>' + [...new Set(CACHE.pad.map(p => p.municipio))].sort().map(m => '<option value="' + esc(m) + '" ' + (f.municipio === m ? 'selected' : '') + '>' + esc(m) + '</option>').join('') + '</select></div>' +
     '<div style="max-width:100px"><label class="fl">Sexo</label><select class="inp" onchange="REPF.sexo=this.value;renderRep()"><option value="">Todos</option><option value="M" ' + (f.sexo === 'M' ? 'selected' : '') + '>M</option><option value="F" ' + (f.sexo === 'F' ? 'selected' : '') + '>F</option></select></div>' +
     '<div style="max-width:95px"><label class="fl">Edad desde</label><input class="inp" type="number" value="' + (f.e1 || '') + '" onchange="REPF.e1=this.value;renderRep()"></div>' +
     '<div style="max-width:95px"><label class="fl">Edad hasta</label><input class="inp" type="number" value="' + (f.e2 || '') + '" onchange="REPF.e2=this.value;renderRep()"></div></div>' +
@@ -1544,7 +1550,7 @@ function renderRep() {
   vbars('repE', R.map(r => ({ l: r[2], v: list.filter(p => (p.edad || 0) >= r[0] && (p.edad || 0) <= r[1]).length })));
 }
 function expRep() {
-  const list = CACHE.pad.filter(p => { const f = REPF; if (f.centro && p.centro_votacion !== f.centro) return false; if (f.sexo && p.sexo !== f.sexo) return false; if (f.e1 && (p.edad || 0) < +f.e1) return false; if (f.e2 && (p.edad || 0) > +f.e2) return false; return true });
+  const list = CACHE.pad.filter(p => { const f = REPF; if (f.centro && p.centro_votacion !== f.centro) return false; if (f.municipio && p.municipio !== f.municipio) return false; if (f.sexo && p.sexo !== f.sexo) return false; if (f.e1 && (p.edad || 0) < +f.e1) return false; if (f.e2 && (p.edad || 0) > +f.e2) return false; return true });
   const rows = [['LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'NOMBRE_COMPLETO', 'EDAD', 'SEXO', 'MUNICIPIO', 'PARROQUIA', 'CENTRO_VOTACION', 'NOMBRE_CV', 'LISTA_1X10']];
   list.forEach(p => { const a = asignDe(p.cedula); rows.push([p.letra, p.cedula, apeP(p) + ', ' + nomP(p), p.edad, p.sexo, p.municipio, p.parroquia, p.centro_votacion, p.nombre_cv, a ? nomP(padBy(a.r.cedula) || { p_nombre: a.r.cedula }) : 'LIBRE']) });
   dlCSV('reporte_1x10_turso.csv', rows); toast('Reporte exportado', 'ok');
