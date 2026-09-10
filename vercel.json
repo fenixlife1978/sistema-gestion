@@ -1,12 +1,4 @@
 {
-  "version": 2,
-  "builds": [
-    { "src": "api/turso.js", "use": "@vercel/node" },
-    { "src": "sistema-gestion.html", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/turso.js" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  "cleanUrls": false,
+  "trailingSlash": false
 }
