@@ -181,15 +181,57 @@ label.fl{color:var(--navy);font-weight:700;font-size:12.5px;display:block;margin
 <div id="toasts"></div>
 
 <script>
-/* ═══════════ CONFIGURACIÓN TURSO ═══════════ */
-const TURSO_URL = 'https://sistema-gestion-gualberto.aws-us-east-1.turso.io';
-const TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODkwMTEwOTYsImlkIjoiMDFhMDg5NWUtYWMwMS03ZTM3LTlhZTktNTk0N2ZlMGEzM2Q3Iiwia2lkIjoiY3dvc0p5ZGh3ZXFXRzZ2NGdhdFdWT2M0R2dGY2Y1QkhqZEhQTmJzYWljbyIsInJpZCI6Ijk0OTdkODU4LWQxZTItNGRlMi1iODFlLTAwNzA4ZjM5YzdhYSJ9.dPOB01tqMYLR8pKLiHGsLEJ_E-F0QW_thwJ1RUQhbMiwLkDaR2qAzk5vnWWCZofzBkKd_slsMR6sYoVpnHj8AQ';
+/* ═══════════ CONFIGURACIÓN TURSO (localStorage) ═══════════ */
+const LS_KEY = 'turso_cfg';
+function getTursoCfg() {
+  try { const c = JSON.parse(localStorage.getItem(LS_KEY)); if (c && c.url && c.token) return c; } catch(e) {}
+  return null;
+}
+function setTursoCfg(url, token) {
+  localStorage.setItem(LS_KEY, JSON.stringify({ url: url.replace(/\/+$/, ''), token }));
+}
+function getTursoUrl() { return getTursoCfg()?.url || ''; }
+function getTursoToken() { return getTursoCfg()?.token || ''; }
+function openTursoConfig(isFirst) {
+  const cfg = getTursoCfg() || {};
+  modal(
+    '<div style="text-align:center;margin-bottom:18px">' + ic('db', 36) + '<h2 style="margin:8px 0 4px;color:var(--navy)">Conexión a Turso</h2><p style="font-size:13px;color:var(--mut)">Configure las credenciales de su base de datos en la nube</p></div>' +
+    '<div style="display:grid;gap:14px">' +
+      '<div><label class="fl">URL del Database (Turso)</label><input class="inp mono" id="cfgUrl" placeholder="https://mi-db.turso.io" value="' + esc(cfg.url || '') + '"></div>' +
+      '<div><label class="fl">Token de autenticación</label><input class="inp mono" id="cfgTok" type="password" placeholder="eyJ..." value="' + esc(cfg.token || '') + '"><div style="font-size:11px;color:var(--mut);margin-top:4px">Obtener en turso.io → Database → Tokens</div></div>' +
+      '<div id="cfgErr" style="color:var(--red);font-size:12px;display:none"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+        (isFirst ? '' : '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>') +
+        '<button class="btn btn-navy" onclick="saveTursoCfg(' + isFirst + ')">Probar y guardar</button>' +
+      '</div>' +
+    '</div>', 520);
+  setTimeout(() => { const u = $('cfgUrl'); if (u) u.focus(); }, 100);
+}
+async function saveTursoCfg(isFirst) {
+  const url = ($('cfgUrl') || {}).value?.trim() || '';
+  const token = ($('cfgTok') || {}).value?.trim() || '';
+  if (!url || !token) { $('cfgErr').textContent = 'Complete ambos campos'; $('cfgErr').style.display = 'block'; return }
+  $('cfgErr').style.display = 'none';
+  setTursoCfg(url, token);
+  try {
+    await q('SELECT 1');
+    closeModal();
+    toast('Conexión exitosa', 'ok');
+    if (isFirst) { $('loading').style.display = 'none'; $('vLogin').style.display = 'flex'; $('lgInfo').textContent = 'Turso conectado ✓'; }
+    else { location.reload(); }
+  } catch(e) {
+    $('cfgErr').textContent = 'Error de conexión: ' + e.message;
+    $('cfgErr').style.display = 'block';
+  }
+}
 
 /* ═══════════ CLIENTE TURSO ═══════════ */
 async function turso(stmts) {
-  const r = await fetch(TURSO_URL, {
+  const url = getTursoUrl(), token = getTursoToken();
+  if (!url || !token) throw new Error('Configuración Turso no encontrada');
+  const r = await fetch(url, {
     method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + TURSO_TOKEN, 'Content-Type': 'application/json' },
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ statements: Array.isArray(stmts) ? stmts.map(s => ({ q: s.sql || s.q, params: s.args || s.params || [] })) : [{ q: stmts.sql || stmts.q, params: stmts.args || stmts.params || [] }] })
   });
   if (!r.ok) throw new Error('Turso HTTP ' + r.status);
@@ -1039,7 +1081,7 @@ function openAlerts() {
 function openAbout() {
   win(ic('id', 18) + ' Acerca del sistema',
     '<p style="font-size:13.5px;line-height:1.7"><b>COMANDO 1×10 — ERP ELECTORAL</b> · v4.0 Turso<br>' +
-    'Base de datos: <b>Turso</b> (' + TURSO_URL.replace('https://', '').replace('.turso.io', '') + ')<br>' +
+    'Base de datos: <b>Turso</b> (' + getTursoUrl().replace('https://', '').replace('.turso.io', '') + ')<br>' +
     'Data activa: <b>' + CACHE.pad.length + ' electores</b> · ' + CACHE.centros.length + ' centro(s) · ' + CACHE.recl.length + ' reclutadores · ' + CACHE.users.length + ' usuarios<br>' +
     'Sesión: <b>' + esc(USER.nombre) + '</b> · Rol: <b>' + ({'J': 'JEFE DE COMANDO', 'A': 'ADMINISTRADOR', 'O': 'OPERADOR'}[USER.rol]) + '</b></p>',
     '<button class="btn btn-w" onclick="closeModal()">Cerrar</button>', 520);
@@ -1516,8 +1558,8 @@ function renderData() {
     '<div class="ck-it"><b>' + CACHE.centros.length + '</b><span>Centros en Turso</span></div>' +
     '<div class="ck-it"><b>' + CACHE.recl.length + '</b><span>Reclutadores</span></div>' +
     '<div class="ck-it"><b>' + CACHE.users.length + '</b><span>Usuarios</span></div>' +
-    '</div><div class="mono" style="font-size:11px;color:var(--mut);margin-top:12px;word-break:break-all">' + TURSO_URL + '</div></div></div></div>' +
-    '<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-w" onclick="tplCSV()">' + ic('file', 14) + ' Plantilla CSV</button><button class="btn btn-navy" onclick="resetCNE()">' + ic('db', 14) + ' Reiniciar padrón CNE (479)</button><button class="btn btn-red" onclick="wipeTurso()">' + ic('trash', 14) + ' Vaciar todas las tablas</button></div>');
+    '</div><div class="mono" style="font-size:11px;color:var(--mut);margin-top:12px;word-break:break-all">' + getTursoUrl() + '</div></div></div></div>' +
+    '<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-w" onclick="tplCSV()">' + ic('file', 14) + ' Plantilla CSV</button><button class="btn btn-navy" onclick="resetCNE()">' + ic('db', 14) + ' Reiniciar padrón CNE (479)</button><button class="btn btn-red" onclick="wipeTurso()">' + ic('trash', 14) + ' Vaciar todas las tablas</button><button class="btn btn-w" onclick="openTursoConfig(false)">' + ic('db', 14) + ' Reconfigurar conexión Turso</button></div>');
 }
 function tplCSV() { dlCSV('plantilla_padron_cne.csv', [['LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'CODIGO_ESTADO', 'ESTADO', 'CODIGO_MUNICIPIO', 'MUNICIPIO', 'CODIGO_PARROQUIA', 'PARROQUIA', 'CENTRO_VOTACION', 'NOMBRE_CV'], ['V', '12345678', 'PEREZ', 'GONZALEZ', 'MARIA', 'JOSE', 'F', '1980-05-10', '20', 'EDO. YARACUY', '11', 'MP. INDEPENDENCIA', '1', 'CM. INDEPENDENCIA', '201101030', 'ALDEA COMUNAL JOSE PIEDRA']]); toast('Plantilla descargada', 'ok') }
 function parseCSV(txt) {
@@ -1621,9 +1663,17 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 
 /* ═══════════ ARRANQUE ═══════════ */
 (async function main() {
+  if (!getTursoCfg()) {
+    setLoad('Configure sus credenciales de Turso');
+    $('lgInfo').textContent = 'Sin configurar';
+    $('loading').style.display = 'none';
+    $('vLogin').style.display = 'flex';
+    $('lgU').value = ''; $('lgP').value = '';
+    $('qchips').innerHTML = '<div style="padding:16px;text-align:center"><p style="color:var(--navy);font-weight:600;margin-bottom:8px">Base de datos no configurada</p><p style="font-size:12.5px;color:var(--mut);margin-bottom:14px">Primero debe ingresar las credenciales de su database Turso</p><button class="btn btn-navy" onclick="openTursoConfig(true)">' + ic('db', 14) + ' Configurar conexión</button></div>';
+    return;
+  }
   try {
     setLoad('Conectando con Turso...');
-    // Test rápido de conexión
     await q('SELECT 1');
     await inicializarTurso();
     const count = await q('SELECT COUNT(*) AS n FROM padron');
@@ -1638,7 +1688,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
       ['cdiaz', 'operador123', 'Carmen Díaz', 'OPERADORA']
     ].map(a => '<button class="qchip" onclick="$(\'lgU\').value=\'' + a[0] + '\';$(\'lgP\').value=\'' + a[1] + '\';$(\'lgP\').focus()"><span class="uava">' + ini(a[2]) + '</span><div><b>' + a[2] + '</b><span>' + a[3] + ' · ' + a[0] + '</span></div></button>').join('');
   } catch (e) {
-    setLoad('Error al conectar con Turso', e.message + ' · Revise la consola (F12)');
+    setLoad('Error al conectar con Turso', e.message);
+    $('loading').style.display = 'none';
+    $('vLogin').style.display = 'flex';
+    $('lgInfo').textContent = 'Error de conexión';
+    $('qchips').innerHTML = '<div style="padding:16px;text-align:center"><p style="color:var(--red);font-weight:600;margin-bottom:8px">No se pudo conectar</p><p style="font-size:12.5px;color:var(--mut);margin-bottom:14px">' + esc(e.message) + '</p><button class="btn btn-navy" onclick="openTursoConfig(false)">' + ic('db', 14) + ' Reconfigurar credenciales</button></div>';
     console.error(e);
   }
 })();
