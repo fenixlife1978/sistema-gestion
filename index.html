@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>COMANDO 1×10 — ERP ELECTORAL (TURSO)</title>
+<title>Gestión de Campaña — ERP Electoral</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -162,7 +162,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 </div>
 
 <div id="vLogin" style="display:none"><div class="lg-win">
- <div class="lg-h"><span id="lgShield"></span><div><h1>COMANDO 1×10 — ERP ELECTORAL</h1><p>Sistema Integral de Gestión · Base de datos: <b>TURSO (Nube)</b></p></div></div>
+ <div class="lg-h"><span id="lgShield"></span><div><h1>GESTIÓN DE CAMPAÑA</h1><p>Partido Político · Yaracuy · Sistema Electoral</p></div></div>
  <div class="lg-b">
   <label class="fl">Usuario</label><input class="inp" id="lgU" placeholder="usuario" autocomplete="username">
   <label class="fl" style="margin-top:12px">Clave</label><input class="inp" id="lgP" type="password" placeholder="••••••••" autocomplete="current-password">
@@ -173,7 +173,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 
 <div id="vApp" style="display:none">
  <header id="hdr">
-  <div class="hdr-l"><span id="hdrShield"></span><div><h1>COMANDO 1×10 — ERP ELECTORAL</h1><div class="sub">Sistema Integral · Base de datos en la nube (Turso) · Multiusuario</div></div></div>
+  <div class="hdr-l"><span id="hdrShield"></span><div><h1>GESTIÓN DE CAMPAÑA</h1><div class="sub">Partido Político · Yaracuy · Base de datos en la nube (Turso)</div></div></div>
   <div class="hdr-r"><div id="clock">--:--:--</div><div id="hdrInfo">Usuario: — · <span class="yel">…</span></div></div>
  </header>
  <div id="toolbar">
@@ -733,7 +733,7 @@ const hhmm = ts => { const d = new Date(ts); return two(d.getHours()) + ':' + tw
 const tAgo = ts => { const m = Math.max(0, Math.round((Date.now() - ts) / 60000)); if (m < 1) return 'ahora'; if (m < 60) return 'hace ' + m + ' min'; const h = Math.round(m / 60); if (h < 24) return 'hace ' + h + ' h'; return 'hace ' + Math.round(h / 24) + ' d' };
 const ini = n => String(n).trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 const edadDe = fn => { if (!fn) return 0; const b = new Date(fn), t = new Date(); let e = t.getFullYear() - b.getFullYear(); const m = t.getMonth() - b.getMonth(); if (m < 0 || (m === 0 && t.getDate() < b.getDate())) e--; return e };
-const SHIELD = '<svg viewBox="0 0 64 72" width="44" height="50"><path d="M32 2 60 12v22c0 18-12 30-28 36C16 64 4 52 4 34V12z" fill="#1565c0" stroke="#fff" stroke-width="4"/><polygon points="32,15 36.9,27.2 50,28 39.9,36.4 43.2,49 32,41.8 20.8,49 24.1,36.4 14,28 27.1,27.2" fill="#f6b32b"/></svg>';
+const SHIELD = '<svg viewBox="0 0 120 120" width="48" height="48" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1565c0"/><stop offset="100%" stop-color="#0d47a1"/></linearGradient><clipPath id="rr"><rect x="2" y="2" width="116" height="116" rx="22" ry="22"/></clipPath></defs><g clip-path="url(#rr)"><rect width="120" height="120" fill="url(#bg)"/><path d="M10 95 Q30 40 60 25 Q90 40 110 95" fill="none" stroke="#FFD600" stroke-width="3" opacity=".7"/><path d="M15 100 Q35 50 60 35 Q85 50 105 100" fill="none" stroke="#fff" stroke-width="2" opacity=".5"/><circle cx="60" cy="22" r="6" fill="#C62828"/><g fill="#fff" transform="translate(60,22)"><circle cx="0" cy="0" r="2"/><circle cx="6" cy="2" r="1.8"/><circle cx="-6" cy="2" r="1.8"/><circle cx="11" cy="6" r="1.6"/><circle cx="-11" cy="6" r="1.6"/><circle cx="14" cy="11" r="1.4"/><circle cx="-14" cy="11" r="1.4"/></g><g transform="translate(38,42)"><path d="M0 28 L8 8 L16 28 Z" fill="#fff" opacity=".9"/><rect x="4" y="28" width="8" height="6" rx="1" fill="#fff" opacity=".9"/></g><g transform="translate(18,72)" fill="#fff" opacity=".85"><circle cx="10" cy="8" r="7"/><ellipse cx="10" cy="24" rx="12" ry="8"/></g><g transform="translate(42,72)" fill="#fff" opacity=".85"><circle cx="10" cy="8" r="7"/><ellipse cx="10" cy="24" rx="12" ry="8"/></g><g transform="translate(66,72)" fill="#fff" opacity=".85"><circle cx="10" cy="8" r="7"/><ellipse cx="10" cy="24" rx="12" ry="8"/></g><g transform="translate(72,38)" fill="none" stroke="#fff" stroke-width="1.5" opacity=".8"><rect x="0" y="0" width="20" height="26" rx="2"/><line x1="4" y1="7" x2="16" y2="7"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="17" x2="16" y2="17"/><polyline points="3,20 5,22 9,18" stroke="#4CAF50" stroke-width="2" fill="none"/></g><path d="M85 42 C80 38 75 42 75 48 C75 56 85 62 85 62 C85 62 95 56 95 48 C95 42 90 38 85 42Z" fill="#E53935" opacity=".8"/><circle cx="85" cy="48" r="3" fill="#fff"/><text x="60" y="110" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="11" fill="#FFD600" stroke="#0d47a1" stroke-width="0.5" paint-order="stroke">CAMPAÑA</text></g></svg>';
 $('lgShield').innerHTML = SHIELD; $('hdrShield').innerHTML = SHIELD;
 
 const G = {
@@ -792,14 +792,14 @@ function _pdfHeader(title, subtitle) {
   return '<div style="font-family:Roboto,Arial,sans-serif;padding:16px;color:#22303e">' +
     '<div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #123c69;padding-bottom:10px;margin-bottom:14px">' +
       '<div style="width:40px;height:40px;background:#123c69;border-radius:8px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>' +
-      '<div style="flex:1"><div style="font-size:17px;font-weight:700;color:#123c69">COMANDO 1×10 — ERP ELECTORAL</div>' +
+       '<div style="flex:1"><div style="font-size:17px;font-weight:700;color:#123c69">GESTIÓN DE CAMPAÑA</div>' +
       '<div style="font-size:10px;color:#5c6b7a">' + (subtitle || 'Sistema Integral de Gestión') + '</div></div>' +
       '<div style="text-align:right;font-size:9.5px;color:#5c6b7a"><div>' + fecha + '</div><div>' + hora + '</div></div></div>' +
     '<h2 style="font-size:15px;color:#123c69;margin:0 0 12px">' + esc(title) + '</h2>';
 }
 function _pdfFooter() {
   return '<div style="margin-top:16px;padding-top:8px;border-top:2px solid #123c69;font-size:8.5px;color:#888;display:flex;justify-content:space-between">' +
-    '<span>COMANDO 1×10 — ERP ELECTORAL</span><span>Generado: ' + new Date().toLocaleString('es-VE') + '</span></div></div>';
+    '<span>Gestión de Campaña — ERP Electoral</span><span>Generado: ' + new Date().toLocaleString('es-VE') + '</span></div></div>';
 }
 function _pdfTable(headers, rows) {
   let h = '<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:8px"><thead><tr>';
@@ -855,7 +855,7 @@ function sharePDF(elId, title) {
   html2pdf().set({ ..._pdfOpts(title), returnTemp: true }).from(tmp).outputPdf('blob').then(blob => {
     document.body.removeChild(tmp);
     const file = new File([blob], title.replace(/[^a-z0-9]/gi, '_') + '.pdf', { type: 'application/pdf' });
-    navigator.share({ title: title, text: 'COMANDO 1×10 — ' + title, files: [file] }).catch(() => toast('Cancelado', 'err'));
+    navigator.share({ title: title, text: 'Gestión de Campaña — ' + title, files: [file] }).catch(() => toast('Cancelado', 'err'));
   }).catch(() => { document.body.removeChild(tmp); toast('Error al generar PDF', 'err') });
 }
 function buildActionBtns(elId, title) {
@@ -1152,7 +1152,8 @@ function openAlerts() {
 }
 function openAbout() {
   win(ic('id', 18) + ' Acerca del sistema',
-    '<p style="font-size:13.5px;line-height:1.7"><b>COMANDO 1×10 — ERP ELECTORAL</b> · v4.0 Turso<br>' +
+    '<p style="font-size:13.5px;line-height:1.7"><b>GESTIÓN DE CAMPAÑA</b> · ERP Electoral · v4.0<br>' +
+    'Partido Político — Yaracuy<br>' +
     'Base de datos: <b>Turso</b> (API proxy)<br>' +
     'Data activa: <b>' + CACHE.pad.length + ' electores</b> · ' + CACHE.centros.length + ' centro(s) · ' + CACHE.recl.length + ' reclutadores · ' + CACHE.users.length + ' usuarios<br>' +
     'Sesión: <b>' + esc(USER.nombre) + '</b> · Rol: <b>' + ({'J': 'JEFE DE COMANDO', 'A': 'ADMINISTRADOR', 'O': 'OPERADOR'}[USER.rol]) + '</b></p>',
