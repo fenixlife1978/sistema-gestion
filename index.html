@@ -1415,21 +1415,103 @@ function openRec(id) {
     return '<div class="row10"><span class="pos">' + (i + 1) + '</span><div style="flex:1;min-width:0"><b style="font-size:13px">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</b> ' + (p ? '' : '<span class="chip chip-r">S/P</span>') + '<div class="mono" style="font-size:11px;color:var(--mut)">' + (p ? fC(p.letra, p.cedula) + ' · ' + p.edad + 'a · ' + p.sexo : fC('V', l.cedula)) + ' · ' + esc(p ? p.nombre_cv : '—') + '</div></div><span class="mono" style="font-size:10.5px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</span><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')">' + ic('x', 12) + '</button></div>';
   }).join('');
   win(ic('users', 18) + ' ' + esc(nm) + ' · Lista ' + r.id,
+    '<div id="recContent">' +
     '<div class="mono" style="font-size:12px;color:var(--mut);margin-bottom:8px">' + fC(p ? p.letra : 'V', r.cedula) + ' · ' + esc(r.estructura || '—') + ' · 📞 ' + esc(r.telefono || '—') + ' · alta ' + esc(r.creado || '').slice(0, 10) + '</div>' +
     '<div style="display:flex;gap:16px;align-items:center"><svg viewBox="0 0 120 120" width="106" class="ring"><circle class="bg" cx="60" cy="60" r="52" fill="none" stroke-width="12"/><circle class="fg" cx="60" cy="60" r="52" fill="none" stroke-width="12" stroke-dasharray="' + (2 * Math.PI * 52) + '" stroke-dashoffset="' + (2 * Math.PI * 52 * (1 - n / 10)) + '" style="stroke:' + (n >= 10 ? 'var(--green)' : 'var(--navy)') + '"/></svg><div style="margin-left:-88px;pointer-events:none;text-align:center;width:66px"><div style="font-size:23px;font-weight:700;color:var(--navy)">' + n + '<span style="font-size:12px;color:var(--mut)">/10</span></div></div>' +
     '<div style="flex:1"><b style="color:var(--navy);font-size:13.5px">Cotejo contra padrón CNE (Turso)</b><div class="ck">' +
     '<div class="ck-it"><b>' + emp + '/10</b><span>✓ En padrón</span></div><div class="ck-it"><b>' + (n - emp) + '</b><span>Sin registro (S/P)</span></div>' +
     '<div class="ck-it"><b>' + mm + '♂ / ' + ff + '♀</b><span>Por sexo</span></div><div class="ck-it"><b>' + (emp ? (sumE / emp).toFixed(0) : 0) + '</b><span>Edad promedio</span></div>' +
     '<div class="ck-it"><b>' + (n * 10) + '%</b><span>Cuota 1×10</span></div></div>' +
-    '<p style="font-size:12.5px;color:' + (n >= 10 ? 'var(--green)' : 'var(--mut)') + '">' + (n >= 10 ? '✓ Lista completa y cotejada.' : 'Lista en construcción (' + n + '/10).') + '</p></div></div><div style="margin-top:12px">' + rows + '</div>',
+    '<p style="font-size:12.5px;color:' + (n >= 10 ? 'var(--green)' : 'var(--mut)') + '">' + (n >= 10 ? '✓ Lista completa y cotejada.' : 'Lista en construcción (' + n + '/10).') + '</p></div></div><div style="margin-top:12px">' + rows + '</div></div>',
     (['J', 'A'].includes(USER.rol) ? '<button class="btn btn-red" onclick="delRecl(' + r.id + ')">' + ic('trash', 14) + ' Eliminar</button>' : '') +
-    '<button class="btn btn-w" onclick="expLista(' + r.id + ')">' + ic('dl', 14) + ' CSV</button><button class="btn btn-navy" onclick="closeModal();REG.rec=' + r.id + ';go(\'registro\')">' + ic('target', 14) + ' Registrar aquí</button>', 840);
+    '<button class="btn btn-w" onclick="expLista(' + r.id + ')">' + ic('dl', 14) + ' CSV</button>' +
+    '<button class="btn btn-w" onclick="downloadRecPDF(' + r.id + ')">' + ic('dl', 14) + ' PDF</button>' +
+    '<button class="btn btn-w" onclick="shareRecPDF(' + r.id + ')">' + ic('bolt', 14) + ' Compartir</button>' +
+    '<button class="btn btn-navy" onclick="closeModal();REG.rec=' + r.id + ';go(\'registro\')">' + ic('target', 14) + ' Registrar aquí</button>', 840);
 }
 function expLista(id) {
   const r = CACHE.recl.find(x => x.id === id); if (!r) return;
   const rows = [['POS', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'CENTRO_VOTACION', 'NOMBRE_CV', 'MUNICIPIO', 'PARROQUIA', 'REGISTRADO_EN']];
   r.lista.forEach((l, i) => { const p = padBy(l.cedula); rows.push([i + 1, p ? p.letra : '', p ? p.cedula : l.cedula, p ? p.p_apellido : '', p ? p.s_apellido : '', p ? p.p_nombre : '', p ? p.s_nombre : '', p ? p.sexo : '', p ? p.fecha_nac : '', p ? p.centro_votacion : '', p ? p.nombre_cv : '', p ? p.municipio : '', p ? p.parroquia : '', l.registrado_en || '']) });
   dlCSV('lista_' + r.id + '.csv', rows); toast('Lista exportada', 'ok');
+}
+function downloadRecPDF(id) {
+  const r = CACHE.recl.find(x => x.id === id); if (!r) return;
+  const p = padBy(r.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : r.cedula;
+  const n = r.lista.length; let emp = 0, mm = 0, ff = 0, sumE = 0;
+  r.lista.forEach(l => { const p = padBy(l.cedula); if (p) { emp++; p.sexo === 'M' ? mm++ : ff++; sumE += (p.edad || 0) } });
+  const now = new Date(); const fecha = now.toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' }); const hora = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+  const tblRows = r.lista.map((l, i) => {
+    const p = padBy(l.cedula);
+    return '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f4f6f9') + '"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;font-weight:700;color:#123c69">' + (i + 1) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-weight:700;font-size:10px">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-weight:600">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + (p ? '' : ' <span style="color:#c62828;font-size:9px">S/P</span>') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.edad + 'a' : '—') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.sexo : '—') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.nombre_cv : '—') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.municipio : '—') + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-size:9.5px;color:#666">' + esc(l.registrado_en || '').slice(0, 16) + '</td></tr>';
+  }).join('');
+  const emptyRows = Array.from({ length: 10 - n }, (_, i) => '<tr style="background:#f9fafb"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;color:#999">' + (n + i + 1) + '</td><td colspan="7" style="padding:5px 7px;border:1px solid #ddd;color:#aaa;text-align:center;font-style:italic">Cupo disponible</td></tr>').join('');
+  const html = '<div style="font-family:Roboto,Arial,sans-serif;color:#22303e;padding:24px;max-width:800px;margin:0 auto">' +
+    '<div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #123c69;padding-bottom:10px;margin-bottom:14px">' +
+      '<img src="' + SHIELD.match(/src="([^"]+)"/)?.[1] + '" style="width:40px;height:40px;border-radius:8px;object-fit:contain" alt="Logo">' +
+      '<div style="flex:1"><div style="font-size:17px;font-weight:700;color:#123c69">GESTIÓN DE CAMPAÑA</div><div style="font-size:10px;color:#5c6b7a">Partido Político — Yaracuy · Lista de Cotejo 1×10</div></div>' +
+      '<div style="text-align:right;font-size:9.5px;color:#5c6b7a"><div>' + fecha + '</div><div>' + hora + '</div></div></div>' +
+    '<h2 style="font-size:16px;color:#123c69;margin:0 0 6px">Lista de Cotejo contra Padrón CNE #' + r.id + '</h2>' +
+    '<div style="display:flex;gap:20px;font-size:12px;color:#5c6b7a;margin-bottom:14px;flex-wrap:wrap">' +
+      '<div><b>Reclutador:</b> ' + esc(nm) + '</div>' +
+      '<div><b>C.I.:</b> ' + fC(p ? p.letra : 'V', r.cedula) + '</div>' +
+      '<div><b>Estructura:</b> ' + esc(r.estructura || '—') + '</div>' +
+      '<div><b>Teléfono:</b> ' + esc(r.telefono || '—') + '</div>' +
+      '<div><b>Alta:</b> ' + esc(r.creado || '').slice(0, 10) + '</div></div>' +
+    '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+      '<div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#123c69">' + n + '/10</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">REGISTROS</div></div>' +
+      '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#2e7d32">' + emp + '</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">EN PADRÓN</div></div>' +
+      '<div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#e65100">' + (n - emp) + '</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">SIN REGISTRO</div></div>' +
+      '<div style="background:#e8eaf6;border:1px solid #9fa8da;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#283593">' + mm + '♂ / ' + ff + '♀</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">SEXO</div></div>' +
+      '<div style="background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#6a1b9a">' + (emp ? (sumE / emp).toFixed(0) : 0) + '</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">EDAD PROM.</div></div></div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:10.5px"><thead><tr>' +
+      '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:left;border:1px solid #0d2f52">#</th>' +
+      '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:left;border:1px solid #0d2f52">C.I.</th>' +
+      '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:left;border:1px solid #0d2f52">Apellidos y Nombres</th>' +
+      '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:center;border:1px solid #0d2f52">Edad</th>' +
+      '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:center;border:1px solid #0d2f52">Sexo</th>' +
+      '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:left;border:1px solid #0d2f52">Centro</th>' +
+      '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:left;border:1px solid #0d2f52">Municipio</th>' +
+      '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:left;border:1px solid #0d2f52">Hora</th></tr></thead><tbody>' +
+    tblRows + emptyRows + '</tbody></table>' +
+    '<div style="margin-top:14px;padding-top:8px;border-top:2px solid #123c69;font-size:8.5px;color:#888;display:flex;justify-content:space-between"><span>Gestión de Campaña — Partido Político · Yaracuy</span><span>Generado: ' + now.toLocaleString('es-VE') + '</span></div></div>';
+  const tmp = document.createElement('div'); tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;background:#fff;padding:0'; tmp.innerHTML = html; document.body.appendChild(tmp);
+  toast('Generando PDF...', 'info');
+  html2pdf().set({ margin: [8, 8, 8, 8], filename: 'lista_cotejo_' + r.id + '_' + nm.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' } }).from(tmp).save().then(() => { document.body.removeChild(tmp); toast('PDF descargado', 'ok') }).catch(() => { document.body.removeChild(tmp); toast('Error al generar PDF', 'err') });
+}
+function shareRecPDF(id) {
+  const r = CACHE.recl.find(x => x.id === id); if (!r) return;
+  if (!navigator.share) { toast('Compartir no soportado', 'err'); return }
+  const p = padBy(r.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : r.cedula;
+  const n = r.lista.length; let emp = 0, mm = 0, ff = 0, sumE = 0;
+  r.lista.forEach(l => { const p = padBy(l.cedula); if (p) { emp++; p.sexo === 'M' ? mm++ : ff++; sumE += (p.edad || 0) } });
+  const now = new Date(); const fecha = now.toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' }); const hora = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+  const tblRows = r.lista.map((l, i) => {
+    const p = padBy(l.cedula);
+    return '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f4f6f9') + '"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;font-weight:700;color:#123c69">' + (i + 1) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-weight:700;font-size:10px">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-weight:600">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.edad + 'a' : '—') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.sexo : '—') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.nombre_cv : '—') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.municipio : '—') + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-size:9.5px;color:#666">' + esc(l.registrado_en || '').slice(0, 16) + '</td></tr>';
+  }).join('');
+  const emptyRows = Array.from({ length: 10 - n }, (_, i) => '<tr style="background:#f9fafb"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;color:#999">' + (n + i + 1) + '</td><td colspan="7" style="padding:5px 7px;border:1px solid #ddd;color:#aaa;text-align:center;font-style:italic">Cupo disponible</td></tr>').join('');
+  const html = '<div style="font-family:Roboto,Arial,sans-serif;color:#22303e;padding:24px;max-width:800px;margin:0 auto">' +
+    '<div style="display:flex;align-items:center;gap:12px;border-bottom:3px solid #123c69;padding-bottom:10px;margin-bottom:14px">' +
+      '<img src="' + SHIELD.match(/src="([^"]+)"/)?.[1] + '" style="width:40px;height:40px;border-radius:8px;object-fit:contain" alt="Logo">' +
+      '<div style="flex:1"><div style="font-size:17px;font-weight:700;color:#123c69">GESTIÓN DE CAMPAÑA</div><div style="font-size:10px;color:#5c6b7a">Partido Político — Yaracuy · Lista de Cotejo 1×10</div></div>' +
+      '<div style="text-align:right;font-size:9.5px;color:#5c6b7a"><div>' + fecha + '</div><div>' + hora + '</div></div></div>' +
+    '<h2 style="font-size:16px;color:#123c69;margin:0 0 6px">Lista de Cotejo contra Padrón CNE #' + r.id + '</h2>' +
+    '<div style="display:flex;gap:20px;font-size:12px;color:#5c6b7a;margin-bottom:14px;flex-wrap:wrap"><div><b>Reclutador:</b> ' + esc(nm) + '</div><div><b>C.I.:</b> ' + fC(p ? p.letra : 'V', r.cedula) + '</div><div><b>Estructura:</b> ' + esc(r.estructura || '—') + '</div><div><b>Teléfono:</b> ' + esc(r.telefono || '—') + '</div><div><b>Alta:</b> ' + esc(r.creado || '').slice(0, 10) + '</div></div>' +
+    '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
+      '<div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#123c69">' + n + '/10</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">REGISTROS</div></div>' +
+      '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#2e7d32">' + emp + '</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">EN PADRÓN</div></div>' +
+      '<div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#e65100">' + (n - emp) + '</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">SIN REGISTRO</div></div>' +
+      '<div style="background:#e8eaf6;border:1px solid #9fa8da;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#283593">' + mm + '♂ / ' + ff + '♀</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">SEXO</div></div>' +
+      '<div style="background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#6a1b9a">' + (emp ? (sumE / emp).toFixed(0) : 0) + '</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">EDAD PROM.</div></div></div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:10.5px"><thead><tr><th style="background:#123c69;color:#fff;padding:6px 7px;border:1px solid #0d2f52">#</th><th style="background:#123c69;color:#fff;padding:6px 7px;border:1px solid #0d2f52">C.I.</th><th style="background:#123c69;color:#fff;padding:6px 7px;border:1px solid #0d2f52">Apellidos y Nombres</th><th style="background:#123c69;color:#fff;padding:6px 7px;text-align:center;border:1px solid #0d2f52">Edad</th><th style="background:#123c69;color:#fff;padding:6px 7px;text-align:center;border:1px solid #0d2f52">Sexo</th><th style="background:#123c69;color:#fff;padding:6px 7px;border:1px solid #0d2f52">Centro</th><th style="background:#123c69;color:#fff;padding:6px 7px;border:1px solid #0d2f52">Municipio</th><th style="background:#123c69;color:#fff;padding:6px 7px;border:1px solid #0d2f52">Hora</th></tr></thead><tbody>' + tblRows + emptyRows + '</tbody></table>' +
+    '<div style="margin-top:14px;padding-top:8px;border-top:2px solid #123c69;font-size:8.5px;color:#888;display:flex;justify-content:space-between"><span>Gestión de Campaña — Partido Político · Yaracuy</span><span>Generado: ' + now.toLocaleString('es-VE') + '</span></div></div>';
+  const tmp = document.createElement('div'); tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;background:#fff;padding:0'; tmp.innerHTML = html; document.body.appendChild(tmp);
+  html2pdf().set({ margin: [8, 8, 8, 8], filename: 'lista_cotejo_' + r.id + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' } }).from(tmp).outputPdf('blob').then(blob => {
+    document.body.removeChild(tmp);
+    const file = new File([blob], 'lista_cotejo_' + r.id + '.pdf', { type: 'application/pdf' });
+    navigator.share({ title: 'Lista de Cotejo #' + r.id, text: 'Gestión de Campaña — Lista de Cotejo 1×10 de ' + nm, files: [file] }).catch(() => toast('Cancelado', 'err'));
+  }).catch(() => { document.body.removeChild(tmp); toast('Error al generar PDF', 'err') });
 }
 function dlCSV(name, rows) { const b = new Blob(['\uFEFF' + rows.map(r => r.map(x => '"' + String(x ?? '').replace(/"/g, '""') + '"').join(';')).join('\n')], { type: 'text/csv;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; a.click() }
 function delRecl(id) {
