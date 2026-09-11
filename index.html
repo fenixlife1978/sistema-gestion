@@ -219,6 +219,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 <div id="toasts"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
 /* ═══════════ CLIENTE TURSO (vía API proxy) ═══════════ */
 const API_URL = '/api/turso';
@@ -1742,7 +1743,7 @@ function renderData() {
   if (USER.rol !== 'A') { $('sec-data').innerHTML = panel('Acceso denegado', '<div class="empty">Solo administradores.</div>'); return }
   $('sec-data').innerHTML = panel('Configuración / Carga de Data CNE',
     '<div class="grid g2" style="margin-bottom:14px">' +
-    '<div><label class="fl">1 · Padrón de electores (CSV del CNE)</label><div class="dz" onclick="$(\'fPad\').click()">' + ic('up', 28) + '<p style="margin-top:6px"><b>Arrastre o haga clic</b></p><span style="font-size:12px">.csv / .txt · PC o móvil</span></div><input type="file" id="fPad" accept=".csv,.txt" style="display:none" onchange="readFile(this)"><div class="fmt">LETRA_CEDULA | CEDULA_IDENTIDAD | P_APELLIDO | S_APELLIDO | P_NOMBRE | S_NOMBRE | SEXO | FECHA_NACIMIENTO | CODIGO_ESTADO | ESTADO | CODIGO_MUNICIPIO | MUNICIPIO | CODIGO_PARROQUIA | PARROQUIA | CENTRO_VOTACION | NOMBRE_CV</div></div>' +
+    '<div><label class="fl">1 · Padrón de electores (CSV / Excel del CNE)</label><div class="dz" id="dzPad" onclick="$(\'fPad\').click()">' + ic('up', 28) + '<p style="margin-top:6px"><b>Arrastre o haga clic</b></p><span style="font-size:12px">.xlsx / .xls / .csv / .txt · PC o móvil</span></div><input type="file" id="fPad" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="readFile(this)"><div class="fmt">LETRA_CEDULA | CEDULA_IDENTIDAD | P_APELLIDO | S_APELLIDO | P_NOMBRE | S_NOMBRE | SEXO | FECHA_NACIMIENTO | CODIGO_ESTADO | ESTADO | CODIGO_MUNICIPIO | MUNICIPIO | CODIGO_PARROQUIA | PARROQUIA | CENTRO_VOTACION | NOMBRE_CV</div></div>' +
     '<div><label class="fl">Información de la base de datos</label><div class="panel-b" style="background:#fff;border:1px solid var(--line2);border-radius:4px"><div class="grid g2" style="gap:10px">' +
     '<div class="ck-it"><b>' + CACHE.pad.length + '</b><span>Electores en Turso</span></div>' +
     '<div class="ck-it"><b>' + CACHE.centros.length + '</b><span>Centros en Turso</span></div>' +
@@ -1750,6 +1751,13 @@ function renderData() {
     '<div class="ck-it"><b>' + CACHE.users.length + '</b><span>Usuarios</span></div>' +
     '</div><div class="mono" style="font-size:11px;color:var(--mut);margin-top:12px">Conexión vía API proxy (Vercel)</div></div></div></div>' +
     '<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-w" onclick="tplCSV()">' + ic('file', 14) + ' Plantilla CSV</button><button class="btn btn-navy" onclick="resetCNE()">' + ic('db', 14) + ' Reiniciar padrón CNE (479)</button><button class="btn btn-red" onclick="wipeTurso()">' + ic('trash', 14) + ' Vaciar todas las tablas</button></div>');
+  setTimeout(() => {
+    const dz = document.getElementById('dzPad');
+    if (!dz) return;
+    ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.style.borderColor = '#123c69'; dz.style.background = '#e3f2fd' }));
+    ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.style.borderColor = ''; dz.style.background = '' }));
+    dz.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) { const inp = $('fPad'); const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; readFile(inp) } });
+  }, 100);
 }
 function tplCSV() { dlCSV('plantilla_padron_cne.csv', [['LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'CODIGO_ESTADO', 'ESTADO', 'CODIGO_MUNICIPIO', 'MUNICIPIO', 'CODIGO_PARROQUIA', 'PARROQUIA', 'CENTRO_VOTACION', 'NOMBRE_CV'], ['V', '12345678', 'PEREZ', 'GONZALEZ', 'MARIA', 'JOSE', 'F', '1980-05-10', '20', 'EDO. YARACUY', '11', 'MP. INDEPENDENCIA', '1', 'CM. INDEPENDENCIA', '201101030', 'ALDEA COMUNAL JOSE PIEDRA']]); toast('Plantilla descargada', 'ok') }
 function parseCSV(txt) {
@@ -1761,58 +1769,78 @@ function parseCSV(txt) {
 }
 function readFile(inp) {
   const f = inp.files[0]; if (!f) return;
-  const rd = new FileReader();
-  rd.onload = async () => {
-    const raw = parseCSV(rd.result);
-    let h = -1;
-    for (let i = 0; i < Math.min(raw.length, 5); i++) { const up = raw[i].map(x => x.toUpperCase().replace(/\./g, '')); if (up.includes('CEDULA_IDENTIDAD')) { h = i; break } }
-    const head = h > -1 ? raw[h].map(x => x.toUpperCase().replace(/\./g, '')) : null;
-    const idx = n => head ? head.indexOf(n) : -1;
-    const ci = idx('CEDULA_IDENTIDAD') > -1 ? idx('CEDULA_IDENTIDAD') : 1;
-    const rows = raw.filter(r => { const c = normC(r[ci] || ''); return c.length >= 5 && /^\d+$/.test(c) });
-    const get = (r, n, pos) => idx(n) > -1 ? r[idx(n)] : r[pos];
-    const out = []; const cenMap = {};
-    rows.forEach(r => {
-      const ced = normC(get(r, 'CEDULA_IDENTIDAD', 1)); if (!ced) return;
-      out.push({
-        letra: String(get(r, 'LETRA_CEDULA', 0) || 'V').toUpperCase() || 'V', ced,
-        pa: String(get(r, 'P_APELLIDO', 2) || ''), sa: String(get(r, 'S_APELLIDO', 3) || ''),
-        pn: String(get(r, 'P_NOMBRE', 4) || ''), sn: String(get(r, 'S_NOMBRE', 5) || ''),
-        sexo: String(get(r, 'SEXO', 6) || 'F').toUpperCase().startsWith('M') ? 'M' : 'F',
-        fn: String(get(r, 'FECHA_NACIMIENTO', 7) || '').slice(0, 10),
-        codEst: String(get(r, 'CODIGO_ESTADO', 8) || ''), estado: String(get(r, 'ESTADO', 9) || ''),
-        codMun: String(get(r, 'CODIGO_MUNICIPIO', 10) || ''), mun: String(get(r, 'MUNICIPIO', 11) || ''),
-        codPar: String(get(r, 'CODIGO_PARROQUIA', 12) || ''), par: String(get(r, 'PARROQUIA', 13) || ''),
-        cvCod: String(get(r, 'CENTRO_VOTACION', 14) || ''), cvNom: String(get(r, 'NOMBRE_CV', 15) || '')
-      });
-      if (!cenMap[out[out.length - 1].cvCod]) { cenMap[out[out.length - 1].cvCod] = out[out.length - 1] }
-    });
-    win(ic('file', 18) + ' Vista previa · ' + esc(f.name),
-      '<p style="margin-bottom:10px"><b>' + out.length + '</b> electores · centros nuevos: ' + Object.keys(cenMap).length + '</p>' +
-      '<table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>Centro</th></tr></thead><tbody>' + out.slice(0, 8).map(p => '<tr><td class="mono">' + fC(p.letra, p.ced) + '</td><td>' + esc(p.pa + ' ' + p.sa) + '</td><td>' + esc(p.pn + ' ' + p.sn) + '</td><td>' + edadDe(p.fn) + '</td><td>' + p.sexo + '</td><td>' + esc(p.cvNom) + '</td></tr>').join('') + '</tbody></table>',
-      '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-w" onclick="applyImp(\'' + JSON.stringify({ out, cenMap, modo: 'merge' }).replace(/'/g, "\\'") + '\')">' + ic('up', 14) + ' Combinar</button><button class="btn btn-navy" onclick="applyImp(\'' + JSON.stringify({ out, cenMap, modo: 'repl' }).replace(/'/g, "\\'") + '\')">' + ic('up', 14) + ' Reemplazar</button>', 700);
-  };
-  rd.readAsText(f); inp.value = '';
+  const ext = f.name.split('.').pop().toLowerCase();
+  if (['xlsx', 'xls'].includes(ext)) {
+    const rd = new FileReader();
+    rd.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        processRows(data, f.name);
+      } catch (err) { toast('Error al leer Excel: ' + err.message, 'err', 6000) }
+    };
+    rd.readAsArrayBuffer(f);
+  } else {
+    const rd = new FileReader();
+    rd.onload = () => { processRows(parseCSV(rd.result), f.name) };
+    rd.readAsText(f);
+  }
+  inp.value = '';
 }
-async function applyImp(optsStr) {
-  let opts; try { opts = JSON.parse(optsStr) } catch (e) { const o = window._imp; opts = o }
-  const { out, cenMap, modo } = opts;
-  try {
-    if (modo === 'repl') { await x('DELETE FROM asignaciones'); await x('DELETE FROM reclutadores'); await x('DELETE FROM padron') }
-    for (const c of Object.values(cenMap)) {
-      if (!cenBy(c.cvCod)) {
-        await x('INSERT OR IGNORE INTO centros(codigo,nombre,municipio,parroquia,estado,mesas,cod_estado,cod_municipio,cod_parroquia) VALUES(?,?,?,?,?,?,1,?,?)',
-          [c.cvCod, c.cvNom, c.mun, c.par, c.estado, c.codEst, c.codMun, c.codPar]);
+function processRows(raw, fname) {
+  let h = -1;
+  for (let i = 0; i < Math.min(raw.length, 5); i++) { const up = raw[i].map(x => String(x).toUpperCase().replace(/\./g, '')); if (up.includes('CEDULA_IDENTIDAD')) { h = i; break } }
+  const head = h > -1 ? raw[h].map(x => String(x).toUpperCase().replace(/\./g, '')) : null;
+  const idx = n => head ? head.indexOf(n) : -1;
+  const ci = idx('CEDULA_IDENTIDAD') > -1 ? idx('CEDULA_IDENTIDAD') : 1;
+  const rows = raw.filter((r, i) => i > h && r.some(c => c && String(c).trim())).filter(r => { const c = normC(String(r[ci] || '')); return c.length >= 5 && /^\d+$/.test(c) });
+  const get = (r, n, pos) => { const v = idx(n) > -1 ? r[idx(n)] : r[pos]; return v != null ? String(v) : '' };
+  const out = []; const cenMap = {};
+  rows.forEach(r => {
+    const ced = normC(get(r, 'CEDULA_IDENTIDAD', 1)); if (!ced) return;
+    out.push({
+      letra: get(r, 'LETRA_CEDULA', 0).toUpperCase() || 'V', ced,
+      pa: get(r, 'P_APELLIDO', 2), sa: get(r, 'S_APELLIDO', 3),
+      pn: get(r, 'P_NOMBRE', 4), sn: get(r, 'S_NOMBRE', 5),
+      sexo: get(r, 'SEXO', 6).toUpperCase().startsWith('M') ? 'M' : 'F',
+      fn: get(r, 'FECHA_NACIMIENTO', 7).slice(0, 10),
+      codEst: get(r, 'CODIGO_ESTADO', 8), estado: get(r, 'ESTADO', 9),
+      codMun: get(r, 'CODIGO_MUNICIPIO', 10), mun: get(r, 'MUNICIPIO', 11),
+      codPar: get(r, 'CODIGO_PARROQUIA', 12), par: get(r, 'PARROQUIA', 13),
+      cvCod: get(r, 'CENTRO_VOTACION', 14), cvNom: get(r, 'NOMBRE_CV', 15)
+    });
+    if (!cenMap[out[out.length - 1].cvCod]) { cenMap[out[out.length - 1].cvCod] = out[out.length - 1] }
+  });
+  if (!out.length) { toast('No se encontraron electores válidos en el archivo', 'err', 5000); return }
+  const mun = [...new Set(out.map(p => p.mun).filter(Boolean))];
+  const par = [...new Set(out.map(p => p.par).filter(Boolean))];
+  window._impData = { out, cenMap, fname };
+  win(ic('file', 18) + ' Vista previa · ' + esc(fname),
+    '<div class="grid g2" style="gap:8px;margin-bottom:10px"><div class="ck-it"><b>' + out.length + '</b><span>Electores</span></div><div class="ck-it"><b>' + Object.keys(cenMap).length + '</b><span>Centros</span></div><div class="ck-it"><b>' + mun.length + '</b><span>Municipios</span></div><div class="ck-it"><b>' + par.length + '</b><span>Parroquias</span></div></div>' +
+    '<div style="max-height:260px;overflow-y:auto;border:1px solid var(--line2);border-radius:4px"><table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>Centro</th><th>Municipio</th></tr></thead><tbody>' + out.slice(0, 15).map(p => '<tr><td class="mono">' + fC(p.letra, p.ced) + '</td><td>' + esc(p.pa + ' ' + p.sa) + '</td><td>' + esc(p.pn + ' ' + p.sn) + '</td><td>' + edadDe(p.fn) + '</td><td>' + p.sexo + '</td><td>' + esc(p.cvNom) + '</td><td>' + esc(p.mun) + '</td></tr>').join('') + (out.length > 15 ? '<tr><td colspan="7" style="text-align:center;color:#999;font-style:italic">... +' + (out.length - 15) + ' registros más</td></tr>' : '') + '</tbody></table></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-w" onclick="applyImp(\'merge\')">' + ic('up', 14) + ' Combinar</button><button class="btn btn-navy" onclick="applyImp(\'repl\')">' + ic('up', 14) + ' Reemplazar</button>', 720);
+}
+function applyImp(modo) {
+  const { out, cenMap, fname } = window._impData; if (!out) return;
+  (async () => {
+    try {
+      if (modo === 'repl') { await x('DELETE FROM asignaciones'); await x('DELETE FROM reclutadores'); await x('DELETE FROM padron') }
+      for (const c of Object.values(cenMap)) {
+        if (!cenBy(c.cvCod)) {
+          await x('INSERT OR IGNORE INTO centros(codigo,nombre,municipio,parroquia,estado,mesas,cod_estado,cod_municipio,cod_parroquia) VALUES(?,?,?,?,?,?,1,?,?)',
+            [c.cvCod, c.cvNom, c.mun, c.par, c.estado, c.codEst, c.codMun, c.codPar]);
+        }
       }
-    }
-    for (const p of out) {
-      await x('INSERT OR IGNORE INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [p.ced, p.letra, p.pa, p.sa, p.pn, p.sn, p.sexo, p.fn, edadDe(p.fn), p.codEst, p.estado, p.codMun, p.mun, p.codPar, p.par, p.cvCod, p.cvNom]);
-    }
-    await registrarAct('sys', 'Padrón CNE actualizado: ' + out.length + ' registros (' + modo + ')', USER.id);
-    await refreshAll(); closeModal(); toast('✓ ' + out.length + ' electores aplicados en Turso', 'ok', 5000);
-    go('padron');
-  } catch (e) { toast(e.message, 'err', 8000) }
+      for (const p of out) {
+        await x('INSERT OR IGNORE INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          [p.ced, p.letra, p.pa, p.sa, p.pn, p.sn, p.sexo, p.fn, edadDe(p.fn), p.codEst, p.estado, p.codMun, p.mun, p.codPar, p.par, p.cvCod, p.cvNom]);
+      }
+      await registrarAct('sys', 'Padrón CNE actualizado: ' + out.length + ' registros (' + modo + ') · ' + (fname || ''), USER.id);
+      await refreshAll(); closeModal(); toast('✓ ' + out.length + ' electores aplicados en Turso', 'ok', 5000);
+      go('padron');
+    } catch (e) { toast(e.message, 'err', 8000) }
+  })();
 }
 async function resetCNE() {
   askDo('Reiniciar padrón', 'Se vaciará el padrón y se volverán a cargar los 479 electores originales. Las asignaciones se conservarán donde coincidan.', 'Reiniciar', async () => {
