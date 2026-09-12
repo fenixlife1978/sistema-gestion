@@ -179,8 +179,8 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
  <div class="lg-b">
   <label class="fl">Usuario</label><input class="inp" id="lgU" placeholder="usuario" autocomplete="username">
   <label class="fl" style="margin-top:12px">Clave</label><input class="inp" id="lgP" type="password" placeholder="••••••••" autocomplete="current-password">
+  <label class="fl" style="margin-top:12px">Rol</label><select class="inp" id="lgR"><option value="A">Administrador</option><option value="O">Operador</option></select>
   <button class="btn btn-navy btn-big" style="width:100%;justify-content:center;margin-top:16px" onclick="doLogin()">Ingresar al sistema →</button>
-  <div class="qchips" id="qchips"></div>
   <p style="font-size:11.5px;color:var(--mut);text-align:center;margin-top:12px">Conectado a Turso · <span id="lgInfo">—</span></p>
  </div></div></div>
 
@@ -979,7 +979,7 @@ async function inicializarTurso() {
   const users = await q('SELECT COUNT(*) AS n FROM usuarios');
   if (users[0].n === 0) {
     const seeds = [
-      ['admin', 'admin123', 'Lcda. Mariela Quintero', 'A', 'Administradora del Sistema'],
+      ['admin@comando.com', 'admin123', 'Administrador del Sistema', 'A', 'Administrador'],
       ['jefe', 'jefe123', 'Gualberto Martinez', 'J', 'Jefe de Comando'],
       ['operador', 'operador123', 'Pedro Rivas', 'O', 'Operador de Sala'],
       ['cdiaz', 'operador123', 'Carmen Díaz', 'O', 'Operadora Territorial']
@@ -1058,13 +1058,16 @@ function asignDe(c) {
 
 /* ═══════════ LOGIN ═══════════ */
 async function doLogin() {
-  const u = $('lgU').value.trim(), p = $('lgP').value;
+  const u = $('lgU').value.trim(), p = $('lgP').value, selR = $('lgR').value;
   if (!u || !p) return toast('Ingrese usuario y clave', 'err');
   try {
     const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [u]);
     if (!row.length) return toast('Usuario no encontrado o inactivo', 'err');
     const h = await hash(p);
     if (row[0].clave_hash !== h) return toast('Clave incorrecta', 'err');
+    const userRole = row[0].rol;
+    if (selR === 'A' && !['J', 'A'].includes(userRole)) return toast('Este usuario no tiene rol de Administrador', 'err');
+    if (selR === 'O' && userRole !== 'O') return toast('Este usuario no tiene rol de Operador', 'err');
     USER = row[0];
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
     await refreshAll();
@@ -1894,9 +1897,14 @@ async function resetCNE() {
   });
 }
 async function wipeTurso() {
-  askDo('Vaciar todas las tablas', 'Elimina TODO en Turso: padrón, centros, movilizadores, asignaciones, actividad. Los usuarios se conservan.', 'Vaciar todo', async () => {
-    await x('DELETE FROM asignaciones'); await x('DELETE FROM movilizadores'); await x('DELETE FROM actividad'); await x('DELETE FROM padron'); await x('DELETE FROM centros');
-    await refreshAll(); go('dash'); toast('Turso vaciado', 'ok');
+  askDo('Vaciar todas las tablas', 'Se eliminará TODO: padrón, centros, movilizadores, asignaciones, actividad y todos los usuarios excepto el administrador principal. El sistema quedará como recién instalado.', 'Vaciar todo', async () => {
+    await x('DELETE FROM asignaciones'); await x('DELETE FROM movilizadores'); await x('DELETE FROM actividad'); await x('DELETE FROM padron'); await x('DELETE FROM centros'); await x('DELETE FROM usuarios WHERE usuario != ?', ['admin@comando.com']);
+    const adminCheck = await q('SELECT COUNT(*) AS n FROM usuarios WHERE usuario = ?', ['admin@comando.com']);
+    if (adminCheck[0].n === 0) {
+      const h = await hash('admin123');
+      await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', ['admin@comando.com', h, 'Administrador del Sistema', 'A', 'Administrador']);
+    }
+    await refreshAll(); go('dash'); toast('Sistema reiniciado — solo queda admin@comando.com', 'ok');
   });
 }
 
@@ -1934,18 +1942,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
     $('lgInfo').textContent = count[0].n + ' electores · Turso OK';
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
-    $('qchips').innerHTML = [
-      ['jefe', 'jefe123', 'Gualberto Martinez', 'JEFE DE COMANDO'],
-      ['admin', 'admin123', 'Lcda. Mariela Quintero', 'ADMINISTRADORA'],
-      ['operador', 'operador123', 'Pedro Rivas', 'OPERADOR'],
-      ['cdiaz', 'operador123', 'Carmen Díaz', 'OPERADORA']
-    ].map(a => '<button class="qchip" onclick="$(\'lgU\').value=\'' + a[0] + '\';$(\'lgP\').value=\'' + a[1] + '\';$(\'lgP\').focus()"><span class="uava">' + ini(a[2]) + '</span><div><b>' + a[2] + '</b><span>' + a[3] + ' · ' + a[0] + '</span></div></button>').join('');
   } catch (e) {
     setLoad('Error al conectar', e.message);
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
     $('lgInfo').textContent = 'Error de conexión';
-    $('qchips').innerHTML = '<div style="padding:16px;text-align:center"><p style="color:var(--red);font-weight:600;margin-bottom:8px">No se pudo conectar</p><p style="font-size:12.5px;color:var(--mut)">' + esc(e.message) + '</p></div>';
     console.error(e);
   }
 })();
