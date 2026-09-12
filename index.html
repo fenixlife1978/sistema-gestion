@@ -1781,7 +1781,7 @@ function delUser(id) {
 
 /* ═══════════ CONFIGURACIÓN ═══════════ */
 function renderData() {
-  if (USER.rol !== 'A') { $('sec-data').innerHTML = panel('Acceso denegado', '<div class="empty">Solo administradores.</div>'); return }
+  if (!['J', 'A'].includes(USER.rol)) { $('sec-data').innerHTML = panel('Acceso denegado', '<div class="empty">Solo Jefe de Comando o Administradores.</div>'); return }
   $('sec-data').innerHTML = panel('Configuración / Carga de Data CNE',
     '<div class="grid g2" style="margin-bottom:14px">' +
     '<div><label class="fl">1 · Padrón de electores (CSV / Excel del CNE)</label><div class="dz" id="dzPad" onclick="$(\'fPad\').click()">' + ic('up', 28) + '<p style="margin-top:6px"><b>Arrastre o haga clic</b></p><span style="font-size:12px">.xlsx / .xls / .csv / .txt · PC o móvil</span></div><input type="file" id="fPad" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="readFile(this)"><div class="fmt">LETRA_CEDULA | CEDULA_IDENTIDAD | P_APELLIDO | S_APELLIDO | P_NOMBRE | S_NOMBRE | SEXO | FECHA_NACIMIENTO | CODIGO_ESTADO | ESTADO | CODIGO_MUNICIPIO | MUNICIPIO | CODIGO_PARROQUIA | PARROQUIA | CENTRO_VOTACION | NOMBRE_CV</div></div>' +
