@@ -33,8 +33,8 @@ body{font:14px/1.45 Roboto,"Segoe UI",Arial,sans-serif;background:var(--bg);colo
 #toolbar{background:#fdfdfe;border-bottom:1px solid var(--line2);display:flex;justify-content:space-between;padding:8px 14px 6px;flex-wrap:wrap;gap:2px;position:relative}
 .tb{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;padding:6px 8px 5px;border-radius:4px;min-width:70px;font-size:11.5px;color:#3c4854}
 .tb:hover{background:#eef2f6}.tb .g{height:30px;display:grid;place-items:center}
-#moreMenu{position:absolute;right:12px;top:76px;background:#fff;border:1px solid var(--line);box-shadow:0 10px 26px rgba(15,40,70,.22);border-radius:4px;display:none;z-index:80;min-width:240px}
-#moreMenu.on{display:block}#moreMenu button{display:flex;gap:9px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:10px 14px;font-size:13px;cursor:pointer}
+#moreMenu{position:fixed;right:12px;top:140px;background:#fff;border:1px solid var(--line);box-shadow:0 10px 26px rgba(15,40,70,.22);border-radius:8px;display:none;z-index:200;min-width:240px}
+#moreMenu.on{display:block}#moreMenu button{display:flex;gap:9px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:10px 14px;font-size:13px;cursor:pointer;border-radius:6px}
 #moreMenu button:hover{background:#eef3f8}#moreMenu hr{border:0;border-top:1px solid var(--line2)}
 #tabs{background:var(--navy);display:flex;padding:6px 10px 0;gap:2px;overflow-x:auto}
 .tab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 15px 8px;background:var(--navy);color:#d9e2ec;border:1px solid var(--navy-d);border-bottom:0;border-radius:6px 6px 0 0;cursor:pointer;font-size:13px;min-width:96px;white-space:nowrap}
@@ -56,9 +56,9 @@ label.fl{color:var(--navy);font-weight:700;font-size:12.5px;display:block;margin
 .chip-g{background:#e8f5e9;border-color:#a5d6a7;color:#1b5e20}.chip-r{background:#ffebee;border-color:#ef9a9a;color:#b71c1c}
 .chip-y{background:#fff8e1;border-color:#ffe082;color:#8d6e00}.chip-b{background:#e3f2fd;border-color:#90caf9;color:#0d47a1}
 .chip-t{background:#e0f2f1;border-color:#80cbc4;color:#00695c}.chip-gr{background:#eceff1;border-color:#cfd8dc;color:#455a64}
-.kcard{background:#fdfdfd;border:1px solid var(--line2);border-radius:4px;padding:13px 16px}
-.kcard .kl{color:var(--navy);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
-.kcard .kv{font-size:28px;font-weight:700;color:var(--navy);margin:3px 0 1px}.kcard .ks{color:var(--mut);font-size:12px}
+.kcard{background:#fdfdfd;border:1px solid var(--line2);border-radius:8px;padding:13px 16px;min-width:0;overflow:hidden}
+.kcard .kl{color:var(--navy);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kcard .kv{font-size:26px;font-weight:700;color:var(--navy);margin:3px 0 1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kcard .ks{color:var(--mut);font-size:12px}
 .pbar{height:8px;background:#dfe4ea;border-radius:3px;overflow:hidden;margin-top:8px}.pbar i{display:block;height:100%;background:var(--navy);transition:width .7s}.pbar i.full{background:var(--green)}
 .tbl{width:100%;border-collapse:collapse;background:#fff}
 .tbl th{background:linear-gradient(#f8fafc,#e6ebf1);color:var(--navy);font-size:11px;text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:8px 9px;border:1px solid var(--line2)}
@@ -162,7 +162,8 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 .gC{grid-template-columns:1fr}
 .g2,.g3,.g4{grid-template-columns:1fr}
 @media(min-width:761px){.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.gC{grid-template-columns:330px 1fr}}
-@media(max-width:600px){#hdr{padding:10px 12px;gap:10px}#hdr h1{font-size:15px}#clock{font-size:14px}#hdrInfo{font-size:11px}.tab{min-width:0;padding:6px 10px;font-size:11.5px}#main{padding:10px 8px 50px}.panel-b{padding:10px}.kcard{padding:10px}.filter-bar{flex-direction:column}.filter-bar>div{min-width:0;flex:1 1 100%}.btn{padding:7px 12px;font-size:12px}.qchips{grid-template-columns:1fr}.win{max-width:96vw}}
+@media(max-width:600px){#hdr{padding:10px 12px;gap:10px}#hdr h1{font-size:15px}#clock{font-size:14px}#hdrInfo{font-size:11px}.tab{min-width:0;padding:6px 10px;font-size:11.5px}#main{padding:10px 8px 50px}.panel-b{padding:10px}.kcard{padding:10px}.filter-bar{flex-direction:column}.filter-bar>div{min-width:0;flex:1 1 100%}.btn{padding:7px 12px;font-size:12px}.qchips{grid-template-columns:1fr}.win{max-width:96vw}.kcard h3{font-size:14px}.kcard .kv{font-size:18px}.inp{max-width:100%}}
+@media(max-width:900px){.filter-bar{flex-wrap:wrap}.filter-bar>div{min-width:120px;flex:1 1 45%}.kcard{padding:10px 12px}.kcard .kv{font-size:20px}}
 </style>
 </head>
 <body>
@@ -201,8 +202,8 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
   <button class="tb" onclick="openAlerts()"><span class="g" id="gBell"></span>Alertas</button>
   <button class="tb" onclick="go('padron')"><span class="g" id="gCne"></span>Padrón CNE</button>
   <button class="tb" onclick="toggleMore()"><span class="g" id="gMore"></span>Más Opciones</button>
-  <div id="moreMenu"></div>
  </div>
+ <div id="moreMenu"></div>
  <nav id="tabs"></nav>
  <main id="main">
   <section class="sec" id="sec-dash"></section>
@@ -1070,7 +1071,7 @@ async function doLogin() {
     $('vLogin').style.display = 'none';
     $('vApp').style.display = 'block';
     buildTabs(); buildMore();
-    $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' · <span class="yel">TURSO · ' + CACHE.pad.length + ' electores · ' + CACHE.recl.length + ' reclutadores</span>';
+    $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' · <span class="yel">TURSO · ' + CACHE.pad.length + ' electores · ' + CACHE.recl.length + ' movilizadores</span>';
     go('dash'); startSim();
   } catch (e) {
     toast('Error de conexión: ' + e.message, 'err', 8000);
@@ -1082,7 +1083,7 @@ $('lgP').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() });
 const MODS = [
   { id: 'dash', l: 'Inicio', i: 'grid' },
   { id: 'registro', l: 'Registro 1×10', i: 'target' },
-  { id: 'recl', l: 'Reclutadores', i: 'users' },
+  { id: 'recl', l: 'Movilizadores', i: 'users' },
   { id: 'padron', l: 'Padrón CNE', i: 'db' },
   { id: 'centros', l: 'Centros', i: 'school' },
   { id: 'rep', l: 'Reportes', i: 'chart' },
@@ -1123,10 +1124,10 @@ async function tbSave() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'respaldo_1x10_turso_' + Date.now() + '.json'; a.click();
   toast('Respaldo descargado', 'ok');
 }
-function tbEdit() { LAST_REC ? openRec(LAST_REC) : toast('Abra primero una lista de reclutador', 'err') }
+function tbEdit() { LAST_REC ? openRec(LAST_REC) : toast('Abra primero una lista de movilizador', 'err') }
 function tbDel() {
   if (!['J', 'A'].includes(USER.rol)) return toast('Solo Jefe/Administrador', 'err');
-  LAST_REC ? delRecl(LAST_REC) : toast('Seleccione un reclutador', 'err');
+  LAST_REC ? delRecl(LAST_REC) : toast('Seleccione un movilizador', 'err');
 }
 function openHist() {
   win(ic('bolt', 18) + ' Historial de actividad (Turso)',
@@ -1141,7 +1142,7 @@ function openDocs() {
     '<div class="grid g2" style="gap:10px">' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="expPadron()">' + ic('dl', 15) + ' Padrón CNE completo (CSV)</button>' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="expRep()">' + ic('dl', 15) + ' Reporte cruzado (CSV)</button>' +
-    '<button class="btn btn-w" style="justify-content:flex-start" onclick="LAST_REC?expLista(LAST_REC):toast(\'Seleccione reclutador\',\'err\')">' + ic('dl', 15) + ' Lista 1×10 seleccionada (CSV)</button>' +
+    '<button class="btn btn-w" style="justify-content:flex-start" onclick="LAST_REC?expLista(LAST_REC):toast(\'Seleccione movilizador\',\'err\')">' + ic('dl', 15) + ' Lista 1×10 seleccionada (CSV)</button>' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="tbSave()">' + ic('dl', 15) + ' Respaldo completo (JSON)</button></div>',
     '<button class="btn btn-w" onclick="closeModal()">Cerrar</button>', 560);
 }
@@ -1188,7 +1189,7 @@ function sqRun() {
     const rec = a && a.tipo === 'reclutador';
     return '<div style="background:#f8fafd;border:1px solid var(--line2);border-radius:8px;padding:12px 14px;margin-bottom:8px">' +
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="uava" style="width:36px;height:36px;font-size:14px">' + ini(apeP(p) + ', ' + nomP(p)) + '</span><div style="flex:1;min-width:0"><b style="font-size:14px;color:var(--navy)">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:12px;color:var(--mut)">' + fC(p.letra, p.cedula) + '</div></div>' +
-        (a ? (rec ? '<span class="chip chip-b">★ RECLUTADOR</span>' : '<span class="chip chip-g">✓ ASIGNADO #' + a.pos + '</span>') : '<span class="chip chip-gr">LIBRE</span>') + '</div>' +
+        (a ? (rec ? '<span class="chip chip-b">★ MOVILIZADOR</span>' : '<span class="chip chip-g">✓ ASIGNADO #' + a.pos + '</span>') : '<span class="chip chip-gr">LIBRE</span>') + '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-size:12px">' +
         '<div><span style="color:var(--mut)">Edad:</span> <b>' + (p.edad || '—') + '</b> años</div>' +
         '<div><span style="color:var(--mut)">Sexo:</span> <b>' + p.sexo + '</b></div>' +
@@ -1199,7 +1200,7 @@ function sqRun() {
         '<div style="grid-column:span 2"><span style="color:var(--mut)">Estado:</span> <b>' + esc(p.estado || '—') + '</b> <span class="mono" style="font-size:10px;color:var(--mut)">(' + esc(p.codigo_estado || '') + ')</span></div>' +
         (p.es_manual ? '<div style="grid-column:span 2"><span class="chip chip-r">REGISTRO MANUAL</span></div>' : '') +
       '</div>' +
-      (a && !rec ? '<div style="margin-top:8px;text-align:right"><button class="btn btn-w btn-xs" onclick="closeModal();openRec(' + a.r.id + ')">' + ic('search', 12) + ' Ver lista del reclutador</button></div>' : '') +
+      (a && !rec ? '<div style="margin-top:8px;text-align:right"><button class="btn btn-w btn-xs" onclick="closeModal();openRec(' + a.r.id + ')">' + ic('search', 12) + ' Ver lista del movilizador</button></div>' : '') +
       '</div>';
   }).join('') : '<div class="empty">' + ic('search', 24) + '<p>Sin coincidencias para "<b>' + esc(q) + '</b>"</p></div>';
 }
@@ -1248,9 +1249,15 @@ function renderDash() {
   $('sec-dash').innerHTML = panel('Sala Situacional / Indicadores Generales <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'dashContent\',\'Sala Situacional — Indicadores Generales\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'dashContent\',\'Sala Situacional — Indicadores Generales\')">' + ic('dl', 13) + ' PDF</button></div>',
     '<div id="dashContent"><div class="grid g4">' +
     kc('Padrón CNE (Turso)', CACHE.pad.length, 'electores en la nube') +
-    kc('Reclutadores activos', CACHE.recl.length, buckets[0] + ' con lista completa') +
+    kc('Movilizadores activos', CACHE.recl.length, buckets[0] + ' con lista completa') +
     kc('Personas en listas 1×10', regs, (100 * cob).toFixed(1) + '% del padrón', cob * 100) +
     kc('Listas completadas', buckets[0], 'de ' + CACHE.recl.length + ' desplegadas', CACHE.recl.length ? 100 * buckets[0] / CACHE.recl.length : 0, buckets[0] === CACHE.recl.length && buckets[0] > 0) +
+    '</div>' +
+    '<div class="grid g4" style="margin-top:14px">' +
+    '<button class="btn btn-navy" onclick="go(\'data\')" style="height:64px;border-radius:10px;font-size:13px">' + ic('db', 20) + '<div><b>Cargar Archivos</b><div style="font-size:11px;opacity:.7">CSV / Excel del CNE</div></div></button>' +
+    '<button class="btn btn-navy" onclick="go(\'recl\');setTimeout(openNewRecl,300)" style="height:64px;border-radius:10px;font-size:13px">' + ic('users', 20) + '<div><b>Registrar Movilizador</b><div style="font-size:11px;opacity:.7">Nuevo 1×10</div></div></button>' +
+    '<button class="btn btn-w" onclick="go(\'padron\')" style="height:64px;border-radius:10px;font-size:13px;border:1px solid var(--line2)">' + ic('search', 20) + '<div><b>Padrón CNE</b><div style="font-size:11px;opacity:.7">' + CACHE.pad.length + ' electores</div></div></button>' +
+    '<button class="btn btn-w" onclick="go(\'centros\')" style="height:64px;border-radius:10px;font-size:13px;border:1px solid var(--line2)">' + ic('pin', 20) + '<div><b>Centros Electorales</b><div style="font-size:11px;opacity:.7">' + CACHE.centros.length + ' centros</div></div></button>' +
     '</div>') +
     '<div class="grid g3">' +
     panel('Estatus de las Listas 1×10', '<div id="ch-listas"></div>') +
@@ -1263,7 +1270,7 @@ function renderDash() {
     '</div>' +
     '<div class="grid g2">' +
     panel('Actividad en Tiempo Real <span class="chip chip-g" style="margin-left:auto">● TURSO</span>', '<div id="feedList" style="max-height:320px;overflow:auto"></div>') +
-    panel('Reclutadores Destacados', '<div id="leadList"></div>') +
+    panel('Movilizadores Destacados', '<div id="leadList"></div>') +
     '</div></div>';
 
   donut('listas', [
@@ -1291,7 +1298,7 @@ function renderLead() {
   $('leadList').innerHTML = top.length ? top.map((r, i) => {
     const p = padBy(r.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : r.cedula;
     return '<div class="row10" style="cursor:pointer" onclick="openRec(' + r.id + ')"><span class="pos" style="' + (i < 3 ? 'background:var(--red)' : '') + '">' + (i + 1) + '</span><span class="uava">' + ini(nm) + '</span><div style="flex:1;min-width:0"><b style="font-size:13px">' + esc(nm) + '</b><div class="pbar" style="margin-top:4px"><i class="' + (r.lista.length >= 10 ? 'full' : '') + '" style="width:' + (r.lista.length * 10) + '%"></i></div></div><span class="mono" style="font-weight:700;color:' + (r.lista.length >= 10 ? 'var(--green)' : 'var(--navy)') + '">' + r.lista.length + '/10</span></div>';
-  }).join('') : '<div class="empty">Sin reclutadores</div>';
+  }).join('') : '<div class="empty">Sin movilizadores</div>';
 }
 
 /* ═══════════ REGISTRO 1×10 ═══════════ */
@@ -1305,16 +1312,16 @@ function renderRegistro(focus) {
     const C = 2 * Math.PI * 44;
     ring = '<svg viewBox="0 0 110 110" width="104" class="ring"><circle class="bg" cx="55" cy="55" r="44" fill="none" stroke-width="11"/><circle class="fg" cx="55" cy="55" r="44" fill="none" stroke-width="11" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - r.lista.length / 10)) + '" style="stroke:' + (r.lista.length >= 10 ? 'var(--green)' : 'var(--navy)') + '"/></svg>';
   }
-  $('sec-registro').innerHTML = '<div class="grid gC"><div><div class="panel"><div class="panel-h">Selección de Reclutador</div><div class="panel-b">' +
+  $('sec-registro').innerHTML = '<div class="grid gC"><div><div class="panel"><div class="panel-h">Selección de Movilizador</div><div class="panel-b">' +
     '<input class="inp" id="rqs" placeholder="Buscar..." value="' + esc(qq) + '" oninput="renderRegistro(true)"><div style="margin-top:10px;display:grid;gap:7px;max-height:280px;overflow:auto">' +
-    (side.map(x => { const p = padBy(x.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : x.cedula; return '<button class="rec-sel' + (REG.rec === x.id ? ' on' : '') + '" onclick="REG.rec=' + x.id + ';renderRegistro()"><span class="uava">' + ini(nm) + '</span><span style="flex:1;min-width:0"><b style="font-size:12.5px;display:block">' + esc(nm) + '</b><span class="mono" style="font-size:10.5px;color:var(--mut)">' + fC(p ? p.letra : 'V', x.cedula) + '</span></span><span class="chip ' + (x.lista.length >= 10 ? 'chip-g' : 'chip-y') + '">' + x.lista.length + '/10</span></button>' }).join('') || '<div class="empty" style="padding:14px">Sin reclutadores.</div>') +
+    (side.map(x => { const p = padBy(x.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : x.cedula; return '<button class="rec-sel' + (REG.rec === x.id ? ' on' : '') + '" onclick="REG.rec=' + x.id + ';renderRegistro()"><span class="uava">' + ini(nm) + '</span><span style="flex:1;min-width:0"><b style="font-size:12.5px;display:block">' + esc(nm) + '</b><span class="mono" style="font-size:10.5px;color:var(--mut)">' + fC(p ? p.letra : 'V', x.cedula) + '</span></span><span class="chip ' + (x.lista.length >= 10 ? 'chip-g' : 'chip-y') + '">' + x.lista.length + '/10</span></button>' }).join('') || '<div class="empty" style="padding:14px">Sin movilizadores.</div>') +
     '</div></div></div>' +
-    (r ? '<div class="panel"><div class="panel-h">Ficha del Reclutador</div><div class="panel-b" style="text-align:center">' + ring +
+    (r ? '<div class="panel"><div class="panel-h">Ficha del Movilizador</div><div class="panel-b" style="text-align:center">' + ring +
       '<div style="margin-top:-70px;pointer-events:none;font-size:21px;font-weight:700;color:var(--navy)">' + r.lista.length + '<span style="font-size:12px;color:var(--mut)">/10</span></div>' +
       '<div style="margin-top:34px"><b style="font-size:15px;color:var(--navy)">' + esc(nomP(padBy(r.cedula) || { p_nombre: r.cedula })) + '</b><div class="mono" style="font-size:11.5px;color:var(--mut)">' + fC((padBy(r.cedula) || {}).letra || 'V', r.cedula) + ' · ' + esc(r.estructura || '—') + '</div>' +
       '<div class="slots" style="justify-content:center">' + Array.from({ length: 10 }, (_, i) => '<span class="slot' + (i < r.lista.length ? ' f' : '') + '"></span>').join('') + '</div>' +
       '<button class="btn btn-w btn-xs" style="margin-top:12px" onclick="openRec(' + r.id + ')">' + ic('search', 13) + ' Ver listado / cotejar</button></div></div></div>'
-      : '<div class="panel"><div class="panel-b empty">' + ic('users', 30) + '<p>Seleccione un reclutador.</p></div></div>') + '</div>' +
+      : '<div class="panel"><div class="panel-b empty">' + ic('users', 30) + '<p>Seleccione un movilizador.</p></div></div>') + '</div>' +
     '<div><div class="panel"><div class="panel-h">Punto de Registro 1×10 <span class="chip chip-g" style="margin-left:auto">● TURSO · BLOQUEO ÚNICO</span></div><div class="panel-b" id="regBox">' +
     '<div class="grid g2"><div style="flex:2"><label class="fl">Cédula (LETRA + CEDULA_IDENTIDAD)</label><input class="inp mono" id="cedIn" style="font-size:19px;font-weight:700" placeholder="V-12.345.678" ' + (r ? '' : 'disabled') + '></div>' +
     '<div style="align-self:end"><button class="btn btn-navy btn-big" style="width:100%;justify-content:center" ' + (r ? '' : 'disabled') + ' onclick="doReg()">Registrar ➜</button></div></div><div id="regResult"></div></div></div>' +
@@ -1322,7 +1329,7 @@ function renderRegistro(focus) {
     (r ? (r.lista.length ? '<table class="tbl"><thead><tr><th>#</th><th>C.I.</th><th>Apellidos y nombres</th><th>Edad</th><th>Sexo</th><th>Centro</th><th>Municipio</th><th>Hora</th><th></th></tr></thead><tbody>' +
       r.lista.map((l, i) => { const p = padBy(l.cedula); return '<tr><td><span class="pos">' + (i + 1) + '</span></td><td class="mono" style="font-weight:700">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td>' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<span class="chip chip-r">SIN PADRÓN</span>') + '</td><td>' + (p ? p.edad : '—') + '</td><td>' + (p ? p.sexo : '—') + '</td><td>' + esc(p ? p.nombre_cv : '—') + '</td><td>' + esc(p ? p.municipio : '—') + '</td><td class="mono" style="font-size:11px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</td><td><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')">' + ic('x', 12) + '</button></td></tr>' }).join('') + '</tbody></table>'
       : '<div class="empty">' + ic('target', 28) + '<p>Lista vacía.</p></div>')
-      : '<div class="empty">' + ic('lock', 28) + '<p>Sin reclutador seleccionado.</p></div>') + '</div></div></div></div>';
+      : '<div class="empty">' + ic('lock', 28) + '<p>Sin movilizador seleccionado.</p></div>') + '</div></div></div></div>';
   const inp = $('cedIn');
   if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') doReg() });
   if (focus && inp) inp.focus();
@@ -1340,7 +1347,7 @@ async function doReg() {
   const ex = asignDe(c);
   if (ex) {
     const np = padBy(ex.r.cedula); const nRecl = np ? nomP(np) + ' ' + apeP(np) : ex.r.cedula;
-    return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div><b>⛔ Registro bloqueado por duplicidad</b>La C.I. <b class="mono">' + fC('V', c) + '</b> ya se encuentra asignada al RECLUTADOR <b>«' + esc(nRecl) + '»</b>' + (ex.pos ? ' (posición #' + ex.pos + ')' : '') + '.<br><button class="btn btn-w btn-xs" style="margin-top:8px" onclick="openRec(' + ex.r.id + ')">' + ic('search', 12) + ' Ver lista del dueño</button></div></div>');
+    return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div><b>⛔ Registro bloqueado por duplicidad</b>La C.I. <b class="mono">' + fC('V', c) + '</b> ya se encuentra asignada al MOVILIZADOR <b>«' + esc(nRecl) + '»</b>' + (ex.pos ? ' (posición #' + ex.pos + ')' : '') + '.<br><button class="btn btn-w btn-xs" style="margin-top:8px" onclick="openRec(' + ex.r.id + ')">' + ic('search', 12) + ' Ver lista del dueño</button></div></div>');
   }
   const p = padBy(c);
   if (!p) { window._manC = c; return R('<div class="alert warn"><div class="a-ic">' + ic('db', 18) + '</div><div><b>No aparece en el padrón CNE</b>La C.I. <b class="mono">' + fC('V', c) + '</b> no existe.<br><button class="btn btn-navy btn-xs" style="margin-top:8px" onclick="openManual()">' + ic('up', 12) + ' Registrar manualmente</button></div></div>') }
@@ -1348,7 +1355,7 @@ async function doReg() {
     const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
     const pos = (max[0].m || 0) + 1;
     await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion) VALUES(?,?,?)', [r.id, c, pos]);
-    await registrarAct('user', 'C.I. ' + fC(p.letra, p.cedula) + ' registrada en lista de reclutador #' + r.id + ' (posición ' + pos + ')', USER.id);
+    await registrarAct('user', 'C.I. ' + fC(p.letra, p.cedula) + ' registrada en lista de movilizador #' + r.id + ' (posición ' + pos + ')', USER.id);
     await refreshAll(); renderRegistro(true);
     R('<div class="alert ok"><div class="a-ic">' + ic('check', 18) + '</div><div><b>✓ Registro exitoso · posición #' + pos + '</b>' + esc(apeP(p) + ', ' + nomP(p)) + ' · ' + p.edad + ' años · ' + p.sexo + '<br>Centro: ' + esc(p.nombre_cv) + ' (' + esc(p.municipio) + ')<br>Lista: <b class="mono">' + CACHE.recl.find(x => x.id === r.id).lista.length + '/10</b></div></div>');
     toast('C.I. ' + fC(p.letra, p.cedula) + ' registrada (Turso)', 'ok');
@@ -1403,9 +1410,9 @@ function renderRecl() {
   const qq = (($('rq2') || {}).value || '').toLowerCase();
   const list = CACHE.recl.filter(r => { const p = padBy(r.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : r.cedula; return !qq || nm.toLowerCase().includes(qq) });
   const comp = CACHE.recl.filter(r => r.lista.length === 10).length, vac = CACHE.recl.filter(r => !r.lista.length).length;
-  $('sec-recl').innerHTML = panel('Reclutadores / Gestión de Listas 1×10',
+  $('sec-recl').innerHTML = panel('Movilizadores / Gestión de Listas 1×10',
     '<div class="grid g4" style="margin-bottom:14px">' + kc('Reclutadores', CACHE.recl.length, 'desplegados') + kc('Listas completas', comp, (CACHE.recl.length ? (100 * comp / CACHE.recl.length).toFixed(0) : 0) + '%', CACHE.recl.length ? 100 * comp / CACHE.recl.length : 0, comp === CACHE.recl.length && comp > 0) + kc('En progreso', CACHE.recl.length - comp - vac, '1 a 9 registros') + kc('Vacías', vac, 'por activar') + '</div>' +
-    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:2"><label class="fl">Buscar</label><input class="inp" id="rq2" value="' + esc(qq) + '" oninput="renderRecl()"></div><div style="flex:0;align-self:end"><div style="display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'reclContent\',\'Reclutadores — Gestión de Listas 1×10\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'reclContent\',\'Reclutadores — Gestión de Listas 1×10\')">' + ic('dl', 13) + ' PDF</button><button class="btn btn-navy" onclick="openNewRecl()">' + ic('users', 14) + ' Nuevo reclutador</button></div></div></div>' +
+    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:2"><label class="fl">Buscar</label><input class="inp" id="rq2" value="' + esc(qq) + '" oninput="renderRecl()"></div><div style="flex:0;align-self:end"><div style="display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'reclContent\',\'Movilizadores — Gestión de Listas 1×10\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'reclContent\',\'Movilizadores — Gestión de Listas 1×10\')">' + ic('dl', 13) + ' PDF</button><button class="btn btn-navy" onclick="openNewRecl()">' + ic('users', 14) + ' Nuevo movilizador</button></div></div></div>' +
     '<div id="reclContent"><div class="grid g3">' + (list.map(r => {
       const p = padBy(r.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : r.cedula;
       const n = r.lista.length;
@@ -1413,7 +1420,7 @@ function renderRecl() {
         '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);margin-top:9px"><span>Progreso</span><b class="mono" style="color:' + (n >= 10 ? 'var(--green)' : 'var(--navy)') + '">' + n + '/10</b></div><div class="pbar"><i class="' + (n >= 10 ? 'full' : '') + '" style="width:' + (n * 10) + '%"></i></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:9px">' + (n >= 10 ? '<span class="chip chip-g">✓ COMPLETA</span>' : n === 0 ? '<span class="chip chip-gr">VACÍA</span>' : n >= 7 ? '<span class="chip chip-t">AVANZADA ' + n + '/10</span>' : '<span class="chip chip-y">EN PROCESO ' + n + '/10</span>') + '<span class="mono" style="font-size:10.5px;color:var(--mut)">📞 ' + esc(r.telefono || '—') + '</span></div>' +
         '<div style="display:flex;gap:7px;margin-top:9px"><button class="btn btn-navy btn-xs" style="flex:1;justify-content:center" onclick="event.stopPropagation();openRec(' + r.id + ')">' + ic('search', 12) + ' Ver / cotejar</button><button class="btn btn-w btn-xs" onclick="event.stopPropagation();REG.rec=' + r.id + ';go(\'registro\')">' + ic('target', 12) + ' Registrar</button></div></div>';
-    }).join('') || '<div class="empty">Sin reclutadores.</div>') + '</div></div>');
+    }).join('') || '<div class="empty">Sin movilizadores.</div>') + '</div></div>');
   _refocus(prevFocus);
 }
 function openRec(id) {
@@ -1466,7 +1473,7 @@ function downloadRecPDF(id) {
       '<div style="text-align:right;font-size:9.5px;color:#5c6b7a"><div>' + fecha + '</div><div>' + hora + '</div></div></div>' +
     '<h2 style="font-size:16px;color:#123c69;margin:0 0 6px">Lista de Cotejo contra Padrón CNE #' + r.id + '</h2>' +
     '<div style="display:flex;gap:20px;font-size:12px;color:#5c6b7a;margin-bottom:14px;flex-wrap:wrap">' +
-      '<div><b>Reclutador:</b> ' + esc(nm) + '</div>' +
+      '<div><b>Movilizador:</b> ' + esc(nm) + '</div>' +
       '<div><b>C.I.:</b> ' + fC(p ? p.letra : 'V', r.cedula) + '</div>' +
       '<div><b>Estructura:</b> ' + esc(r.estructura || '—') + '</div>' +
       '<div><b>Teléfono:</b> ' + esc(r.telefono || '—') + '</div>' +
@@ -1510,7 +1517,7 @@ function shareRecPDF(id) {
       '<div style="flex:1"><div style="font-size:17px;font-weight:700;color:#123c69">GESTIÓN DE CAMPAÑA</div><div style="font-size:10px;color:#5c6b7a">Partido Político — Yaracuy · Lista de Cotejo 1×10</div></div>' +
       '<div style="text-align:right;font-size:9.5px;color:#5c6b7a"><div>' + fecha + '</div><div>' + hora + '</div></div></div>' +
     '<h2 style="font-size:16px;color:#123c69;margin:0 0 6px">Lista de Cotejo contra Padrón CNE #' + r.id + '</h2>' +
-    '<div style="display:flex;gap:20px;font-size:12px;color:#5c6b7a;margin-bottom:14px;flex-wrap:wrap"><div><b>Reclutador:</b> ' + esc(nm) + '</div><div><b>C.I.:</b> ' + fC(p ? p.letra : 'V', r.cedula) + '</div><div><b>Estructura:</b> ' + esc(r.estructura || '—') + '</div><div><b>Teléfono:</b> ' + esc(r.telefono || '—') + '</div><div><b>Alta:</b> ' + esc(r.creado || '').slice(0, 10) + '</div></div>' +
+    '<div style="display:flex;gap:20px;font-size:12px;color:#5c6b7a;margin-bottom:14px;flex-wrap:wrap"><div><b>Movilizador:</b> ' + esc(nm) + '</div><div><b>C.I.:</b> ' + fC(p ? p.letra : 'V', r.cedula) + '</div><div><b>Estructura:</b> ' + esc(r.estructura || '—') + '</div><div><b>Teléfono:</b> ' + esc(r.telefono || '—') + '</div><div><b>Alta:</b> ' + esc(r.creado || '').slice(0, 10) + '</div></div>' +
     '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">' +
       '<div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#123c69">' + n + '/10</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">REGISTROS</div></div>' +
       '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:22px;font-weight:700;color:#2e7d32">' + emp + '</div><div style="font-size:9px;color:#5c6b7a;font-weight:600">EN PADRÓN</div></div>' +
@@ -1529,13 +1536,13 @@ function shareRecPDF(id) {
 function dlCSV(name, rows) { const b = new Blob(['\uFEFF' + rows.map(r => r.map(x => '"' + String(x ?? '').replace(/"/g, '""') + '"').join(';')).join('\n')], { type: 'text/csv;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; a.click() }
 function delRecl(id) {
   const r = CACHE.recl.find(x => x.id === id);
-  askDo('Eliminar reclutador', 'Se eliminará a <b>' + esc(nomP(padBy(r.cedula) || { p_nombre: r.cedula })) + '</b> y sus ' + r.lista.length + ' cupos quedarán libres en Turso (CASCADE).', 'Eliminar', async () => {
-    try { await x('DELETE FROM reclutadores WHERE id = ?', [id]); await registrarAct('user', 'Reclutador #' + id + ' eliminado', USER.id); await refreshAll(); closeModal(); renderRecl(); toast('Reclutador eliminado', 'ok') } catch (e) { toast(e.message, 'err') }
+  askDo('Eliminar movilizador', 'Se eliminará a <b>' + esc(nomP(padBy(r.cedula) || { p_nombre: r.cedula })) + '</b> y sus ' + r.lista.length + ' cupos quedarán libres en Turso (CASCADE).', 'Eliminar', async () => {
+    try { await x('DELETE FROM reclutadores WHERE id = ?', [id]); await registrarAct('user', 'Movilizador #' + id + ' eliminado', USER.id); await refreshAll(); closeModal(); renderRecl(); toast('Movilizador eliminado', 'ok') } catch (e) { toast(e.message, 'err') }
   });
 }
 function openNewRecl() {
   window._nrSel = null;
-  win(ic('users', 18) + ' Nuevo reclutador 1×10',
+  win(ic('users', 18) + ' Nuevo movilizador 1×10',
     '<label class="fl">Paso 1 · Ubicar en el padrón CNE (Turso)</label><div style="display:flex;gap:8px"><input class="inp" id="nrQ" placeholder="Cédula o nombre" onkeydown="if(event.key===\'Enter\')nrSearch()"><button class="btn btn-navy" onclick="nrSearch()">Buscar</button></div><div id="nrRes" style="margin-top:10px;display:grid;gap:7px"></div>' +
     '<div id="nrForm" style="display:none;margin-top:14px;border-top:1px solid var(--line2);padding-top:14px"><label class="fl">Paso 2 · Datos del responsable</label><div id="nrCard" style="margin-bottom:10px"></div><div class="grid g2" style="gap:12px"><div><label class="fl">Teléfono</label><input class="inp mono" id="nrTel" placeholder="0414-0000000"></div><div><label class="fl">Estructura</label><select class="inp" id="nrEst"><option>UBCH</option><option>Jefe de Calle</option><option>Comunidad</option><option>Punto a Punto</option><option>Movimiento Social</option><option>Jefe de Comando</option></select></div></div></div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" id="nrSave" disabled onclick="nrSave()">Crear ➜</button>', 620);
@@ -1546,7 +1553,7 @@ function nrSearch() {
   const res = CACHE.pad.filter(p => (cq.length >= 3 && p.cedula.startsWith(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(ql)).slice(0, 6);
   $('nrRes').innerHTML = res.length ? res.map(p => {
     const a = asignDe(p.cedula);
-    return '<button class="rec-sel" ' + (a ? 'disabled' : '') + ' onclick="nrPick(\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p)) + '</span><span style="flex:1"><b style="font-size:12.5px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:11px;color:var(--mut)">' + fC(p.letra, p.cedula) + ' · ' + p.edad + 'a · ' + esc(p.nombre_cv) + '</div></span>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">RECLUTADOR</span>' : '<span class="chip chip-r">YA ASIGNADO</span>') : '<span class="chip chip-g">DISPONIBLE</span>') + '</button>';
+    return '<button class="rec-sel" ' + (a ? 'disabled' : '') + ' onclick="nrPick(\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p)) + '</span><span style="flex:1"><b style="font-size:12.5px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:11px;color:var(--mut)">' + fC(p.letra, p.cedula) + ' · ' + p.edad + 'a · ' + esc(p.nombre_cv) + '</div></span>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<span class="chip chip-r">YA ASIGNADO</span>') : '<span class="chip chip-g">DISPONIBLE</span>') + '</button>';
   }).join('') : '<div class="empty" style="padding:14px">Sin coincidencias.</div>';
 }
 function nrPick(c) { window._nrSel = c; $('nrForm').style.display = 'block'; $('nrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC('V', c) + '</b> seleccionada</div></div>' }
@@ -1555,8 +1562,8 @@ async function nrSave() {
   if (asignDe(p.cedula)) return toast('Cédula ya asignada', 'err');
   try {
     await x('INSERT INTO reclutadores(cedula,telefono,estructura) VALUES(?,?,?)', [p.cedula, $('nrTel').value, $('nrEst').value]);
-    await registrarAct('user', 'Nuevo reclutador creado: ' + fC(p.letra, p.cedula), USER.id);
-    await refreshAll(); closeModal(); toast('Reclutador creado en Turso', 'ok');
+    await registrarAct('user', 'Nuevo movilizador creado: ' + fC(p.letra, p.cedula), USER.id);
+    await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
     const nuevo = CACHE.recl.find(r => r.cedula === p.cedula);
     if (nuevo) { REG.rec = nuevo.id; go('registro') }
   } catch (e) { toast(e.message, 'err') }
@@ -1589,13 +1596,13 @@ function renderPadron() {
     '<button class="btn btn-navy" onclick="downloadPDF(\'padronContent\',\'Padrón CNE — Electores\')">' + ic('dl', 14) + ' PDF</button>' +
     '</div></div></div>' +
     '<div id="padronContent"><table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th><th>Centro de votación</th><th>Municipio / Parroquia</th><th>Estatus 1×10</th></tr></thead><tbody>' +
-    (rows.map(p => { const a = asignDe(p.cedula); return '<tr><td class="mono" style="font-weight:700">' + fC(p.letra, p.cedula) + (p.es_manual ? ' <span class="chip chip-r">MANUAL</span>' : '') + '</td><td>' + esc(apeP(p)) + '</td><td>' + esc(nomP(p)) + '</td><td>' + (p.edad || 0) + '</td><td>' + p.sexo + '</td><td class="mono" style="font-size:11px">' + esc(p.fecha_nac || '') + '</td><td style="max-width:190px">' + esc(p.nombre_cv) + ' <span class="mono" style="font-size:10px;color:var(--mut)">' + p.centro_votacion + '</span></td><td>' + esc(p.municipio) + ' / ' + esc(p.parroquia) + '</td><td>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">★ RECLUTADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="openRec(' + a.r.id + ')">✓ #' + a.pos + '</button>') : '<span class="chip chip-gr">LIBRE</span>') + '</td></tr>' }).join('') || '<tr><td colspan="9"><div class="empty">Sin resultados.</div></td></tr>') +
+    (rows.map(p => { const a = asignDe(p.cedula); return '<tr><td class="mono" style="font-weight:700">' + fC(p.letra, p.cedula) + (p.es_manual ? ' <span class="chip chip-r">MANUAL</span>' : '') + '</td><td>' + esc(apeP(p)) + '</td><td>' + esc(nomP(p)) + '</td><td>' + (p.edad || 0) + '</td><td>' + p.sexo + '</td><td class="mono" style="font-size:11px">' + esc(p.fecha_nac || '') + '</td><td style="max-width:190px">' + esc(p.nombre_cv) + ' <span class="mono" style="font-size:10px;color:var(--mut)">' + p.centro_votacion + '</span></td><td>' + esc(p.municipio) + ' / ' + esc(p.parroquia) + '</td><td>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">★ MOVILIZADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="openRec(' + a.r.id + ')">✓ #' + a.pos + '</button>') : '<span class="chip chip-gr">LIBRE</span>') + '</td></tr>' }).join('') || '<tr><td colspan="9"><div class="empty">Sin resultados.</div></td></tr>') +
     '</tbody></table></div><div class="pager">' + Array.from({ length: Math.min(pgs, 20) }, (_, i) => '<button class="pg' + (i + 1 === f.pg ? ' on' : '') + '" onclick="PADF.pg=' + (i + 1) + ';renderPadron()">' + (i + 1) + '</button>').join('') + (pgs > 20 ? '<span style="align-self:center;color:var(--mut);font-size:12px">… ' + pgs + ' págs</span>' : '') + '</div>');
   _refocus(prevFocus);
 }
 function expPadron() {
   const rows = [['Nro', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'EDAD', 'CODIGO_ESTADO', 'ESTADO', 'CODIGO_MUNICIPIO', 'MUNICIPIO', 'CODIGO_PARROQUIA', 'PARROQUIA', 'CENTRO_VOTACION', 'NOMBRE_CV', 'ESTATUS_1X10']];
-  CACHE.pad.forEach((p, i) => { const a = asignDe(p.cedula); rows.push([i + 1, p.letra, p.cedula, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv, a ? (a.tipo === 'reclutador' ? 'RECLUTADOR' : 'ASIGNADO #' + a.pos) : 'LIBRE']) });
+  CACHE.pad.forEach((p, i) => { const a = asignDe(p.cedula); rows.push([i + 1, p.letra, p.cedula, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv, a ? (a.tipo === 'reclutador' ? 'MOVILIZADOR' : 'ASIGNADO #' + a.pos) : 'LIBRE']) });
   dlCSV('padron_cne_turso.csv', rows); toast('Padrón exportado (' + rows.length + ')', 'ok');
 }
 
@@ -1825,7 +1832,7 @@ function applyImp(modo) {
   const { out, cenMap, fname } = window._impData; if (!out) return;
   (async () => {
     try {
-      if (modo === 'repl') { await x('DELETE FROM asignaciones'); await x('DELETE FROM reclutadores'); await x('DELETE FROM padron') }
+      if (modo === 'repl') { await x('DELETE FROM asignaciones'); await x('DELETE FROM movilizadores'); await x('DELETE FROM padron') }
       for (const c of Object.values(cenMap)) {
         if (!cenBy(c.cvCod)) {
           await x('INSERT OR IGNORE INTO centros(codigo,nombre,municipio,parroquia,estado,mesas,cod_estado,cod_municipio,cod_parroquia) VALUES(?,?,?,?,?,?,1,?,?)',
@@ -1844,13 +1851,13 @@ function applyImp(modo) {
 }
 async function resetCNE() {
   askDo('Reiniciar padrón', 'Se vaciará el padrón y se volverán a cargar los 479 electores originales. Las asignaciones se conservarán donde coincidan.', 'Reiniciar', async () => {
-    await x('DELETE FROM asignaciones'); await x('DELETE FROM reclutadores'); await x('DELETE FROM padron');
+    await x('DELETE FROM asignaciones'); await x('DELETE FROM movilizadores'); await x('DELETE FROM padron');
     await migrarCNE(); await refreshAll(); go('dash'); toast('Padrón reiniciado', 'ok');
   });
 }
 async function wipeTurso() {
-  askDo('Vaciar todas las tablas', 'Elimina TODO en Turso: padrón, centros, reclutadores, asignaciones, actividad. Los usuarios se conservan.', 'Vaciar todo', async () => {
-    await x('DELETE FROM asignaciones'); await x('DELETE FROM reclutadores'); await x('DELETE FROM actividad'); await x('DELETE FROM padron'); await x('DELETE FROM centros');
+  askDo('Vaciar todas las tablas', 'Elimina TODO en Turso: padrón, centros, movilizadores, asignaciones, actividad. Los usuarios se conservan.', 'Vaciar todo', async () => {
+    await x('DELETE FROM asignaciones'); await x('DELETE FROM movilizadores'); await x('DELETE FROM actividad'); await x('DELETE FROM padron'); await x('DELETE FROM centros');
     await refreshAll(); go('dash'); toast('Turso vaciado', 'ok');
   });
 }
