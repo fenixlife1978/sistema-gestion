@@ -1551,10 +1551,15 @@ function nrSearch() {
   const q = $('nrQ').value.trim(); if (!q) return;
   const cq = normC(q), ql = q.toLowerCase();
   const res = CACHE.pad.filter(p => (cq.length >= 3 && p.cedula.startsWith(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(ql)).slice(0, 6);
-  $('nrRes').innerHTML = res.length ? res.map(p => {
+  if (!res.length) {
+    window._nrManC = /^\d{5,9}$/.test(cq) ? cq : '';
+    $('nrRes').innerHTML = '<div class="alert warn" style="display:flex;gap:10px;align-items:center"><div class="a-ic">' + ic('db', 22) + '</div><div style="flex:1"><b>No encontrado en el padrón CNE</b><div style="font-size:12px;color:var(--mut);margin-top:2px">Puede registrar a esta persona manualmente para luego crearla como movilizador.</div></div><button class="btn btn-navy btn-xs" onclick="openNrManual()">' + ic('up', 12) + ' Registrar manualmente</button></div>';
+    return;
+  }
+  $('nrRes').innerHTML = res.map(p => {
     const a = asignDe(p.cedula);
     return '<button class="rec-sel" ' + (a ? 'disabled' : '') + ' onclick="nrPick(\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p)) + '</span><span style="flex:1"><b style="font-size:12.5px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:11px;color:var(--mut)">' + fC(p.letra, p.cedula) + ' · ' + p.edad + 'a · ' + esc(p.nombre_cv) + '</div></span>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<span class="chip chip-r">YA ASIGNADO</span>') : '<span class="chip chip-g">DISPONIBLE</span>') + '</button>';
-  }).join('') : '<div class="empty" style="padding:14px">Sin coincidencias.</div>';
+  }).join('');
 }
 function nrPick(c) { window._nrSel = c; $('nrForm').style.display = 'block'; $('nrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC('V', c) + '</b> seleccionada</div></div>' }
 async function nrSave() {
@@ -1565,6 +1570,36 @@ async function nrSave() {
     await registrarAct('user', 'Nuevo movilizador creado: ' + fC(p.letra, p.cedula), USER.id);
     await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
     const nuevo = CACHE.recl.find(r => r.cedula === p.cedula);
+    if (nuevo) { REG.rec = nuevo.id; go('registro') }
+  } catch (e) { toast(e.message, 'err') }
+}
+function openNrManual() {
+  const c = window._nrManC || '';
+  win(ic('up', 18) + ' Registrar movilizador manualmente',
+    '<p style="font-size:12px;color:var(--mut);margin-bottom:12px">Complete los datos. La persona se guardará en el padrón CNE y se creará como movilizador.</p>' +
+    '<div class="grid g3" style="gap:10px"><div><label class="fl">LETRA_CEDULA</label><select class="inp" id="nrmLet"><option>V</option><option>E</option></select></div><div><label class="fl">CÉDULA *</label><input class="inp mono" id="nrmCed" value="' + c + '" placeholder="12345678"></div><div><label class="fl">SEXO</label><select class="inp" id="nrmSex"><option>F</option><option>M</option></select></div>' +
+    '<div><label class="fl">PRIMER APELLIDO *</label><input class="inp" id="nrmPa"></div><div><label class="fl">SEGUNDO APELLIDO</label><input class="inp" id="nrmSa"></div><div><label class="fl">FECHA NACIMIENTO</label><input class="inp" type="date" id="nrmFn"></div>' +
+    '<div><label class="fl">PRIMER NOMBRE *</label><input class="inp" id="nrmPn"></div><div><label class="fl">SEGUNDO NOMBRE</label><input class="inp" id="nrmSn"></div><div><label class="fl">CENTRO VOTACIÓN</label><select class="inp" id="nrmCv">' + CACHE.centros.map(x => '<option value="' + x.codigo + '">' + esc(x.nombre) + '</option>').join('') + '</select></div>' +
+    '</div><div class="grid g2" style="gap:10px;margin-top:10px"><div><label class="fl">TELÉFONO</label><input class="inp mono" id="nrmTel" placeholder="0414-0000000"></div><div><label class="fl">ESTRUCTURA</label><select class="inp" id="nrmEst"><option>UBCH</option><option>Jefe de Calle</option><option>Comunidad</option><option>Punto a Punto</option><option>Movimiento Social</option><option>Jefe de Comando</option></select></div></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveNrManual()">Crear movilizador ➜</button>', 660);
+}
+async function saveNrManual() {
+  const ced = normC($('nrmCed').value), pa = $('nrmPa').value.trim(), pn = $('nrmPn').value.trim();
+  if (!/^\d{5,9}$/.test(ced)) return toast('Ingrese una cédula válida (5-9 dígitos)', 'err');
+  if (!pa || !pn) return toast('Complete primer apellido y primer nombre', 'err');
+  if (padBy(ced)) return toast('La cédula ya existe en el padrón CNE', 'err');
+  if (asignDe(ced)) return toast('La cédula ya está asignada como movilizador', 'err');
+  const cv = cenBy($('nrmCv').value) || CACHE.centros[0];
+  const fn = $('nrmFn').value; const edad = edadDe(fn);
+  const letra = $('nrmLet').value, sexo = $('nrmSex').value;
+  const tel = $('nrmTel').value.trim(), est = $('nrmEst').value;
+  try {
+    await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
+      [ced, letra, pa, $('nrmSa').value.trim(), pn, $('nrmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
+    await x('INSERT INTO reclutadores(cedula,telefono,estructura) VALUES(?,?,?)', [ced, tel, est]);
+    await registrarAct('user', 'Movilizador creado manual: ' + fC(letra, ced), USER.id);
+    await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
+    const nuevo = CACHE.recl.find(r => r.cedula === ced);
     if (nuevo) { REG.rec = nuevo.id; go('registro') }
   } catch (e) { toast(e.message, 'err') }
 }
