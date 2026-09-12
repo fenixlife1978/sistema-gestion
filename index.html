@@ -1860,25 +1860,29 @@ function processRows(raw, fname) {
   win(ic('file', 18) + ' Vista previa · ' + esc(fname),
     '<div class="grid g2" style="gap:8px;margin-bottom:10px"><div class="ck-it"><b>' + out.length + '</b><span>Electores</span></div><div class="ck-it"><b>' + Object.keys(cenMap).length + '</b><span>Centros</span></div><div class="ck-it"><b>' + mun.length + '</b><span>Municipios</span></div><div class="ck-it"><b>' + par.length + '</b><span>Parroquias</span></div></div>' +
     '<div style="max-height:260px;overflow-y:auto;border:1px solid var(--line2);border-radius:4px"><table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>Centro</th><th>Municipio</th></tr></thead><tbody>' + out.slice(0, 15).map(p => '<tr><td class="mono">' + fC(p.letra, p.ced) + '</td><td>' + esc(p.pa + ' ' + p.sa) + '</td><td>' + esc(p.pn + ' ' + p.sn) + '</td><td>' + edadDe(p.fn) + '</td><td>' + p.sexo + '</td><td>' + esc(p.cvNom) + '</td><td>' + esc(p.mun) + '</td></tr>').join('') + (out.length > 15 ? '<tr><td colspan="7" style="text-align:center;color:#999;font-style:italic">... +' + (out.length - 15) + ' registros más</td></tr>' : '') + '</tbody></table></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-w" onclick="applyImp(\'merge\')">' + ic('up', 14) + ' Combinar</button><button class="btn btn-navy" onclick="applyImp(\'repl\')">' + ic('up', 14) + ' Reemplazar</button>', 720);
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="applyImp()">' + ic('up', 14) + ' Cargar al padrón</button>', 720);
 }
-function applyImp(modo) {
+function applyImp() {
   const { out, cenMap, fname } = window._impData; if (!out) return;
   (async () => {
     try {
-      if (modo === 'repl') { await x('DELETE FROM asignaciones'); await x('DELETE FROM movilizadores'); await x('DELETE FROM padron') }
       for (const c of Object.values(cenMap)) {
         if (!cenBy(c.cvCod)) {
           await x('INSERT OR IGNORE INTO centros(codigo,nombre,municipio,parroquia,estado,mesas,cod_estado,cod_municipio,cod_parroquia) VALUES(?,?,?,?,?,?,1,?,?)',
             [c.cvCod, c.cvNom, c.mun, c.par, c.estado, c.codEst, c.codMun, c.codPar]);
         }
       }
+      let added = 0;
       for (const p of out) {
-        await x('INSERT OR IGNORE INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          [p.ced, p.letra, p.pa, p.sa, p.pn, p.sn, p.sexo, p.fn, edadDe(p.fn), p.codEst, p.estado, p.codMun, p.mun, p.codPar, p.par, p.cvCod, p.cvNom]);
+        const exists = padBy(p.ced);
+        if (!exists) {
+          await x('INSERT OR IGNORE INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            [p.ced, p.letra, p.pa, p.sa, p.pn, p.sn, p.sexo, p.fn, edadDe(p.fn), p.codEst, p.estado, p.codMun, p.mun, p.codPar, p.par, p.cvCod, p.cvNom]);
+          added++;
+        }
       }
-      await registrarAct('sys', 'Padrón CNE actualizado: ' + out.length + ' registros (' + modo + ') · ' + (fname || ''), USER.id);
-      await refreshAll(); closeModal(); toast('✓ ' + out.length + ' electores aplicados en Turso', 'ok', 5000);
+      await registrarAct('sys', 'Padrón CNE: +' + added + ' nuevos de ' + out.length + ' registros · ' + (fname || ''), USER.id);
+      await refreshAll(); closeModal(); toast('✓ ' + added + ' electores nuevos agregados (de ' + out.length + ' en archivo)', 'ok', 5000);
       go('padron');
     } catch (e) { toast(e.message, 'err', 8000) }
   })();
