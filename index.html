@@ -1620,16 +1620,15 @@ function renderPadron() {
   const rows = all.slice((f.pg - 1) * per, f.pg * per);
   $('sec-padron').innerHTML = panel('Padrón CNE / Electores <span class="chip chip-b" style="margin-left:auto">' + all.length + ' registros · Turso</span>',
     '<div class="filter-bar" style="margin-bottom:14px">' +
-    '<div style="flex:2"><label class="fl">Cédula o nombre</label><input class="inp" id="padFilter" value="' + esc(f.txt) + '" oninput="PADF.txt=this.value;PADF.pg=1;renderPadron()"></div>' +
-    '<div><label class="fl">Sexo</label><select class="inp" onchange="PADF.sexo=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option><option value="M" ' + (f.sexo === 'M' ? 'selected' : '') + '>M</option><option value="F" ' + (f.sexo === 'F' ? 'selected' : '') + '>F</option></select></div>' +
-    '<div><label class="fl">Centro</label><select class="inp" onchange="PADF.centro=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option>' + CACHE.centros.map(c => '<option value="' + c.codigo + '" ' + (f.centro === c.codigo ? 'selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></div>' +
-    '<div style="max-width:95px"><label class="fl">Edad mín.</label><input class="inp" type="number" value="' + f.e1 + '" onchange="PADF.e1=this.value;PADF.pg=1;renderPadron()"></div>' +
-    '<div style="max-width:95px"><label class="fl">Edad máx.</label><input class="inp" type="number" value="' + f.e2 + '" onchange="PADF.e2=this.value;PADF.pg=1;renderPadron()"></div>' +
-    '<div style="flex:0;align-self:end"><div style="display:flex;gap:6px">' +
-    '<button class="btn btn-w" onclick="expPadron()">' + ic('dl', 14) + ' CSV</button>' +
-    '<button class="btn btn-w" onclick="printSection(\'padronContent\',\'Padrón CNE — Electores\')">' + ic('file', 14) + ' Imprimir</button>' +
-    '<button class="btn btn-navy" onclick="downloadPDF(\'padronContent\',\'Padrón CNE — Electores\')">' + ic('dl', 14) + ' PDF</button>' +
-    '</div></div></div>' +
+    '<div style="flex:1;min-width:100px"><label class="fl">Buscar</label><input class="inp" id="padFilter" value="' + esc(f.txt) + '" oninput="PADF.txt=this.value;PADF.pg=1;renderPadron()"></div>' +
+    '<div style="min-width:70px"><label class="fl">Sexo</label><select class="inp" onchange="PADF.sexo=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option><option value="M" ' + (f.sexo === 'M' ? 'selected' : '') + '>M</option><option value="F" ' + (f.sexo === 'F' ? 'selected' : '') + '>F</option></select></div>' +
+    '<div style="min-width:80px"><label class="fl">Centro</label><select class="inp" onchange="PADF.centro=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option>' + CACHE.centros.map(c => '<option value="' + c.codigo + '" ' + (f.centro === c.codigo ? 'selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></div>' +
+    '<div style="max-width:70px"><label class="fl">Edad mín.</label><input class="inp" type="number" value="' + f.e1 + '" onchange="PADF.e1=this.value;PADF.pg=1;renderPadron()"></div>' +
+    '<div style="max-width:70px"><label class="fl">Edad máx.</label><input class="inp" type="number" value="' + f.e2 + '" onchange="PADF.e2=this.value;PADF.pg=1;renderPadron()"></div>' +
+    '<div style="align-self:end;display:flex;gap:5px;flex-wrap:wrap">' +
+    '<button class="btn btn-w btn-xs" onclick="expPadron()">' + ic('dl', 12) + ' CSV</button>' +
+    '<button class="btn btn-navy btn-xs" onclick="downloadPDF(\'padronContent\',\'Padrón CNE — Electores\')">' + ic('dl', 12) + ' PDF</button>' +
+    '</div></div>' +
     '<div id="padronContent"><table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th><th>Centro de votación</th><th>Municipio / Parroquia</th><th>Estatus 1×10</th></tr></thead><tbody>' +
     (rows.map(p => { const a = asignDe(p.cedula); return '<tr><td class="mono" style="font-weight:700">' + fC(p.letra, p.cedula) + (p.es_manual ? ' <span class="chip chip-r">MANUAL</span>' : '') + '</td><td>' + esc(apeP(p)) + '</td><td>' + esc(nomP(p)) + '</td><td>' + (p.edad || 0) + '</td><td>' + p.sexo + '</td><td class="mono" style="font-size:11px">' + esc(p.fecha_nac || '') + '</td><td style="max-width:190px">' + esc(p.nombre_cv) + ' <span class="mono" style="font-size:10px;color:var(--mut)">' + p.centro_votacion + '</span></td><td>' + esc(p.municipio) + ' / ' + esc(p.parroquia) + '</td><td>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">★ MOVILIZADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="openRec(' + a.r.id + ')">✓ #' + a.pos + '</button>') : '<span class="chip chip-gr">LIBRE</span>') + '</td></tr>' }).join('') || '<tr><td colspan="9"><div class="empty">Sin resultados.</div></td></tr>') +
     '</tbody></table></div><div class="pager">' + Array.from({ length: Math.min(pgs, 20) }, (_, i) => '<button class="pg' + (i + 1 === f.pg ? ' on' : '') + '" onclick="PADF.pg=' + (i + 1) + ';renderPadron()">' + (i + 1) + '</button>').join('') + (pgs > 20 ? '<span style="align-self:center;color:var(--mut);font-size:12px">… ' + pgs + ' págs</span>' : '') + '</div>');
