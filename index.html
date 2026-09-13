@@ -571,16 +571,20 @@ async function doLogin() {
     if (selR === 'A' && !['J', 'A'].includes(userRole)) return toast('Este usuario no tiene rol de Administrador', 'err');
     if (selR === 'O' && userRole !== 'O') return toast('Este usuario no tiene rol de Operador', 'err');
     USER = row[0];
+    localStorage.setItem('session', JSON.stringify({ user: USER, cur: 'dash' }));
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
     await refreshAll();
-    $('vLogin').style.display = 'none';
-    $('vApp').style.display = 'block';
-    buildTabs(); buildMore();
-    $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' · <span class="yel">TURSO · ' + CACHE.pad.length + ' electores · ' + CACHE.recl.length + ' movilizadores</span>';
-    go('dash'); startSim();
+    enterApp('dash');
   } catch (e) {
     toast('Error de conexión: ' + e.message, 'err', 8000);
   }
+}
+function enterApp(tab) {
+  $('vLogin').style.display = 'none';
+  $('vApp').style.display = 'block';
+  buildTabs(); buildMore();
+  $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' · <span class="yel">TURSO · ' + CACHE.pad.length + ' electores · ' + CACHE.recl.length + ' movilizadores</span>';
+  go(tab || 'dash'); startSim(); startSync();
 }
 $('lgP').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() });
 
@@ -613,6 +617,7 @@ function go(id) {
   const m = MODS.find(x => x.id === id);
   if (m.adm && !m.adm.includes(USER.rol)) return toast('Módulo restringido a ' + m.adm.join('/'), 'err');
   CUR = id;
+  localStorage.setItem('session', JSON.stringify({ user: USER, cur: CUR }));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   const t = $('tb-' + id); if (t) t.classList.add('on');
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
@@ -620,7 +625,7 @@ function go(id) {
   ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData })[id]();
   window.scrollTo({ top: 0 });
 }
-function logout() { location.reload() }
+function logout() { localStorage.removeItem('session'); location.reload() }
 
 /* ═══════════ TOOLBAR ═══════════ */
 async function tbSave() {
@@ -1613,6 +1618,29 @@ function startSim() {
   }, 25000);
 }
 
+/* ═══════════ SYNC EN TIEMPO REAL ═══════════ */
+let syncT = null;
+function startSync() {
+  if (syncT) return;
+  syncT = setInterval(async () => {
+    if (!USER) return;
+    try {
+      const oldPad = CACHE.pad.length, oldRecl = CACHE.recl.length, oldCentros = CACHE.centros.length;
+      await refreshAll();
+      if (CACHE.pad.length !== oldPad || CACHE.recl.length !== oldRecl || CACHE.centros.length !== oldCentros) {
+        $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' · <span class="yel">TURSO · ' + CACHE.pad.length + ' electores · ' + CACHE.recl.length + ' movilizadores</span>';
+      }
+      if (CUR === 'dash') renderDash();
+      else if (CUR === 'registro') renderRegistro(true);
+      else if (CUR === 'recl') renderRecl();
+      else if (CUR === 'padron') renderPadron();
+      else if (CUR === 'centros') renderCentros();
+      else if (CUR === 'rep') renderRep();
+      else if (CUR === 'users') renderUsers();
+    } catch (e) {}
+  }, 15000);
+}
+
 setInterval(() => { const c = $('clock'); if (c) c.textContent = new Date().toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) }, 1000);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); $('moreMenu').classList.remove('on') } });
 
@@ -1622,6 +1650,18 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
     setLoad('Conectando con Turso...');
     await q('SELECT 1');
     await inicializarTurso();
+    const saved = (() => { try { return JSON.parse(localStorage.getItem('session')); } catch(e) { return null; } })();
+    if (saved && saved.user && saved.user.usuario) {
+      setLoad('Restaurando sesión...');
+      const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [saved.user.usuario]);
+      if (row.length) {
+        USER = row[0];
+        await refreshAll();
+        $('loading').style.display = 'none';
+        enterApp(saved.cur || 'dash');
+        return;
+      }
+    }
     const count = await q('SELECT COUNT(*) AS n FROM padron');
     $('lgInfo').textContent = count[0].n + ' electores · Turso OK';
     $('loading').style.display = 'none';
