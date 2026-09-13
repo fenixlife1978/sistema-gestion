@@ -1361,7 +1361,7 @@ function renderRep() {
           const barW = maxMuni ? (100 * x.v / maxMuni) : 0;
           return '<tr><td><b>' + esc(x.l) + '</b></td><td class="mono" style="text-align:right;font-weight:700">' + x.v + '</td><td class="mono" style="text-align:right">' + pct + '%</td><td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:16px;background:#e2e8f0;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + barW + '%;background:linear-gradient(90deg,var(--teal),var(--blue));border-radius:3px;transition:width .6s"></div></div></div></td></tr>';
         }).join('') + '</tbody></table>' : '<div class="empty">Sin datos para mostrar.</div>') +
-    '</div></div>';
+    '</div></div>');
 
   hbars('repC', byC.map((x, i) => ({ ...x, c: f.centro ? (x.local ? '#43a047' : '#e53935') : PAL[i % PAL.length] })));
   vbars('repE', edades);
