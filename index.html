@@ -1460,8 +1460,12 @@ async function toggleUser(id, nuevo) {
 }
 function delUser(id) {
   const u = CACHE.users.find(x => x.id === id);
+  if (!u) return;
   if (u.id === USER.id) return toast('No puede eliminar su propio usuario', 'err');
-  if (CACHE.users.filter(x => x.rol === u.rol).length <= 1 && u.rol !== 'O') return toast('No puede eliminar el último ' + u.rol, 'err');
+  const jCount = CACHE.users.filter(x => x.rol === 'J').length;
+  const aCount = CACHE.users.filter(x => x.rol === 'A').length;
+  if (u.rol === 'J' && jCount <= 1) return toast('No puede eliminar el último Jefe de Comando', 'err');
+  if (u.rol === 'A' && aCount <= 1 && jCount <= 1) return toast('No puede eliminar el último Administrador (no quedan Jefes)', 'err');
   askDo('Eliminar usuario', 'Se eliminará a <b>' + esc(u.nombre) + '</b> (' + esc(u.usuario) + ').', 'Eliminar', async () => {
     await x('DELETE FROM usuarios WHERE id = ?', [id]);
     await registrarAct('user', 'Usuario eliminado: ' + u.usuario, USER.id);
