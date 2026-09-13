@@ -620,7 +620,7 @@ const MODS = [
   { id: 'centros', l: 'Centros', i: 'school' },
   { id: 'rep', l: 'Reportes y Cruces', i: 'chart' },
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
-  { id: 'data', l: 'Configuración', i: 'up', adm: ['A'] }
+  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] }
 ];
 function buildTabs() {
   $('tabs').innerHTML = MODS.filter(m => !m.adm || m.adm.includes(USER.rol)).map(m =>
