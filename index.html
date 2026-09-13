@@ -1526,26 +1526,40 @@ function applyImp() {
   const { out, cenMap, fname } = window._impData; if (!out) return;
   (async () => {
     try {
-      const stmts = [];
-      for (const c of Object.values(cenMap)) {
-        if (!cenBy(c.cvCod)) {
-          stmts.push({ sql: 'INSERT OR IGNORE INTO centros(codigo,nombre,municipio,parroquia,estado,mesas,cod_estado,cod_municipio,cod_parroquia) VALUES(?,?,?,?,?,?,1,?,?)', args: [c.cvCod, c.cvNom, c.mun, c.par, c.estado, c.codEst, c.codMun, c.codPar] });
+      const CHUNK = 400;
+      const progDiv = document.createElement('div');
+      progDiv.id = 'uploadProg';
+      progDiv.style.cssText = 'position:fixed;inset:0;background:rgba(18,60,105,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:400;color:#fff';
+      document.body.appendChild(progDiv);
+      const setProg = (msg, pct) => { progDiv.innerHTML = '<div class="spinner" style="width:44px;height:44px;border:4px solid rgba(255,255,255,.25);border-top-color:#ffca28;border-radius:50%;animation:spin 1s linear infinite"></div><p style="margin-top:16px;font-size:15px;font-weight:600">' + msg + '</p><div style="width:280px;height:8px;background:rgba(255,255,255,.2);border-radius:4px;margin-top:12px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#ffca28;border-radius:4px;transition:width .3s"></div></div>' };
+      closeModal();
+      let centroids = Object.values(cenMap).filter(c => !cenBy(c.cvCod));
+      if (centroids.length) {
+        setProg('Centros electorales...', 0);
+        for (let i = 0; i < centroids.length; i += CHUNK) {
+          const batch = centroids.slice(i, i + CHUNK).map(c => ({ sql: 'INSERT OR IGNORE INTO centros(codigo,nombre,municipio,parroquia,estado,mesas,cod_estado,cod_municipio,cod_parroquia) VALUES(?,?,?,?,?,?,1,?,?)', args: [c.cvCod, c.cvNom, c.mun, c.par, c.estado, c.codEst, c.codMun, c.codPar] }));
+          await turso(batch);
+          setProg('Centros electorales... ' + Math.min(i + CHUNK, centroids.length), 5);
         }
+        await refreshAll();
       }
-      let added = 0;
-      for (const p of out) {
-        if (!padBy(p.ced)) {
-          stmts.push({ sql: 'INSERT OR IGNORE INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', args: [p.ced, p.letra, p.pa, p.sa, p.pn, p.sn, p.sexo, p.fn, edadDe(p.fn), p.codEst, p.estado, p.codMun, p.mun, p.codPar, p.par, p.cvCod, p.cvNom] });
-          added++;
-        }
+      const toAdd = out.filter(p => !padBy(p.ced));
+      if (!toAdd.length) { progDiv.remove(); toast('Todos los electores ya existen en el padrón', 'ok'); return }
+      let loaded = 0;
+      const total = toAdd.length;
+      for (let i = 0; i < total; i += CHUNK) {
+        const batch = toAdd.slice(i, i + CHUNK).map(p => ({ sql: 'INSERT OR IGNORE INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', args: [p.ced, p.letra, p.pa, p.sa, p.pn, p.sn, p.sexo, p.fn, edadDe(p.fn), p.codEst, p.estado, p.codMun, p.mun, p.codPar, p.par, p.cvCod, p.cvNom] }));
+        await turso(batch);
+        loaded += batch.length;
+        setProg('Cargando electores... ' + loaded + ' / ' + total, Math.round(100 * loaded / total));
       }
-      if (!added) { toast('Todos los electores ya existen en el padrón', 'err'); return }
-      toast('Cargando ' + added + ' electores...', 'ok');
-      await turso(stmts);
-      await registrarAct('sys', 'Padrón CNE: +' + added + ' nuevos de ' + out.length + ' registros · ' + (fname || ''), USER.id);
-      await refreshAll(); closeModal(); toast('✓ ' + added + ' electores nuevos agregados (de ' + out.length + ' en archivo)', 'ok', 5000);
+      setProg('Carga completa. Actualizando...', 100);
+      await registrarAct('sys', 'Padrón CNE: +' + total + ' nuevos · ' + (fname || ''), USER.id);
+      await refreshAll();
+      progDiv.remove();
+      toast('✓ ' + total + ' electores cargados', 'ok', 5000);
       go('padron');
-    } catch (e) { toast(e.message, 'err', 8000) }
+    } catch (e) { const p = document.getElementById('uploadProg'); if (p) p.remove(); toast('Error: ' + e.message, 'err', 8000); console.error(e) }
   })();
 }
 async function resetCNE() {
