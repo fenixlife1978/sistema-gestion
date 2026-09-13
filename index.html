@@ -1556,9 +1556,10 @@ function applyImp() {
       setProg('Carga completa. Actualizando...', 100);
       await registrarAct('sys', 'Padrón CNE: +' + total + ' nuevos · ' + (fname || ''), USER.id);
       await refreshAll();
+      $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' · <span class="yel">TURSO · ' + CACHE.pad.length + ' electores · ' + CACHE.recl.length + ' movilizadores</span>';
       progDiv.remove();
       toast('✓ ' + total + ' electores cargados', 'ok', 5000);
-      go('padron');
+      go('dash');
     } catch (e) { const p = document.getElementById('uploadProg'); if (p) p.remove(); toast('Error: ' + e.message, 'err', 8000); console.error(e) }
   })();
 }
