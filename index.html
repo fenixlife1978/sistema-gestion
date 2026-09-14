@@ -269,7 +269,7 @@ const tAgo = ts => { const m = Math.max(0, Math.round((Date.now() - ts) / 60000)
 const ini = n => String(n).trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 const edadDe = fn => {
   if (!fn) return 0;
-  let s = String(fn).trim();
+  let s = String(fn).trim().replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, '').replace(/T\d{1,2}:\d{2}(:\d{2})?$/, '');
   if (!s || s === '0' || s === '0000-00-00') return 0;
   const tryDate = (y, m, d) => {
     if (m < 1 || m > 12 || d < 1 || d > 31) return 0;
@@ -289,8 +289,6 @@ const edadDe = fn => {
   if (m) return tryDate(1900 + parseInt(m[3]), parseInt(m[2]), parseInt(m[1]));
   m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
   if (m) return tryDate(parseInt(m[1]), parseInt(m[2]), parseInt(m[3]));
-  m = s.match(/^(\d{2})(\d{2})(\d{4})$/);
-  if (m) return tryDate(parseInt(m[3]), parseInt(m[2]), parseInt(m[1]));
   const b = new Date(s);
   if (!isNaN(b.getTime())) {
     let e = new Date().getFullYear() - b.getFullYear();
@@ -1553,7 +1551,7 @@ function processRows(raw, fname) {
   const rows = raw.filter((r, i) => i > h && r.some(c => c && String(c).trim())).filter(r => { const c = normC(String(r[ci] || '')); return c.length >= 5 && /^\d+$/.test(c) });
   const get = (r, n, pos) => { const v = idx(n) > -1 ? r[idx(n)] : r[pos]; return v != null ? String(v) : '' };
   const normFecha = s => {
-    s = String(s || '').trim();
+    s = String(s || '').trim().replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, '').replace(/T\d{1,2}:\d{2}(:\d{2})?$/, '');
     if (!s || s === '0') return '';
     let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
     if (m) return m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
