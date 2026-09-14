@@ -1122,9 +1122,25 @@ async function nrSave() {
   try {
     await x('INSERT INTO reclutadores(cedula,telefono,estructura) VALUES(?,?,?)', [p.cedula, $('nrTel').value, $('nrEst').value]);
     await registrarAct('user', 'Nuevo movilizador creado: ' + fC(p.letra, p.cedula), USER.id);
-    await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
+    await refreshAll();
     const nuevo = CACHE.recl.find(r => r.cedula === p.cedula);
-    if (nuevo) { REG.rec = nuevo.id; go('registro') }
+    if (nuevo) {
+      const asg = new Set();
+      CACHE.recl.forEach(r => { asg.add(r.cedula); r.lista.forEach(l => asg.add(l.cedula)) });
+      const centro = p.centro_votacion;
+      let candidates = CACHE.pad.filter(pe => !asg.has(pe.cedula) && pe.cedula !== p.cedula);
+      const centroCand = candidates.filter(pe => pe.centro_votacion === centro);
+      const resto = candidates.filter(pe => pe.centro_votacion !== centro);
+      const pick = [...centroCand, ...resto].slice(0, 10);
+      for (let i = 0; i < pick.length; i++) {
+        await x('INSERT OR IGNORE INTO asignaciones(reclutador_id,cedula,posicion) VALUES(?,?,?)', [nuevo.id, pick[i].cedula, i + 1]);
+      }
+      if (pick.length) {
+        await registrarAct('user', 'Auto-asignación: ' + pick.length + ' electores del centro → movilizador #' + nuevo.id, USER.id);
+        await refreshAll();
+      }
+      REG.rec = nuevo.id; closeModal(); toast('Movilizador creado con ' + pick.length + ' electores auto-asignados', 'ok'); go('registro');
+    }
   } catch (e) { toast(e.message, 'err') }
 }
 function openNrManual() {
@@ -1152,9 +1168,25 @@ async function saveNrManual() {
       [ced, letra, pa, $('nrmSa').value.trim(), pn, $('nrmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
     await x('INSERT INTO reclutadores(cedula,telefono,estructura) VALUES(?,?,?)', [ced, tel, est]);
     await registrarAct('user', 'Movilizador creado manual: ' + fC(letra, ced), USER.id);
-    await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
+    await refreshAll();
     const nuevo = CACHE.recl.find(r => r.cedula === ced);
-    if (nuevo) { REG.rec = nuevo.id; go('registro') }
+    if (nuevo) {
+      const asg = new Set();
+      CACHE.recl.forEach(r => { asg.add(r.cedula); r.lista.forEach(l => asg.add(l.cedula)) });
+      const centro = cv.codigo;
+      let candidates = CACHE.pad.filter(pe => !asg.has(pe.cedula) && pe.cedula !== ced);
+      const centroCand = candidates.filter(pe => pe.centro_votacion === centro);
+      const resto = candidates.filter(pe => pe.centro_votacion !== centro);
+      const pick = [...centroCand, ...resto].slice(0, 10);
+      for (let i = 0; i < pick.length; i++) {
+        await x('INSERT OR IGNORE INTO asignaciones(reclutador_id,cedula,posicion) VALUES(?,?,?)', [nuevo.id, pick[i].cedula, i + 1]);
+      }
+      if (pick.length) {
+        await registrarAct('user', 'Auto-asignación: ' + pick.length + ' electores → movilizador #' + nuevo.id, USER.id);
+        await refreshAll();
+      }
+      REG.rec = nuevo.id; closeModal(); toast('Movilizador creado con ' + pick.length + ' electores auto-asignados', 'ok'); go('registro');
+    }
   } catch (e) { toast(e.message, 'err') }
 }
 
