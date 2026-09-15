@@ -624,7 +624,7 @@ function enterApp(tab) {
   $('vApp').style.display = 'block';
   buildTabs(); buildMore();
   $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' � <span class="yel">TURSO � ' + CACHE.pad.length + ' electores � ' + CACHE.recl.length + ' movilizadores</span>';
-  go(tab || 'dash'); startSim(); startSync();
+  go(tab || 'dash'); startSync();
 }
 $('lgP').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() });
 
@@ -1717,27 +1717,6 @@ async function wipeTurso() {
     await registrarAct('sys', 'Sistema reiniciado por ' + USER.nombre, USER.id);
     await refreshAll(); go('dash'); toast('Sistema reiniciado � solo queda admin@comando.com y usuarios semilla', 'ok');
   });
-}
-
-/* ----------- SIMULADOR EN VIVO ----------- */
-let simT = null;
-function startSim() {
-  if (simT) return;
-  simT = setInterval(async () => {
-    if (Math.random() > .6) return;
-    const recs = CACHE.recl.filter(r => r.lista.length < 10); if (!recs.length) return;
-    const asg = new Set(); CACHE.recl.forEach(r => { asg.add(r.cedula); r.lista.forEach(l => asg.add(l.cedula)) });
-    const free = CACHE.pad.filter(p => !asg.has(p.cedula)); if (!free.length) return;
-    const r = recs[(Math.random() * recs.length) | 0], p = free[(Math.random() * free.length) | 0];
-    try {
-      const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
-      await x('INSERT OR IGNORE INTO asignaciones(reclutador_id,cedula,posicion) VALUES(?,?,?)', [r.id, p.cedula, (max[0].m || 0) + 1]);
-      await registrarAct('live', 'C.I. ' + fC(p.letra, p.cedula) + ' (' + apeP(p) + ', ' + nomP(p) + ') ? reclutador #' + r.id, USER ? USER.id : null);
-      await refreshAll();
-      toast('? EN VIVO � ' + fC(p.letra, p.cedula) + ' ? ' + esc(nomP(padBy(r.cedula) || { p_nombre: '' })), 'ok', 3200);
-      if (CUR === 'dash') renderDash(); if (CUR === 'registro') renderRegistro(true); if (CUR === 'recl') renderRecl();
-    } catch (e) {}
-  }, 25000);
 }
 
 /* ----------- SYNC EN TIEMPO REAL ----------- */
