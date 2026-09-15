@@ -5,12 +5,25 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const url = process.env.TURSO_URL;
+  let rawUrl = process.env.TURSO_URL;
   const token = process.env.TURSO_TOKEN;
-  if (!url || !token) return res.status(500).json({ error: 'TURSO_URL y TURSO_TOKEN no configurados en el servidor' });
+  if (!rawUrl || !token) return res.status(500).json({ error: 'TURSO_URL y TURSO_TOKEN no configurados en las variables de entorno de Vercel' });
+
+  let url = rawUrl.trim();
+  if (url.startsWith('libsql://')) {
+    url = url.replace('libsql://', 'https://');
+  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
 
   try {
-    const { statements } = req.body;
+    let body = req.body || {};
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch(e) {}
+    }
+    const statements = body.statements;
+    if (!statements) return res.status(400).json({ error: 'No se enviaron sentencias SQL' });
+
     const stmts = Array.isArray(statements)
       ? statements.map(s => ({ q: s.q || s.sql, params: s.params || s.args || [] }))
       : [{ q: statements.q || statements.sql, params: statements.params || statements.args || [] }];
@@ -32,4 +45,4 @@ module.exports = async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
-}
+};

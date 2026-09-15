@@ -1817,41 +1817,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
     $('loadMsg').textContent = 'Error de inicialización';
   }
 })();
-    if (saved && saved.user && saved.user.usuario) {
-      setLoad('Restaurando sesi�n...');
-      const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [saved.user.usuario]);
-      if (row.length) {
-        USER = row[0];
-        await refreshAll();
-        setLoad('Verificando datos...');
-        const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
-        if (badEdad > 0) {
-          setLoad('Reparando edades...', badEdad + ' registros');
-          const all = await q('SELECT cedula, fecha_nac FROM padron');
-          const CHUNK = 200;
-          for (let i = 0; i < all.length; i += CHUNK) {
-            const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
-            await turso(batch);
-          }
-          await refreshAll();
-        }
-        $('loading').style.display = 'none';
-        enterApp(saved.cur || 'dash');
-        return;
-      }
-    }
-    const count = await q('SELECT COUNT(*) AS n FROM padron');
-    $('lgInfo').textContent = count[0].n + ' electores � Turso OK';
-    $('loading').style.display = 'none';
-    $('vLogin').style.display = 'flex';
-  } catch (e) {
-    setLoad('Error al conectar', e.message);
-    $('loading').style.display = 'none';
-    $('vLogin').style.display = 'flex';
-    $('lgInfo').textContent = 'Error de conexi�n';
-    console.error(e);
-  }
-})();
 </script>
 </body>
 </html>
