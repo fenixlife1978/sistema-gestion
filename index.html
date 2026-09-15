@@ -262,8 +262,6 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '
 const normC = s => String(s || '').replace(/\D/g, '');
 const normTel = s => { const d = String(s || '').replace(/\D/g, ''); if (d.length === 11 && d.startsWith('0')) return d.slice(0, 4) + '-' + d.slice(4); return d; };
 const valTel = s => { const d = String(s || '').replace(/\D/g, ''); return d.length === 11 && d.startsWith('0'); };
-const normTel = s => { const d = String(s || '').replace(/\D/g, ''); if (d.length === 11 && d.startsWith('0')) return d.slice(0, 4) + '-' + d.slice(4); return d; };
-const valTel = s => { const d = String(s || '').replace(/\D/g, ''); return d.length === 11 && d.startsWith('0'); };
 const _focused = () => document.activeElement ? document.activeElement.id : null;
 const _refocus = id => { if (id) { const el = $(id); if (el) { el.focus(); const v = el.value; el.value = ''; el.value = v; } } };
 const fC = (l, c) => { c = String(c); let o = ''; for (let i = c.length - 1, k = 0; i >= 0; i--, k++) { if (k && k % 3 === 0) o = '.' + o; o = c[i] + o } return (l || 'V') + '-' + o };
