@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -123,6 +123,7 @@ label.fl{color:var(--navy);font-weight:700;font-size:12.5px;display:block;margin
 #vLogin{min-height:100vh;background:var(--navy);display:flex;align-items:center;justify-content:center;padding:26px}
 .lg-win{width:470px;max-width:100%;background:#f2f4f6;border:1px solid #0a2a4c;box-shadow:0 26px 60px rgba(0,0,0,.5);border-radius:6px;overflow:hidden}
 .lg-h{background:var(--navy-d);color:#fff;padding:16px 20px;display:flex;gap:14px;align-items:center}
+.shield-img{height:48px;width:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(255,255,255,0.6);box-shadow:0 2px 6px rgba(0,0,0,0.3)}
 .lg-h h1{font-size:20px;font-weight:700}.lg-h p{font-size:12px;color:#c8d4e2}
 .lg-b{padding:22px}
 .qchips{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
@@ -175,7 +176,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 </div>
 
 <div id="vLogin" style="display:none"><div class="lg-win">
- <div class="lg-h"><span id="lgShield"></span><div><h1>COMANDO DE CAMPAÑA</h1><p>GUALBERTO MARTINEZ - Alcalde Mcpio. Independencia - Estado Yaracuy</p></div></div>
+ <div class="lg-h"><img src="icono.png" class="shield-img" alt="Foto Comando de Campaña" onerror="this.onerror=null;this.src='/icono.png'"><span id="lgShield"></span><div><h1>COMANDO DE CAMPAÑA</h1><p>GUALBERTO MARTINEZ - Alcalde Mcpio. Independencia - Estado Yaracuy</p></div></div>
  <div class="lg-b">
   <label class="fl">Usuario</label><input class="inp" id="lgU" placeholder="usuario" autocomplete="username">
   <label class="fl" style="margin-top:12px">Clave</label><input class="inp" id="lgP" type="password" placeholder="••••••••" autocomplete="current-password">
@@ -186,7 +187,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 
 <div id="vApp" style="display:none">
  <header id="hdr">
-  <div class="hdr-l"><span id="hdrShield"></span><div><h1>COMANDO DE CAMPAÑA</h1><div class="sub">GUALBERTO MARTINEZ - Alcalde Mcpio. Independencia - Estado Yaracuy</div></div></div>
+  <div class="hdr-l"><img src="icono.png" class="shield-img" alt="Foto Comando de Campaña" onerror="this.onerror=null;this.src='/icono.png'"><span id="hdrShield"></span><div><h1>COMANDO DE CAMPAÑA</h1><div class="sub">GUALBERTO MARTINEZ - Alcalde Mcpio. Independencia - Estado Yaracuy</div></div></div>
   <div class="hdr-r"><div id="clock">--:--:--</div><div id="hdrInfo">Usuario:  • <span class="yel"></span></div></div>
  </header>
  <div id="toolbar">
@@ -995,7 +996,7 @@ function renderRecl() {
         '<div style="font-size:11px;color:var(--mut);margin-top:6px">' + telLink + (dirText ? '  ' + ic('pin', 10) + ' ' + dirText : '') + '</div>' +
         '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);margin-top:9px"><span>Progreso</span><b class="mono" style="color:' + (n >= 10 ? 'var(--green)' : 'var(--navy)') + '">' + n + '/10</b></div><div class="pbar"><i class="' + (n >= 10 ? 'full' : '') + '" style="width:' + (n * 10) + '%"></i></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:9px">' + (n >= 10 ? '<span class="chip chip-g">? COMPLETA</span>' : n === 0 ? '<span class="chip chip-gr">VACA</span>' : n >= 7 ? '<span class="chip chip-t">AVANZADA ' + n + '/10</span>' : '<span class="chip chip-y">EN PROCESO ' + n + '/10</span>') + '</div>' +
-        '<div style="display:flex;gap:7px;margin-top:9px"><button class="btn btn-navy btn-xs" style="flex:1;justify-content:center" onclick="event.stopPropagation();openRec(' + r.id + ')">' + ic('search', 12) + ' Ver / cotejar</button><button class="btn btn-w btn-xs" onclick="event.stopPropagation();REG.rec=' + r.id + ';go(\'registro\')">' + ic('target', 12) + ' Registrar</button></div></div>';
+        '<div style="display:flex;gap:5px;margin-top:9px"><button class="btn btn-navy btn-xs" style="flex:1;justify-content:center" onclick="event.stopPropagation();openRec(' + r.id + ')">' + ic('search', 12) + ' Ver</button><button class="btn btn-w btn-xs" onclick="event.stopPropagation();REG.rec=' + r.id + ';go(\'registro\')">' + ic('target', 12) + ' Registrar</button><button class="btn btn-red btn-xs" style="padding:4px 8px" title="Eliminar Movilizador" onclick="event.stopPropagation();delRecl(' + r.id + ')">' + ic('trash', 12) + ' Eliminar</button></div></div>';
     }).join('') || '<div class="empty">Sin movilizadores.</div>') + '</div></div>');
   _refocus(prevFocus);
 }
@@ -1019,7 +1020,7 @@ function openRec(id) {
     '<div class="ck-it"><b>' + mm + '? / ' + ff + '?</b><span>Por sexo</span></div><div class="ck-it"><b>' + (empE ? (sumE / empE).toFixed(0) : 0) + '</b><span>Edad promedio</span></div>' +
     '<div class="ck-it"><b>' + (n * 10) + '%</b><span>Cuota de compromiso</span></div></div>' +
     '<p style="font-size:12.5px;color:' + (n >= 10 ? 'var(--green)' : 'var(--mut)') + '">' + (n >= 10 ? '? Lista completa y cotejada.' : 'Lista en construcción (' + n + '/10).') + '</p></div></div><div style="margin-top:12px">' + rows + '</div></div>',
-    (['J', 'A'].includes(USER.rol) ? '<button class="btn btn-red" onclick="delRecl(' + r.id + ')">' + ic('trash', 14) + ' Eliminar</button>' : '') +
+    '<button class="btn btn-red" onclick="delRecl(' + r.id + ')">' + ic('trash', 14) + ' Eliminar movilizador</button>' +
     '<button class="btn btn-w" onclick="expLista(' + r.id + ')">' + ic('dl', 14) + ' CSV</button>' +
     '<button class="btn btn-w" onclick="downloadRecPDF(' + r.id + ')">' + ic('dl', 14) + ' PDF</button>' +
     '<button class="btn btn-w" onclick="shareRecPDF(' + r.id + ')">' + ic('bolt', 14) + ' Compartir</button>' +
