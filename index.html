@@ -537,7 +537,17 @@ const SCHEMA = [
   `ALTER TABLE asignaciones ADD COLUMN telefono TEXT`,
   `ALTER TABLE reclutadores ADD COLUMN direccion TEXT`,
   `ALTER TABLE centro_cargos ADD COLUMN telefono TEXT`,
-  `ALTER TABLE centro_cargos ADD COLUMN direccion TEXT`
+  `ALTER TABLE centro_cargos ADD COLUMN direccion TEXT`,
+  `CREATE TABLE IF NOT EXISTS direccion_ejecutiva (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cargo TEXT NOT NULL,
+    cedula TEXT NOT NULL UNIQUE,
+    telefono TEXT,
+    estructura TEXT,
+    direccion TEXT,
+    creado TEXT DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)`
 ];
 
 async function inicializarTurso() {
@@ -637,7 +647,8 @@ const MODS = [
   { id: 'centros', l: 'Centros', i: 'school' },
   { id: 'rep', l: 'Reportes y Cruces', i: 'chart' },
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
-  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] }
+  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] },
+  { id: 'direccion', l: 'Dirección Ejecutiva', i: 'userPlus', adm: ['J', 'A'] }
 ];
 function buildTabs() {
   $('tabs').innerHTML = MODS.filter(m => !m.adm || m.adm.includes(USER.rol)).map(m =>
@@ -1249,6 +1260,18 @@ const CARGOS_CENTRO = [
   'Testigo Suplente Mesa 3',
   'Testigo Principal Mesa 4',
   'Testigo Suplente Mesa 4'
+];
+
+const CARGOS_DIRECCION = [
+  'PRESIDENTE','SECRETARIA GENERAL','SECRETARIA DE ORGANIZACION','SECRETARIA ELECTORAL',
+  'SECRETARIA DE POLITICAS PUBLICAS','SECRETARIA DE ASUNTOS MUNICIPALES',
+  'SECRETARIA DE JOVENES POR LA DEMOCRACIA SOCIAL','SECRETARIA DE FUERZA FEMENINA',
+  'SECRETARIA DE PROFESIONALES Y TECNICOS','SECRETARIA DE EDUCACION',
+  'SECRETARIA DE TRABAJADORES','SECRETARIA DE DERECHOS CIVILES E INCLUSION REAL',
+  'SECRETARIA DE DESARROLLO ECONOMICO','SECRETARIA DE DESARROLLO AMBIENTAL SOSTENIBLE',
+  'SECRETARIA DE SALUD Y BIENESTAR HUMANO','SECRETARIA DE UNT SOLIDARIO',
+  'SECRETARIA DE DERECHOS HUMANOS','SECRETARIA DE FORMACION, CAPACITACION Y DOCTRINA',
+  'SECRETARIOS POLITICOS'
 ];
 
 function getCargosCentro(codigo) {
