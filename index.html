@@ -368,7 +368,10 @@ const IC = {
   file: '<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/>',
   userPlus: '<circle cx="10" cy="8" r="3.5"/><path d="M3 20c0-3.5 3-6 7-6s7 2.5 7 6"/><path d="M18 6v6M15 9h6"/>',
   eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
-  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'
+  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  male: '<circle cx="10" cy="14" r="5"/><path d="M19 5h-5M19 5v5M19 5l-5.4 5.4"/>',
+  female: '<circle cx="12" cy="9" r="5"/><path d="M12 14v7M9 18h6"/>',
+  edit: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>'
 };
 const ic = (n, s = 16) => '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + IC[n] + '</svg>';
 
@@ -944,8 +947,8 @@ function renderRegistro(focus) {
     '<div style="flex:1"><label class="fl">Teléfono</label><input class="inp mono" id="telIn" style="font-size:15px" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)" ' + (r ? '' : 'disabled') + '></div>' +
     '<div style="align-self:end"><button class="btn btn-navy btn-big" style="width:100%;justify-content:center" ' + (r ? '' : 'disabled') + ' onclick="doReg()">Registrar ?</button></div></div><div id="regResult"></div></div></div>' +
     '<div class="panel"><div class="panel-h">Lista de Comprometidos ' + (r ? ' ' + r.lista.length + '/10' : '') + (r ? '<button class="btn btn-w btn-xs" style="margin-left:auto" onclick="expLista(' + r.id + ')">' + ic('dl', 13) + ' CSV</button>' : '') + '</div><div class="panel-b">' +
-    (r ? (r.lista.length ? '<table class="tbl"><thead><tr><th>#</th><th>C.I.</th><th>Apellidos y nombres</th><th>Edad</th><th>Sexo</th><th>Teléfono</th><th>Centro</th><th>Municipio</th><th>Hora</th><th></th></tr></thead><tbody>' +
-      r.lista.map((l, i) => { const p = padBy(l.cedula); return '<tr><td><span class="pos">' + (i + 1) + '</span></td><td class="mono" style="font-weight:700">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td>' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<span class="chip chip-r">SIN PADRÓN</span>') + '</td><td>' + (p ? (edadDe(p.fecha_nac) || p.edad || '-') : '') + '</td><td>' + (p ? p.sexo : '') + '</td><td>' + (l.telefono ? '<a href="https://wa.me/58' + esc(l.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none;cursor:pointer">' + ic('chat', 12) + ' ' + esc(l.telefono) + '</a>' : '<span style="color:var(--mut)"></span>') + '</td><td>' + esc(p ? p.nombre_cv : '') + '</td><td>' + esc(p ? p.municipio : '') + '</td><td class="mono" style="font-size:11px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</td><td><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')">' + ic('x', 12) + '</button></td></tr>' }).join('') + '</tbody></table>'
+    (r ? (r.lista.length ? '<table class="tbl"><thead><tr><th>#</th><th>C.I.</th><th>Apellidos y nombres</th><th>Edad</th><th>Sexo</th><th>Teléfono</th><th>Centro</th><th>Municipio</th><th>Hora</th><th>Acciones</th></tr></thead><tbody>' +
+      r.lista.map((l, i) => { const p = padBy(l.cedula); return '<tr><td><span class="pos">' + (i + 1) + '</span></td><td class="mono" style="font-weight:700">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td>' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<span class="chip chip-r">SIN PADRÓN</span>') + '</td><td>' + (p ? (edadDe(p.fecha_nac) || p.edad || '-') : '') + '</td><td>' + (p ? p.sexo : '') + '</td><td>' + (l.telefono ? '<a href="https://wa.me/58' + esc(l.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none;cursor:pointer">' + ic('chat', 12) + ' ' + esc(l.telefono) + '</a>' : '<span style="color:var(--mut);font-style:italic">Sin telf.</span>') + ' <button class="btn btn-w btn-xs" style="padding:2px 5px;margin-left:4px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button></td><td>' + esc(p ? p.nombre_cv : '') + '</td><td>' + esc(p ? p.municipio : '') + '</td><td class="mono" style="font-size:11px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</td><td style="white-space:nowrap"><button class="btn btn-w btn-xs" style="margin-right:2px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button><button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')" title="Eliminar de lista">' + ic('x', 12) + '</button></td></tr>' }).join('') + '</tbody></table>'
       : '<div class="empty">' + ic('target', 28) + '<p>Lista vacía.</p></div>')
       : '<div class="empty">' + ic('lock', 28) + '<p>Sin movilizador seleccionado.</p></div>') + '</div></div></div></div>';
   const inp = $('cedIn');
@@ -1004,6 +1007,42 @@ function delMem(rid, c) {
     } catch (e) { toast(e.message, 'err') }
   });
 }
+function editTelComprometido(reclId, ced) {
+  const r = CACHE.recl.find(x => x.id === reclId); if (!r) return;
+  const item = r.lista.find(l => l.cedula === ced); if (!item) return;
+  const p = padBy(ced); const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : ced;
+  win(ic('edit', 18) + ' Editar teléfono del comprometido',
+    '<div style="font-size:13px;margin-bottom:12px"><b>Elector:</b> ' + esc(nomComp) + ' <span class="mono">(' + fC(p ? p.letra : 'V', ced) + ')</span></div>' +
+    '<label class="fl">Número de teléfono</label>' +
+    '<input class="inp mono" id="editTelInput" value="' + esc(item.telefono || '') + '" placeholder="0412-2232523" maxlength="12" pattern="0\\d{3}-\\d{7}">' +
+    '<p style="font-size:11.5px;color:var(--mut);margin-top:6px">Formato esperado: 04XX-XXXXXXX (11 dígitos, comenzando con 0)</p>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>' +
+    '<button class="btn btn-navy" onclick="saveTelComprometido(' + reclId + ',\'' + ced + '\')">' + ic('check', 14) + ' Guardar teléfono</button>', 500
+  );
+  setTimeout(() => { const el = $('editTelInput'); if (el) { el.focus(); el.addEventListener('blur', () => { const v = el.value.replace(/\D/g, ''); if (v.length === 11 && v.startsWith('0')) el.value = v.slice(0, 4) + '-' + v.slice(4); }); } }, 200);
+}
+async function saveTelComprometido(reclId, ced) {
+  const raw = ($('editTelInput').value || '').trim();
+  let tel = raw ? normTel(raw) : '';
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Debe tener 11 dígitos comenzando en 0 (ej: 0412-2232523)', 'err');
+  if (tel) {
+    const telNorm = tel.replace(/\D/g, '');
+    const allPhones = await q('SELECT a.telefono, a.cedula, u.nombre AS reclutador FROM asignaciones a LEFT JOIN reclutadores u ON u.id = a.reclutador_id WHERE a.telefono IS NOT NULL AND a.telefono != ""');
+    const dup = allPhones.find(x => x.telefono.replace(/\D/g, '') === telNorm && x.cedula !== ced);
+    if (dup) return toast('El número ' + normTel(tel) + ' ya está registrado con otra cédula (' + dup.cedula + ')', 'err');
+  }
+  try {
+    await x('UPDATE asignaciones SET telefono = ? WHERE reclutador_id = ? AND cedula = ?', [tel || null, reclId, ced]);
+    await refreshAll();
+    closeModal();
+    if (CUR === 'registro') renderRegistro();
+    if (CUR === 'recl') renderRecl();
+    if ($('mOv').classList.contains('on') && LAST_REC === reclId) openRec(reclId);
+    toast('Teléfono actualizado correctamente', 'ok');
+  } catch (e) {
+    toast('Error: ' + e.message, 'err');
+  }
+}
 function openManual() {
   const c = window._manC;
   win(ic('up', 18) + ' Incorporar al padrón (formato CNE)',
@@ -1016,8 +1055,12 @@ function openManual() {
 async function saveManual() {
   const ced = normC($('mCed').value), pa = $('mPa').value.trim(), pn = $('mPn').value.trim();
   if (!/^\d{5,9}$/.test(ced) || !pa || !pn) return toast('Complete cédula y apellidos/nombres principales', 'err');
-  if (padBy(ced)) return toast('La cédula ya existe en Turso', 'err');
   const cv = cenBy($('mCv').value) || CACHE.centros[0];
+  const p = padBy(ced);
+  if (p && p.centro_votacion && (p.centro_votacion !== cv.codigo && p.nombre_cv !== cv.nombre)) {
+    return toast('⛔ Registro rechazado: La persona con C.I. V-' + ced + ' ya pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cv.codigo) + ').', 'err', 8000);
+  }
+  if (p) return toast('La cédula ya existe en Turso con el mismo centro electoral', 'err');
   const fn = $('mFn').value; const edad = edadDe(fn);
   try {
     await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
@@ -1063,17 +1106,17 @@ function openRec(id) {
     const l = r.lista[i];
     if (!l) return '<div class="row10 empty"><span class="pos" style="background:#cfd8dc;color:#607080">' + (i + 1) + '</span>Cupo disponible</div>';
     const p = padBy(l.cedula);
-    return '<div class="row10"><span class="pos">' + (i + 1) + '</span><div style="flex:1;min-width:0"><b style="font-size:13px">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</b> ' + (p ? '' : '<span class="chip chip-r">S/P</span>') + '<div class="mono" style="font-size:11px;color:var(--mut)">' + (p ? fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + p.sexo : fC('V', l.cedula)) + '  ' + esc(p ? p.nombre_cv : '') + '</div></div><span class="mono" style="font-size:10.5px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</span><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')">' + ic('x', 12) + '</button></div>';
+    return '<div class="row10"><span class="pos">' + (i + 1) + '</span><div style="flex:1;min-width:0"><b style="font-size:13px">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</b> ' + (p ? '' : '<span class="chip chip-r">S/P</span>') + '<div class="mono" style="font-size:11px;color:var(--mut)">' + (p ? fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + p.sexo : fC('V', l.cedula)) + '  ' + esc(p ? p.nombre_cv : '') + '</div></div><span class="mono" style="font-size:10.5px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</span><button class="btn btn-w btn-xs" style="margin-right:2px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')" title="Eliminar de lista">' + ic('x', 12) + '</button></div>';
   }).join('');
   win(ic('users', 18) + ' ' + esc(nm) + '  Lista ' + r.id,
     '<div id="recContent">' +
-    '<div class="mono" style="font-size:12px;color:var(--mut);margin-bottom:8px">' + fC(p ? p.letra : 'V', r.cedula) + '  ' + esc(r.estructura || '') + '  ' + (r.telefono ? '<a href="https://wa.me/58' + esc(r.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);text-decoration:none">' + ic('chat', 12) + ' ' + esc(r.telefono) + '</a>' : '?? ') + (r.direccion ? '  ' + ic('pin', 12) + ' ' + esc(r.direccion) : '') + '  alta ' + esc(r.creado || '').slice(0, 10) + '</div>' +
+    '<div class="mono" style="font-size:12px;color:var(--mut);margin-bottom:8px">' + fC(p ? p.letra : 'V', r.cedula) + '  ' + esc(r.estructura || '') + '  ' + (r.telefono ? '<a href="https://wa.me/58' + esc(r.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);text-decoration:none">' + ic('chat', 12) + ' ' + esc(r.telefono) + '</a>' : '') + (r.direccion ? '  ' + ic('pin', 12) + ' ' + esc(r.direccion) : '') + '  alta ' + esc(r.creado || '').slice(0, 10) + '</div>' +
     '<div style="display:flex;gap:16px;align-items:center"><svg viewBox="0 0 120 120" width="106" class="ring"><circle class="bg" cx="60" cy="60" r="52" fill="none" stroke-width="12"/><circle class="fg" cx="60" cy="60" r="52" fill="none" stroke-width="12" stroke-dasharray="' + (2 * Math.PI * 52) + '" stroke-dashoffset="' + (2 * Math.PI * 52 * (1 - n / 10)) + '" style="stroke:' + (n >= 10 ? 'var(--green)' : 'var(--navy)') + '"/></svg><div style="margin-left:-88px;pointer-events:none;text-align:center;width:66px"><div style="font-size:23px;font-weight:700;color:var(--navy)">' + n + '<span style="font-size:12px;color:var(--mut)">/10</span></div></div>' +
     '<div style="flex:1"><b style="color:var(--navy);font-size:13.5px">Cotejo contra padrón CNE (Turso)</b><div class="ck">' +
-    '<div class="ck-it"><b>' + emp + '/10</b><span>? En padrón</span></div><div class="ck-it"><b>' + (n - emp) + '</b><span>Sin registro (S/P)</span></div>' +
-    '<div class="ck-it"><b>' + mm + '? / ' + ff + '?</b><span>Por sexo</span></div><div class="ck-it"><b>' + (empE ? (sumE / empE).toFixed(0) : 0) + '</b><span>Edad promedio</span></div>' +
+    '<div class="ck-it"><b>' + emp + '/10</b><span>✔ En padrón</span></div><div class="ck-it"><b>' + (n - emp) + '</b><span>Sin registro (S/P)</span></div>' +
+    '<div class="ck-it"><b>' + mm + ' <span style="color:#1e88e5" title="Masculino">' + ic('male', 15) + '</span> / ' + ff + ' <span style="color:#e91e63" title="Femenino">' + ic('female', 15) + '</span></b><span>Por sexo</span></div><div class="ck-it"><b>' + (empE ? (sumE / empE).toFixed(0) : 0) + '</b><span>Edad promedio</span></div>' +
     '<div class="ck-it"><b>' + (n * 10) + '%</b><span>Cuota de compromiso</span></div></div>' +
-    '<p style="font-size:12.5px;color:' + (n >= 10 ? 'var(--green)' : 'var(--mut)') + '">' + (n >= 10 ? '? Lista completa y cotejada.' : 'Lista en construcción (' + n + '/10).') + '</p></div></div><div style="margin-top:12px">' + rows + '</div></div>',
+    '<p style="font-size:12.5px;color:' + (n >= 10 ? 'var(--green)' : 'var(--mut)') + '">' + (n >= 10 ? '✔ Lista completa y cotejada.' : 'Lista en construcción (' + n + '/10).') + '</p></div></div><div style="margin-top:12px">' + rows + '</div></div>',
     '<button class="btn btn-red" onclick="delRecl(' + r.id + ')">' + ic('trash', 14) + ' Eliminar movilizador</button>' +
     '<button class="btn btn-w" onclick="expLista(' + r.id + ')">' + ic('dl', 14) + ' CSV</button>' +
     '<button class="btn btn-w" onclick="downloadRecPDF(' + r.id + ')">' + ic('dl', 14) + ' PDF</button>' +
@@ -1220,7 +1263,12 @@ async function saveNrManual() {
   const ced = normC($('nrmCed').value), pa = $('nrmPa').value.trim(), pn = $('nrmPn').value.trim();
   if (!/^\d{5,9}$/.test(ced)) return toast('Ingrese una cédula válida (5-9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete primer apellido y primer nombre', 'err');
-  if (padBy(ced)) return toast('La cédula ya existe en el padrón CNE', 'err');
+  const cv = cenBy($('nrmCv').value) || CACHE.centros[0];
+  const p = padBy(ced);
+  if (p && p.centro_votacion && (p.centro_votacion !== cv.codigo && p.nombre_cv !== cv.nombre)) {
+    return toast('⛔ Registro rechazado: La persona C.I. V-' + ced + ' pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cv.codigo) + ').', 'err', 8000);
+  }
+  if (p) return toast('La cédula ya existe en el padrón CNE', 'err');
   if (asignDe(ced)) return toast('La cédula ya está asignada como movilizador', 'err');
   const cv = cenBy($('nrmCv').value) || CACHE.centros[0];
   const fn = $('nrmFn').value; const edad = edadDe(fn);
@@ -1358,24 +1406,32 @@ async function saveCargoManual(codigo, idx) {
   const ced = normC($('cmCed').value), pa = $('cmPa').value.trim(), pn = $('cmPn').value.trim();
   if (!/^\d{5,9}$/.test(ced)) return toast('Ingrese una cédula válida (5-9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete primer apellido y primer nombre', 'err');
-  if (padBy(ced)) return toast('La cédula ya existe en el padrón', 'err');
   const cv = cenBy($('cmCv').value) || cenBy(codigo);
+  const p = padBy(ced);
+  if (p && p.centro_votacion && (p.centro_votacion !== cv.codigo && p.nombre_cv !== cv.nombre)) {
+    return toast('⛔ Registro rechazado: La persona C.I. V-' + ced + ' pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cv.codigo) + ').', 'err', 8000);
+  }
+  if (p) return toast('La cédula ya existe en el padrón', 'err');
   const fn = $('cmFn').value; const edad = edadDe(fn);
   const letra = $('cmLet').value, sexo = $('cmSex').value;
   const tel = ($('cmTel') ? $('cmTel').value : '').trim(), dir = ($('cmDir') ? $('cmDir').value : '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   try {
     await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
       [ced, letra, pa, $('cmSa').value.trim(), pn, $('cmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
     await assignCargo(codigo, idx, ced, normTel(tel), dir);
-    await registrarAct('user', 'Alta manual para cargo: ' + fC(letra, ced) + ' ? ' + CARGOS_CENTRO[idx], USER.id);
+    await registrarAct('user', 'Alta manual para cargo: ' + fC(letra, ced) + ' ➔ ' + CARGOS_CENTRO[idx], USER.id);
     toast('Elector registrado y asignado al cargo', 'ok');
   } catch (e) { toast(e.message, 'err') }
 }
 
 async function assignCargo(codigo, idx, cedula, tel, dir) {
   const cargo = CARGOS_CENTRO[idx];
+  const p = padBy(cedula);
+  const targetCen = cenBy(codigo);
+  if (p && p.centro_votacion && (p.centro_votacion !== codigo && p.nombre_cv !== (targetCen ? targetCen.nombre : ''))) {
+    return toast('⛔ Asignación rechazada: La persona C.I. ' + fC(p.letra, cedula) + ' está asignada en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se puede asignar a un centro distinto (' + (targetCen ? targetCen.nombre : codigo) + ').', 'err', 8000);
+  }
   try {
     const existing = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === cargo);
     if (existing) {
@@ -2131,6 +2187,10 @@ async function saveDirManualFull() {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
 
   const cv = cenBy(cvCod) || CACHE.centros[0] || {};
+  const p = padBy(ced);
+  if (p && p.centro_votacion && (p.centro_votacion !== cvCod && p.nombre_cv !== cv.nombre)) {
+    return toast('⛔ Registro rechazado: La persona C.I. V-' + ced + ' ya pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cvCod) + ').', 'err', 8000);
+  }
   const edad = edadDe(fn);
 
   try {
