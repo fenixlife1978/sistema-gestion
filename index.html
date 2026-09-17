@@ -172,19 +172,19 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 </head>
 <body>
 
-<div id="loading" style="display:none">
+<div id="loading">
  <div class="spinner"></div>
- <p id="loadMsg">Cargando sistema...</p>
- <div class="sub" id="loadSub">Conectando a base de datos</div>
+ <p id="loadMsg">Inicializando base de datos Turso...</p>
+ <div class="sub" id="loadSub">Creando esquema en base de datos</div>
 </div>
 
-<div id="vLogin" style="display:flex"><div class="lg-win">
+<div id="vLogin" style="display:none"><div class="lg-win">
  <div class="lg-h"><img src="icono.png" class="shield-img" alt="Foto Comando de Campaña" onerror="this.onerror=null;this.src='/icono.png'"><span id="lgShield"></span><div><h1>COMANDO DE CAMPAÑA</h1><p>GUALBERTO MARTINEZ - Alcalde Mcpio. Independencia - Estado Yaracuy</p></div></div>
  <div class="lg-b">
   <label class="fl">Usuario</label><input class="inp" id="lgU" placeholder="usuario" autocomplete="username">
   <label class="fl" style="margin-top:12px">Clave</label><input class="inp" id="lgP" type="password" placeholder="••••••••" autocomplete="current-password">
   <label class="fl" style="margin-top:12px">Rol</label><select class="inp" id="lgR"><option value="J">Jefe de Comando</option><option value="A">Administrador</option><option value="O">Operador</option></select>
-  <button class="btn btn-navy btn-big" style="width:100%;justify-content:center;margin-top:16px" onclick="doLogin()">Ingresar al sistema ➜</button>
+  <button class="btn btn-navy btn-big" style="width:100%;justify-content:center;margin-top:16px" onclick="doLogin()">Ingresar al sistema ?</button>
   <p style="font-size:11.5px;color:var(--mut);text-align:center;margin-top:12px">Conectado a Turso • <span id="lgInfo"></span></p>
  </div></div></div>
 
@@ -345,7 +345,7 @@ const G = {
   gCne: '<svg width="26" height="26" viewBox="0 0 24 24"><path fill="#1e88e5" d="M3 5h18v14H3z"/><path fill="#fff" d="M6 8.5a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zM5 16c.5-1.6 1.6-2.4 3-2.4s2.5.8 3 2.4zM13 9h6v1.6h-6zM13 12.5h6v1.6h-6z"/></svg>',
   gMore: '<svg width="26" height="26" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.2" fill="#795548"/><circle cx="12" cy="12" r="2.2" fill="#795548"/><circle cx="18" cy="12" r="2.2" fill="#795548"/></svg>'
 };
-Object.entries(G).forEach(([k, v]) => { const el = $(k); if (el) el.innerHTML = v; });
+Object.entries(G).forEach(([k, v]) => $(k).innerHTML = v);
 
 const IC = {
   grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
@@ -590,31 +590,25 @@ const SCHEMA = [
 ];
 
 async function inicializarTurso() {
-  try {
-    await q('SELECT 1 FROM usuarios LIMIT 1');
-    return; // Tablas ya existen, omitir DDL en cada carga de página
-  } catch (e) {
-    console.log('Inicializando esquema Turso por primera vez...');
-  }
   setLoad('Creando tablas en Turso...');
   for (const sql of SCHEMA) {
-    try { await x(sql); } catch (err) {}
+    try { await x(sql); } catch (e) { console.warn('Schema warn:', e.message); }
   }
-  try {
-    const users = await q('SELECT COUNT(*) AS n FROM usuarios');
-    if (users && users[0] && users[0].n === 0) {
-      const seeds = [
-        ['admin@comando.com', 'admin123', 'Administrador del Sistema', 'A', 'Administrador'],
-        ['jefe', 'jefe123', 'Gualberto Martinez', 'J', 'Jefe de Comando'],
-        ['operador', 'operador123', 'Pedro Rivas', 'O', 'Operador de Sala'],
-        ['cdiaz', 'operador123', 'Carmen Díaz', 'O', 'Operadora Territorial']
-      ];
-      for (const [u, p, n, r, c] of seeds) {
-        const h = await hash(p);
-        await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', [u, h, n, r, c]);
-      }
+  setLoad('Verificando usuarios iniciales...');
+  const users = await q('SELECT COUNT(*) AS n FROM usuarios');
+  if (users[0].n === 0) {
+    const seeds = [
+      ['admin@comando.com', 'admin123', 'Administrador del Sistema', 'A', 'Administrador'],
+      ['jefe', 'jefe123', 'Gualberto Martinez', 'J', 'Jefe de Comando'],
+      ['operador', 'operador123', 'Pedro Rivas', 'O', 'Operador de Sala'],
+      ['cdiaz', 'operador123', 'Carmen Díaz', 'O', 'Operadora Territorial']
+    ];
+    for (const [u, p, n, r, c] of seeds) {
+      const h = await hash(p);
+      await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', [u, h, n, r, c]);
     }
-  } catch (e) {}
+  }
+  await registrarAct('sys', 'Sistema inicializado • Turso listo', null);
 }
 
 
@@ -630,21 +624,18 @@ async function refreshAll() {
   CACHE.pad.forEach(p => { p.edad = edadDe(p.fecha_nac) || p.edad || 0; });
   CACHE.centros = await q('SELECT * FROM centros ORDER BY nombre');
   CACHE.recl = await q('SELECT * FROM reclutadores ORDER BY creado DESC');
-  try { CACHE.act = await q('SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100'); } catch(e) { CACHE.act = []; }
-  try { CACHE.users = await q('SELECT * FROM usuarios ORDER BY rol, nombre'); } catch(e) { CACHE.users = []; }
-  try { CACHE.cargos = await q('SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id'); } catch(e) { CACHE.cargos = []; }
+  CACHE.act = await q('SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100');
+  CACHE.users = await q('SELECT * FROM usuarios ORDER BY rol, nombre');
+  CACHE.cargos = await q('SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id');
   try {
     CACHE.direccion = await q('SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC');
   } catch (e) {
+    console.warn('Fallback CACHE.direccion:', e);
     try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
   }
-  try {
-    const allAsig = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula ORDER BY a.posicion');
-    for (const r of CACHE.recl) {
-      r.lista = allAsig.filter(a => a.reclutador_id === r.id);
-    }
-  } catch (e) {
-    for (const r of CACHE.recl) { r.lista = r.lista || []; }
+  // Enriquecer reclutadores con listas desde asignaciones
+  for (const r of CACHE.recl) {
+    r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
   }
 }
 
@@ -665,43 +656,22 @@ function asignDe(c) {
 /* ----------- LOGIN ----------- */
 async function doLogin() {
   const u = $('lgU').value.trim(), p = $('lgP').value, selR = $('lgR').value;
-  const btn = document.querySelector('#vLogin button');
   if (!u || !p) return toast('Ingrese usuario y clave', 'err');
-
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:-3px;margin-right:6px"></span> Autenticando...'; }
-
   try {
     const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [u]);
-    if (!row.length) {
-      if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
-      return toast('Usuario no encontrado o inactivo', 'err');
-    }
+    if (!row.length) return toast('Usuario no encontrado o inactivo', 'err');
     const h = await hash(p);
-    if (row[0].clave_hash !== h) {
-      if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
-      return toast('Clave incorrecta', 'err');
-    }
+    if (row[0].clave_hash !== h) return toast('Clave incorrecta', 'err');
     const userRole = row[0].rol;
-    if (selR === 'J' && userRole !== 'J') {
-      if (btn) { btn.disabled = false; btn.innerHTML = 'Este usuario no tiene rol de Jefe de Comando'; }
-      return toast('Este usuario no tiene rol de Jefe de Comando', 'err');
-    }
-    if (selR === 'A' && !['J', 'A'].includes(userRole)) {
-      if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
-      return toast('Este usuario no tiene rol de Administrador', 'err');
-    }
-    if (selR === 'O' && userRole !== 'O') {
-      if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
-      return toast('Este usuario no tiene rol de Operador', 'err');
-    }
+    if (selR === 'J' && userRole !== 'J') return toast('Este usuario no tiene rol de Jefe de Comando', 'err');
+    if (selR === 'A' && !['J', 'A'].includes(userRole)) return toast('Este usuario no tiene rol de Administrador', 'err');
+    if (selR === 'O' && userRole !== 'O') return toast('Este usuario no tiene rol de Operador', 'err');
     USER = row[0];
     localStorage.setItem('session', JSON.stringify({ user: USER, cur: 'dash' }));
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
     await refreshAll();
-    if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
     enterApp('dash');
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
     toast('Error de conexión: ' + e.message, 'err', 8000);
   }
 }
@@ -1300,11 +1270,9 @@ async function saveNrManual() {
   }
   if (p) return toast('La cédula ya existe en el padrón CNE', 'err');
   if (asignDe(ced)) return toast('La cédula ya está asignada como movilizador', 'err');
-  const cv = cenBy($('nrmCv').value) || CACHE.centros[0];
   const fn = $('nrmFn').value; const edad = edadDe(fn);
   const letra = $('nrmLet').value, sexo = $('nrmSex').value;
   const tel = $('nrmTel').value.trim(), est = $('nrmEst').value, dir = $('nrmDir').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   try {
     await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
@@ -1917,53 +1885,55 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 
 /* ----------- ARRANQUE ----------- */
 (async function main() {
-  const hideLoading = () => {
-    const el = $('loading');
-    if (el) el.style.display = 'none';
-  };
-  const showLogin = (info) => {
-    hideLoading();
-    const vLogin = $('vLogin');
-    if (vLogin && (!USER || $('vApp').style.display !== 'block')) {
-      vLogin.style.display = 'flex';
-      if ($('lgInfo') && info !== undefined) $('lgInfo').textContent = info;
-    }
-  };
-
   const safetyTimer = setTimeout(() => {
-    console.warn('Safety timeout: force hiding spinner');
-    showLogin('Acceso listo');
-  }, 4000);
-
+    console.warn('Safety timeout: dismissing loading');
+    const loading = $('loading');
+    const vLogin = $('vLogin');
+    const lgInfo = $('lgInfo');
+    const loadMsg = $('loadMsg');
+    if (loading) loading.style.display = 'none';
+    if (vLogin) vLogin.style.display = 'flex';
+    if (lgInfo) lgInfo.textContent = 'Tiempo de espera agotado - Intente recargar';
+    if (loadMsg) loadMsg.textContent = 'Carga lenta detectada';
+  }, 10000);
   try {
     setLoad('Conectando con Turso...');
+    await q('SELECT 1');
     await inicializarTurso();
-
     const saved = (() => { try { return JSON.parse(localStorage.getItem('session')); } catch(e) { return null; } })();
     if (saved && saved.user && saved.user.usuario) {
-      setLoad('Cargando información...');
+      setLoad('Restaurando sesión...');
       const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [saved.user.usuario]);
       if (row.length) {
         USER = row[0];
         await refreshAll();
-        clearTimeout(safetyTimer);
-        hideLoading();
+        setLoad('Verificando datos...');
+        const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
+        if (badEdad > 0) {
+          setLoad('Reparando edades...', badEdad + ' registros');
+          const all = await q('SELECT cedula, fecha_nac FROM padron');
+          const CHUNK = 200;
+          for (let i = 0; i < all.length; i += CHUNK) {
+            const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
+            await turso(batch);
+          }
+          await refreshAll();
+        }
+        $('loading').style.display = 'none';
         enterApp(saved.cur || 'dash');
         return;
       }
     }
-    setLoad('Preparando acceso...');
-    let countText = 'Turso OK';
-    try {
-      const count = await q('SELECT COUNT(*) AS n FROM padron');
-      if (count && count[0]) countText = count[0].n + ' electores • Turso OK';
-    } catch(e) {}
-    clearTimeout(safetyTimer);
-    showLogin(countText);
+    const count = await q('SELECT COUNT(*) AS n FROM padron');
+    $('lgInfo').textContent = count[0].n + ' electores • Turso OK';
+    $('loading').style.display = 'none';
+    $('vLogin').style.display = 'flex';
   } catch (e) {
-    clearTimeout(safetyTimer);
-    console.error('Error de arranque:', e);
-    showLogin('Turso conectado • ' + (e.message || ''));
+    setLoad('Error al conectar', e.message);
+    $('loading').style.display = 'none';
+    $('vLogin').style.display = 'flex';
+    $('lgInfo').textContent = 'Error de conexión';
+    console.error(e);
   }
 })();
 
