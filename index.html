@@ -591,24 +591,28 @@ const SCHEMA = [
 
 async function inicializarTurso() {
   setLoad('Creando tablas en Turso...');
-  for (const sql of SCHEMA) {
-    try { await x(sql); } catch (e) { console.warn('Schema warn:', e.message); }
-  }
-  setLoad('Verificando usuarios iniciales...');
-  const users = await q('SELECT COUNT(*) AS n FROM usuarios');
-  if (users[0].n === 0) {
-    const seeds = [
-      ['admin@comando.com', 'admin123', 'Administrador del Sistema', 'A', 'Administrador'],
-      ['jefe', 'jefe123', 'Gualberto Martinez', 'J', 'Jefe de Comando'],
-      ['operador', 'operador123', 'Pedro Rivas', 'O', 'Operador de Sala'],
-      ['cdiaz', 'operador123', 'Carmen Díaz', 'O', 'Operadora Territorial']
-    ];
-    for (const [u, p, n, r, c] of seeds) {
-      const h = await hash(p);
-      await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', [u, h, n, r, c]);
+  try {
+    await turso(SCHEMA.map(s => ({ q: s, params: [] })));
+  } catch (e) {
+    for (const sql of SCHEMA) {
+      try { await x(sql); } catch (err) {}
     }
   }
-  await registrarAct('sys', 'Sistema inicializado • Turso listo', null);
+  try {
+    const users = await q('SELECT COUNT(*) AS n FROM usuarios');
+    if (users && users[0] && users[0].n === 0) {
+      const seeds = [
+        ['admin@comando.com', 'admin123', 'Administrador del Sistema', 'A', 'Administrador'],
+        ['jefe', 'jefe123', 'Gualberto Martinez', 'J', 'Jefe de Comando'],
+        ['operador', 'operador123', 'Pedro Rivas', 'O', 'Operador de Sala'],
+        ['cdiaz', 'operador123', 'Carmen Díaz', 'O', 'Operadora Territorial']
+      ];
+      for (const [u, p, n, r, c] of seeds) {
+        const h = await hash(p);
+        await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', [u, h, n, r, c]);
+      }
+    }
+  } catch (e) {}
 }
 
 
@@ -624,18 +628,18 @@ async function refreshAll() {
   CACHE.pad.forEach(p => { p.edad = edadDe(p.fecha_nac) || p.edad || 0; });
   CACHE.centros = await q('SELECT * FROM centros ORDER BY nombre');
   CACHE.recl = await q('SELECT * FROM reclutadores ORDER BY creado DESC');
-  CACHE.act = await q('SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100');
-  CACHE.users = await q('SELECT * FROM usuarios ORDER BY rol, nombre');
-  CACHE.cargos = await q('SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id');
+  try { CACHE.act = await q('SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100'); } catch(e) { CACHE.act = []; }
+  try { CACHE.users = await q('SELECT * FROM usuarios ORDER BY rol, nombre'); } catch(e) { CACHE.users = []; }
+  try { CACHE.cargos = await q('SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id'); } catch(e) { CACHE.cargos = []; }
   try {
     CACHE.direccion = await q('SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC');
   } catch (e) {
-    console.warn('Fallback CACHE.direccion:', e);
     try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
   }
-  // Enriquecer reclutadores con listas desde asignaciones
   for (const r of CACHE.recl) {
-    r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
+    try {
+      r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
+    } catch(e) { r.lista = []; }
   }
 }
 
@@ -1887,55 +1891,44 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 
 /* ----------- ARRANQUE ----------- */
 (async function main() {
-  const safetyTimer = setTimeout(() => {
-    console.warn('Safety timeout: dismissing loading');
+  let safetyTimer = setTimeout(() => {
+    console.warn('Safety timeout: dismissing loading screen');
     const loading = $('loading');
     const vLogin = $('vLogin');
-    const lgInfo = $('lgInfo');
-    const loadMsg = $('loadMsg');
     if (loading) loading.style.display = 'none';
-    if (vLogin) vLogin.style.display = 'flex';
-    if (lgInfo) lgInfo.textContent = 'Tiempo de espera agotado - Intente recargar';
-    if (loadMsg) loadMsg.textContent = 'Carga lenta detectada';
-  }, 10000);
+    if (vLogin && (!USER || $('vApp').style.display !== 'block')) vLogin.style.display = 'flex';
+  }, 6000);
+
   try {
     setLoad('Conectando con Turso...');
     await q('SELECT 1');
     await inicializarTurso();
+
     const saved = (() => { try { return JSON.parse(localStorage.getItem('session')); } catch(e) { return null; } })();
     if (saved && saved.user && saved.user.usuario) {
-      setLoad('Restaurando sesión...');
+      setLoad('Cargando información...');
       const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [saved.user.usuario]);
       if (row.length) {
         USER = row[0];
         await refreshAll();
-        setLoad('Verificando datos...');
-        const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
-        if (badEdad > 0) {
-          setLoad('Reparando edades...', badEdad + ' registros');
-          const all = await q('SELECT cedula, fecha_nac FROM padron');
-          const CHUNK = 200;
-          for (let i = 0; i < all.length; i += CHUNK) {
-            const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
-            await turso(batch);
-          }
-          await refreshAll();
-        }
+        clearTimeout(safetyTimer);
         $('loading').style.display = 'none';
         enterApp(saved.cur || 'dash');
         return;
       }
     }
+    setLoad('Preparando acceso...');
     const count = await q('SELECT COUNT(*) AS n FROM padron');
-    $('lgInfo').textContent = count[0].n + ' electores • Turso OK';
+    if ($('lgInfo')) $('lgInfo').textContent = (count[0] ? count[0].n : 0) + ' electores • Turso OK';
+    clearTimeout(safetyTimer);
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
   } catch (e) {
-    setLoad('Error al conectar', e.message);
+    clearTimeout(safetyTimer);
+    console.error('Error de arranque:', e);
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
-    $('lgInfo').textContent = 'Error de conexión';
-    console.error(e);
+    if ($('lgInfo')) $('lgInfo').textContent = 'Conectado a Turso • ' + (e.message || '');
   }
 })();
 
