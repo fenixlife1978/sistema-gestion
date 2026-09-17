@@ -450,7 +450,7 @@ const kc = (l, v, s, bar, full) => '<div class="kcard"><div class="kl">' + l + '
 /* ----------- ESTADO GLOBAL ----------- */
 let USER = null, CUR = 'dash', REG = { rec: null }, LAST_REC = null;
 let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '' };
-let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [] };
+let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [] };
 
 /* ----------- ESQUEMA TURSO (AUTO-MIGRACIÓN) ----------- */
 const SCHEMA = [
@@ -651,7 +651,7 @@ const MODS = [
   { id: 'rep', l: 'Reportes y Cruces', i: 'chart' },
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
   { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] },
-  { id: 'direccion', l: 'Dirección Ejecutiva', i: 'userPlus', adm: ['J', 'A'] }
+  { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' }
 ];
 function buildTabs() {
   $('tabs').innerHTML = MODS.filter(m => !m.adm || m.adm.includes(USER.rol)).map(m =>
@@ -1845,7 +1845,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 
 /* ═══════════ DIRECCION EJECUTIVA ═══════════ */
 function renderDireccion() {
-  if (!['J', 'A'].includes(USER.rol)) { $('sec-direccion').innerHTML = panel('Acceso denegado', '<div class="empty">Solo Jefe de Comando o Administradores.</div>'); return }
   const d = CACHE.direccion || [];
   const rows = d.length
     ? '<table class="tbl"><thead><tr><th>Cargo</th><th>C.I.</th><th>Nombre</th><th>Teléfono</th><th>Estructura</th><th>Dirección</th><th style="text-align:center">Acciones</th></tr></thead><tbody>' +
