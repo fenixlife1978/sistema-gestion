@@ -339,7 +339,9 @@ const IC = {
   bolt: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   file: '<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/>',
-  userPlus: '<circle cx="10" cy="8" r="3.5"/><path d="M3 20c0-3.5 3-6 7-6s7 2.5 7 6"/><path d="M18 6v6M15 9h6"/>'
+  userPlus: '<circle cx="10" cy="8" r="3.5"/><path d="M3 20c0-3.5 3-6 7-6s7 2.5 7 6"/><path d="M18 6v6M15 9h6"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'
 };
 const ic = (n, s = 16) => '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + IC[n] + '</svg>';
 
@@ -589,7 +591,12 @@ async function refreshAll() {
   CACHE.act = await q('SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100');
   CACHE.users = await q('SELECT * FROM usuarios ORDER BY rol, nombre');
   CACHE.cargos = await q('SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id');
-  CACHE.direccion = await q('SELECT d.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.cargo, d.creado DESC');
+  try {
+    CACHE.direccion = await q('SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC');
+  } catch (e) {
+    console.warn('Fallback CACHE.direccion:', e);
+    try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
+  }
   // Enriquecer reclutadores con listas desde asignaciones
   for (const r of CACHE.recl) {
     r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
@@ -1848,7 +1855,7 @@ function renderDireccion() {
   const d = CACHE.direccion || [];
 
   const cardsHtml = CARGOS_DIRECCION.map(cargo => {
-    const asig = d.find(x => x.cargo === cargo);
+    const asig = d.find(x => String(x.cargo || '').trim().toUpperCase() === String(cargo).trim().toUpperCase());
     if (asig) {
       const p = padBy(asig.cedula) || asig;
       const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (asig.nombre || asig.cedula);
@@ -1859,11 +1866,11 @@ function renderDireccion() {
       const cvNom = p.nombre_cv || p.centro_votacion || '';
       const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
 
-      return '<div class="kcard" style="padding:14px;border-left:4px solid var(--navy)">' +
+      return '<div class="kcard" style="padding:14px;border-left:4px solid var(--navy);background:#ffffff">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + esc(cargo) + '</div>' +
-            '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:2px">' + esc(nomComp) + '</div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:3px">' + esc(nomComp) + '</div>' +
             '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:4px">' +
               '<b>C.I.:</b> ' + ci + (p.edad ? ' &nbsp;&bull;&nbsp; <b>Edad:</b> ' + p.edad + 'a' : '') + (p.sexo ? ' &nbsp;&bull;&nbsp; <b>Sexo:</b> ' + p.sexo : '') +
             '</div>' +
@@ -1871,9 +1878,10 @@ function renderDireccion() {
             (tel ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('chat', 11) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + esc(tel) + '</a></div>' : '') +
             (dir ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' ' + esc(dir) + '</div>' : '') +
           '</div>' +
-          '<div style="display:flex;gap:4px">' +
-            '<button class="btn btn-w btn-xs" onclick="openDirEdit(' + asig.id + ')" title="Editar datos">' + ic('edit', 12) + ' Editar</button>' +
-            '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delDir(' + asig.id + ')" title="Remover del cargo">' + ic('x', 12) + ' Remover</button>' +
+          '<div style="display:flex;gap:4px;align-items:center">' +
+            '<button class="btn btn-navy btn-xs" onclick="openDirView(' + asig.id + ')" title="Ver Detalle y Padrón CNE">' + ic('eye', 14) + ' Ver Datos</button>' +
+            '<button class="btn btn-w btn-xs" onclick="openDirEdit(' + asig.id + ')" title="Editar datos">' + ic('edit', 12) + '</button>' +
+            '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delDir(' + asig.id + ')" title="Remover del cargo">' + ic('x', 12) + '</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -1898,6 +1906,50 @@ function renderDireccion() {
       '<button class="btn btn-w" onclick="downloadPDFDireccion()">' + ic('file', 14) + ' Descargar PDF (Padrón CNE Completo)</button>' +
     '</div>' +
     '<div class="grid g2" style="gap:12px">' + cardsHtml + '</div>', 700
+  );
+}
+
+function openDirView(id) {
+  const reg = (CACHE.direccion || []).find(x => x.id === id);
+  if (!reg) return toast('Registro no encontrado', 'err');
+  const p = padBy(reg.cedula) || reg;
+  const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (reg.nombre || reg.cedula);
+  const letra = p.letra || reg.letra || 'V';
+  const ci = fC(letra, reg.cedula);
+  const tel = reg.telefono ? reg.telefono : '';
+  const dir = reg.direccion ? reg.direccion : '';
+
+  win(ic('eye', 18) + ' Expediente — ' + esc(reg.cargo),
+    '<div class="alert ok" style="margin-bottom:14px;display:flex;gap:12px;align-items:center">' +
+      '<span class="uava" style="width:42px;height:42px;font-size:14px;border-radius:8px">' + ini(nomComp) + '</span>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:16px;font-weight:700;color:var(--navy)">' + esc(nomComp) + '</div>' +
+        '<div style="font-size:12px;font-weight:600;color:var(--teal)">Cargo: ' + esc(reg.cargo) + '</div>' +
+        '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:2px">C.I.: <b>' + ci + '</b></div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--line2)">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;border-bottom:1px solid var(--line2);padding-bottom:6px">INFORMACIÓN COMPLETA DEL PADRÓN CNE</div>' +
+      '<div class="grid g2" style="gap:8px;font-size:12px">' +
+        '<div><b>Cédula:</b> <span class="mono">' + ci + '</span></div>' +
+        '<div><b>Fecha de Nacimiento:</b> ' + esc(p.fecha_nac || 'N/D') + '</div>' +
+        '<div><b>Apellidos:</b> ' + esc(apeP(p) || '-') + '</div>' +
+        '<div><b>Nombres:</b> ' + esc(nomP(p) || '-') + '</div>' +
+        '<div><b>Edad:</b> ' + (p.edad ? p.edad + ' años' : 'N/D') + '</div>' +
+        '<div><b>Sexo:</b> ' + (p.sexo === 'M' ? 'Masculino (M)' : p.sexo === 'F' ? 'Femenino (F)' : '-') + '</div>' +
+        '<div><b>Estado:</b> ' + esc(p.estado || '-') + '</div>' +
+        '<div><b>Municipio:</b> ' + esc(p.municipio || '-') + '</div>' +
+        '<div><b>Parroquia:</b> ' + esc(p.parroquia || '-') + '</div>' +
+        '<div><b>Código Centro:</b> <span class="mono">' + esc(p.centro_votacion || '-') + '</span></div>' +
+        '<div style="grid-column:1/-1"><b>Centro de Votación:</b> ' + esc(p.nombre_cv || '-') + '</div>' +
+      '</div>' +
+      '<div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px;border-bottom:1px solid var(--line2);padding-bottom:6px">DATOS COMPLEMENTARIOS DE CONTACTO</div>' +
+      '<div class="grid g2" style="gap:8px;font-size:12px">' +
+        '<div><b>Teléfono:</b> ' + (tel ? '<a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + ic('chat', 12) + ' ' + esc(tel) + '</a>' : '<span style="color:var(--mut)">No registrado</span>') + '</div>' +
+        '<div><b>Dirección:</b> ' + esc(dir || 'No registrada') + '</div>' +
+      '</div>' +
+    '</div>',
+    '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 640
   );
 }
 
