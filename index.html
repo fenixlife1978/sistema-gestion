@@ -172,19 +172,19 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 </head>
 <body>
 
-<div id="loading">
+<div id="loading" style="display:none">
  <div class="spinner"></div>
- <p id="loadMsg">Inicializando base de datos Turso...</p>
- <div class="sub" id="loadSub">Creando esquema en base de datos</div>
+ <p id="loadMsg">Cargando sistema...</p>
+ <div class="sub" id="loadSub">Conectando a base de datos</div>
 </div>
 
-<div id="vLogin" style="display:none"><div class="lg-win">
+<div id="vLogin" style="display:flex"><div class="lg-win">
  <div class="lg-h"><img src="icono.png" class="shield-img" alt="Foto Comando de Campaña" onerror="this.onerror=null;this.src='/icono.png'"><span id="lgShield"></span><div><h1>COMANDO DE CAMPAÑA</h1><p>GUALBERTO MARTINEZ - Alcalde Mcpio. Independencia - Estado Yaracuy</p></div></div>
  <div class="lg-b">
   <label class="fl">Usuario</label><input class="inp" id="lgU" placeholder="usuario" autocomplete="username">
   <label class="fl" style="margin-top:12px">Clave</label><input class="inp" id="lgP" type="password" placeholder="••••••••" autocomplete="current-password">
   <label class="fl" style="margin-top:12px">Rol</label><select class="inp" id="lgR"><option value="J">Jefe de Comando</option><option value="A">Administrador</option><option value="O">Operador</option></select>
-  <button class="btn btn-navy btn-big" style="width:100%;justify-content:center;margin-top:16px" onclick="doLogin()">Ingresar al sistema ?</button>
+  <button class="btn btn-navy btn-big" style="width:100%;justify-content:center;margin-top:16px" onclick="doLogin()">Ingresar al sistema ➜</button>
   <p style="font-size:11.5px;color:var(--mut);text-align:center;margin-top:12px">Conectado a Turso • <span id="lgInfo"></span></p>
  </div></div></div>
 
@@ -345,7 +345,7 @@ const G = {
   gCne: '<svg width="26" height="26" viewBox="0 0 24 24"><path fill="#1e88e5" d="M3 5h18v14H3z"/><path fill="#fff" d="M6 8.5a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zM5 16c.5-1.6 1.6-2.4 3-2.4s2.5.8 3 2.4zM13 9h6v1.6h-6zM13 12.5h6v1.6h-6z"/></svg>',
   gMore: '<svg width="26" height="26" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.2" fill="#795548"/><circle cx="12" cy="12" r="2.2" fill="#795548"/><circle cx="18" cy="12" r="2.2" fill="#795548"/></svg>'
 };
-Object.entries(G).forEach(([k, v]) => $(k).innerHTML = v);
+Object.entries(G).forEach(([k, v]) => { const el = $(k); if (el) el.innerHTML = v; });
 
 const IC = {
   grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
