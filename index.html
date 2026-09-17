@@ -235,9 +235,22 @@ async function turso(stmts) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ statements: Array.isArray(stmts) ? stmts.map(s => ({ q: s.sql || s.q, params: s.args || s.params || [] })) : [{ q: stmts.sql || stmts.q, params: stmts.args || stmts.params || [] }] })
   });
-  if (!r.ok) throw new Error('API error ' + r.status);
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error('HTTP ' + r.status + ': ' + txt);
+  }
   const j = await r.json();
-  if (j.error) throw new Error(j.error);
+  if (j.error) {
+    const errMsg = typeof j.error === 'string' ? j.error : (j.error.message || 'Error Turso');
+    throw new Error(errMsg);
+  }
+  if (Array.isArray(j)) {
+    const errItem = j.find(item => item && item.error);
+    if (errItem) {
+      const msg = typeof errItem.error === 'string' ? errItem.error : (errItem.error.message || 'Error Turso');
+      throw new Error(msg);
+    }
+  }
   return Array.isArray(stmts) ? j : j[0];
 }
 async function q(sql, args = []) {
@@ -554,6 +567,11 @@ const SCHEMA = [
     direccion TEXT,
     creado TEXT DEFAULT (datetime('now'))
   )`,
+  `ALTER TABLE direccion_ejecutiva ADD COLUMN nombre TEXT`,
+  `ALTER TABLE direccion_ejecutiva ADD COLUMN telefono TEXT`,
+  `ALTER TABLE direccion_ejecutiva ADD COLUMN estructura TEXT`,
+  `ALTER TABLE direccion_ejecutiva ADD COLUMN direccion TEXT`,
+  `ALTER TABLE direccion_ejecutiva ADD COLUMN creado TEXT`,
   `CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)`
 ];
 
