@@ -287,37 +287,48 @@ const two = n => String(n).padStart(2, '0');
 const hhmm = ts => { const d = new Date(ts); return two(d.getHours()) + ':' + two(d.getMinutes()) };
 const tAgo = ts => { const m = Math.max(0, Math.round((Date.now() - ts) / 60000)); if (m < 1) return 'ahora'; if (m < 60) return 'hace ' + m + ' min'; const h = Math.round(m / 60); if (h < 24) return 'hace ' + h + ' h'; return 'hace ' + Math.round(h / 24) + ' d' };
 const ini = n => String(n).trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-const edadDe = fn => {
-  if (!fn) return 0;
+function parseDate(fn) {
+  if (!fn) return null;
   let s = String(fn).trim().replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/, '').replace(/T\d{1,2}:\d{2}(:\d{2})?$/, '');
-  if (!s || s === '0' || s === '0000-00-00') return 0;
-  const tryDate = (y, m, d) => {
-    if (m < 1 || m > 12 || d < 1 || d > 31) return 0;
-    const bd = new Date(y, m - 1, d);
-    if (bd.getFullYear() !== y || bd.getMonth() !== m - 1 || bd.getDate() !== d) return 0;
-    const now = new Date();
-    let e = now.getFullYear() - bd.getFullYear();
-    const diffM = now.getMonth() - bd.getMonth();
-    if (diffM < 0 || (diffM === 0 && now.getDate() < bd.getDate())) e--;
-    return (e >= 0 && e <= 120) ? e : 0;
-  };
-  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
-  if (m) return tryDate(parseInt(m[3]), parseInt(m[2]), parseInt(m[1]));
-  m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
-  if (m) return tryDate(parseInt(m[1]), parseInt(m[2]), parseInt(m[3]));
-  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2})$/);
-  if (m) return tryDate(1900 + parseInt(m[3]), parseInt(m[2]), parseInt(m[1]));
-  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
-  if (m) return tryDate(parseInt(m[1]), parseInt(m[2]), parseInt(m[3]));
-  const b = new Date(s);
-  if (!isNaN(b.getTime())) {
-    let e = new Date().getFullYear() - b.getFullYear();
-    const diffM = new Date().getMonth() - b.getMonth();
-    if (diffM < 0 || (diffM === 0 && new Date().getDate() < b.getDate())) e--;
-    return (e >= 0 && e <= 120) ? e : 0;
+  if (!s || s === '0' || s === '0000-00-00') return null;
+  if (/^\d{3,5}$/.test(s)) {
+    const num = parseInt(s, 10);
+    if (num >= 1000 && num <= 60000) {
+      const ms = (num - 25569) * 86400 * 1000;
+      const d = new Date(ms);
+      if (!isNaN(d.getTime())) {
+        return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate() };
+      }
+    }
   }
-  return 0;
-};
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) return { y: parseInt(m[3]), m: parseInt(m[2]), d: parseInt(m[1]) };
+  m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if (m) return { y: parseInt(m[1]), m: parseInt(m[2]), d: parseInt(m[3]) };
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2})$/);
+  if (m) return { y: 1900 + parseInt(m[3]), m: parseInt(m[2]), d: parseInt(m[1]) };
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) return { y: parseInt(m[1]), m: parseInt(m[2]), d: parseInt(m[3]) };
+  const b = new Date(s);
+  if (!isNaN(b.getTime())) return { y: b.getFullYear(), m: b.getMonth() + 1, d: b.getDate() };
+  return null;
+}
+
+function edadDe(fn) {
+  const o = parseDate(fn);
+  if (!o) return 0;
+  const now = new Date();
+  let e = now.getFullYear() - o.y;
+  const diffM = (now.getMonth() + 1) - o.m;
+  if (diffM < 0 || (diffM === 0 && now.getDate() < o.d)) e--;
+  return (e >= 0 && e <= 120) ? e : 0;
+}
+
+function fmtFn(fn) {
+  const o = parseDate(fn);
+  if (!o) return String(fn || '-');
+  return o.y + '-' + String(o.m).padStart(2, '0') + '-' + String(o.d).padStart(2, '0');
+}
 const SHIELD = '<img src="icono.png" style="height:48px;width:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid rgba(255,255,255,0.5);box-shadow:0 2px 6px rgba(0,0,0,0.3)" alt="Foto Comando de Campaña" onerror="this.onerror=null;this.src=\'icono.png\'">';
 
 const G = {
@@ -607,6 +618,7 @@ async function registrarAct(tipo, texto, uid) {
 /* ----------- RECARGA DE CACHE DESDE TURSO ----------- */
 async function refreshAll() {
   CACHE.pad = await q('SELECT * FROM padron ORDER BY p_apellido, p_nombre');
+  CACHE.pad.forEach(p => { p.edad = edadDe(p.fecha_nac) || p.edad || 0; });
   CACHE.centros = await q('SELECT * FROM centros ORDER BY nombre');
   CACHE.recl = await q('SELECT * FROM reclutadores ORDER BY creado DESC');
   CACHE.act = await q('SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100');
@@ -783,9 +795,9 @@ function sqRun() {
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="uava" style="width:36px;height:36px;font-size:14px">' + ini(apeP(p) + ', ' + nomP(p)) + '</span><div style="flex:1;min-width:0"><b style="font-size:14px;color:var(--navy)">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:12px;color:var(--mut)">' + fC(p.letra, p.cedula) + '</div></div>' +
         (a ? (rec ? '<span class="chip chip-b">? MOVILIZADOR</span>' : '<span class="chip chip-g">? ASIGNADO #' + a.pos + '</span>') : '<span class="chip chip-gr">LIBRE</span>') + '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-size:12px">' +
-        '<div><span style="color:var(--mut)">Edad:</span> <b>' + (p.edad || '') + '</b> años</div>' +
+        '<div><span style="color:var(--mut)">Edad:</span> <b>' + (edadDe(p.fecha_nac) || p.edad || '-') + '</b> años</div>' +
         '<div><span style="color:var(--mut)">Sexo:</span> <b>' + p.sexo + '</b></div>' +
-        '<div style="grid-column:span 2"><span style="color:var(--mut)">Fecha nac.:</span> <b>' + esc(p.fecha_nac || '') + '</b></div>' +
+        '<div style="grid-column:span 2"><span style="color:var(--mut)">Fecha nac.:</span> <b>' + esc(fmtFn(p.fecha_nac)) + '</b></div>' +
         '<div style="grid-column:span 2"><span style="color:var(--mut)">Centro:</span> <b>' + esc(p.nombre_cv || '') + '</b> <span class="mono" style="font-size:10px;color:var(--mut)">(' + esc(p.centro_votacion || '') + ')</span></div>' +
         '<div><span style="color:var(--mut)">Municipio:</span> <b>' + esc(p.municipio || '') + '</b></div>' +
         '<div><span style="color:var(--mut)">Parroquia:</span> <b>' + esc(p.parroquia || '') + '</b></div>' +
@@ -933,7 +945,7 @@ function renderRegistro(focus) {
     '<div style="align-self:end"><button class="btn btn-navy btn-big" style="width:100%;justify-content:center" ' + (r ? '' : 'disabled') + ' onclick="doReg()">Registrar ?</button></div></div><div id="regResult"></div></div></div>' +
     '<div class="panel"><div class="panel-h">Lista de Comprometidos ' + (r ? ' ' + r.lista.length + '/10' : '') + (r ? '<button class="btn btn-w btn-xs" style="margin-left:auto" onclick="expLista(' + r.id + ')">' + ic('dl', 13) + ' CSV</button>' : '') + '</div><div class="panel-b">' +
     (r ? (r.lista.length ? '<table class="tbl"><thead><tr><th>#</th><th>C.I.</th><th>Apellidos y nombres</th><th>Edad</th><th>Sexo</th><th>Teléfono</th><th>Centro</th><th>Municipio</th><th>Hora</th><th></th></tr></thead><tbody>' +
-      r.lista.map((l, i) => { const p = padBy(l.cedula); return '<tr><td><span class="pos">' + (i + 1) + '</span></td><td class="mono" style="font-weight:700">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td>' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<span class="chip chip-r">SIN PADRN</span>') + '</td><td>' + (p ? p.edad : '') + '</td><td>' + (p ? p.sexo : '') + '</td><td>' + (l.telefono ? '<a href="https://wa.me/58' + esc(l.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none;cursor:pointer">' + ic('chat', 12) + ' ' + esc(l.telefono) + '</a>' : '<span style="color:var(--mut)"></span>') + '</td><td>' + esc(p ? p.nombre_cv : '') + '</td><td>' + esc(p ? p.municipio : '') + '</td><td class="mono" style="font-size:11px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</td><td><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')">' + ic('x', 12) + '</button></td></tr>' }).join('') + '</tbody></table>'
+      r.lista.map((l, i) => { const p = padBy(l.cedula); return '<tr><td><span class="pos">' + (i + 1) + '</span></td><td class="mono" style="font-weight:700">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td>' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<span class="chip chip-r">SIN PADRÓN</span>') + '</td><td>' + (p ? (edadDe(p.fecha_nac) || p.edad || '-') : '') + '</td><td>' + (p ? p.sexo : '') + '</td><td>' + (l.telefono ? '<a href="https://wa.me/58' + esc(l.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none;cursor:pointer">' + ic('chat', 12) + ' ' + esc(l.telefono) + '</a>' : '<span style="color:var(--mut)"></span>') + '</td><td>' + esc(p ? p.nombre_cv : '') + '</td><td>' + esc(p ? p.municipio : '') + '</td><td class="mono" style="font-size:11px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</td><td><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')">' + ic('x', 12) + '</button></td></tr>' }).join('') + '</tbody></table>'
       : '<div class="empty">' + ic('target', 28) + '<p>Lista vacía.</p></div>')
       : '<div class="empty">' + ic('lock', 28) + '<p>Sin movilizador seleccionado.</p></div>') + '</div></div></div></div>';
   const inp = $('cedIn');
@@ -973,7 +985,7 @@ async function doReg() {
     await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono) VALUES(?,?,?,?)', [r.id, c, pos, tel ? normTel(tel) : null]);
     await registrarAct('user', 'C.I. ' + fC(p.letra, p.cedula) + ' registrada en lista de movilizador #' + r.id + ' (posición ' + pos + ')', USER.id);
     await refreshAll(); renderRegistro(true);
-    R('<div class="alert ok"><div class="a-ic">' + ic('check', 18) + '</div><div><b>? Registro exitoso • posición #' + pos + '</b>' + esc(apeP(p) + ', ' + nomP(p)) + '  ' + p.edad + ' años  ' + p.sexo + (tel ? '  ?? ' + esc(tel) : '') + '<br>Centro: ' + esc(p.nombre_cv) + ' (' + esc(p.municipio) + ')<br>Lista: <b class="mono">' + CACHE.recl.find(x => x.id === r.id).lista.length + '/10</b></div></div>');
+    R('<div class="alert ok"><div class="a-ic">' + ic('check', 18) + '</div><div><b>✔ Registro exitoso • posición #' + pos + '</b>' + esc(apeP(p) + ', ' + nomP(p)) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + ' años  ' + p.sexo + (tel ? '  📱 ' + esc(tel) : '') + '<br>Centro: ' + esc(p.nombre_cv) + ' (' + esc(p.municipio) + ')<br>Lista: <b class="mono">' + CACHE.recl.find(x => x.id === r.id).lista.length + '/10</b></div></div>');
     toast('C.I. ' + fC(p.letra, p.cedula) + ' registrada (Turso)', 'ok');
   } catch (e) {
     if (String(e.message).toLowerCase().includes('unique')) return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div><b>? Ya asignado en Turso</b>La cédula ya figura en otra lista.</div></div>');
@@ -1051,7 +1063,7 @@ function openRec(id) {
     const l = r.lista[i];
     if (!l) return '<div class="row10 empty"><span class="pos" style="background:#cfd8dc;color:#607080">' + (i + 1) + '</span>Cupo disponible</div>';
     const p = padBy(l.cedula);
-    return '<div class="row10"><span class="pos">' + (i + 1) + '</span><div style="flex:1;min-width:0"><b style="font-size:13px">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</b> ' + (p ? '' : '<span class="chip chip-r">S/P</span>') + '<div class="mono" style="font-size:11px;color:var(--mut)">' + (p ? fC(p.letra, p.cedula) + '  ' + p.edad + 'a  ' + p.sexo : fC('V', l.cedula)) + '  ' + esc(p ? p.nombre_cv : '') + '</div></div><span class="mono" style="font-size:10.5px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</span><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')">' + ic('x', 12) + '</button></div>';
+    return '<div class="row10"><span class="pos">' + (i + 1) + '</span><div style="flex:1;min-width:0"><b style="font-size:13px">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</b> ' + (p ? '' : '<span class="chip chip-r">S/P</span>') + '<div class="mono" style="font-size:11px;color:var(--mut)">' + (p ? fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + p.sexo : fC('V', l.cedula)) + '  ' + esc(p ? p.nombre_cv : '') + '</div></div><span class="mono" style="font-size:10.5px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</span><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')">' + ic('x', 12) + '</button></div>';
   }).join('');
   win(ic('users', 18) + ' ' + esc(nm) + '  Lista ' + r.id,
     '<div id="recContent">' +
@@ -1070,8 +1082,8 @@ function openRec(id) {
 }
 function expLista(id) {
   const r = CACHE.recl.find(x => x.id === id); if (!r) return;
-  const rows = [['POS', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'CENTRO_VOTACION', 'NOMBRE_CV', 'MUNICIPIO', 'PARROQUIA', 'REGISTRADO_EN']];
-  r.lista.forEach((l, i) => { const p = padBy(l.cedula); rows.push([i + 1, p ? p.letra : '', p ? p.cedula : l.cedula, p ? p.p_apellido : '', p ? p.s_apellido : '', p ? p.p_nombre : '', p ? p.s_nombre : '', p ? p.sexo : '', p ? p.fecha_nac : '', p ? p.centro_votacion : '', p ? p.nombre_cv : '', p ? p.municipio : '', p ? p.parroquia : '', l.registrado_en || '']) });
+  const rows = [['POS', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'EDAD', 'CENTRO_VOTACION', 'NOMBRE_CV', 'MUNICIPIO', 'PARROQUIA', 'REGISTRADO_EN']];
+  r.lista.forEach((l, i) => { const p = padBy(l.cedula); rows.push([i + 1, p ? p.letra : '', p ? p.cedula : l.cedula, p ? p.p_apellido : '', p ? p.s_apellido : '', p ? p.p_nombre : '', p ? p.s_nombre : '', p ? p.sexo : '', p ? fmtFn(p.fecha_nac) : '', p ? (edadDe(p.fecha_nac) || p.edad || '') : '', p ? p.centro_votacion : '', p ? p.nombre_cv : '', p ? p.municipio : '', p ? p.parroquia : '', l.registrado_en || '']) });
   dlCSV('lista_' + r.id + '.csv', rows); toast('Lista exportada', 'ok');
 }
 function downloadRecPDF(id) {
@@ -1082,7 +1094,7 @@ function downloadRecPDF(id) {
   const now = new Date(); const fecha = now.toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' }); const hora = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
   const tblRows = r.lista.map((l, i) => {
     const p = padBy(l.cedula);
-    return '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f4f6f9') + '"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;font-weight:700;color:#123c69">' + (i + 1) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-weight:700;font-size:10px">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-weight:600">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + (p ? '' : ' <span style="color:#c62828;font-size:9px">S/P</span>') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.edad + 'a' : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.sexo : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.nombre_cv : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.municipio : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-size:9.5px;color:#666">' + esc(l.registrado_en || '').slice(0, 16) + '</td></tr>';
+    return '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f4f6f9') + '"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;font-weight:700;color:#123c69">' + (i + 1) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-weight:700;font-size:10px">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-weight:600">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + (p ? '' : ' <span style="color:#c62828;font-size:9px">S/P</span>') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? (edadDe(p.fecha_nac) || p.edad || '-') + 'a' : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.sexo : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.nombre_cv : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.municipio : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-size:9.5px;color:#666">' + esc(l.registrado_en || '').slice(0, 16) + '</td></tr>';
   }).join('');
   const emptyRows = Array.from({ length: 10 - n }, (_, i) => '<tr style="background:#f9fafb"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;color:#999">' + (n + i + 1) + '</td><td colspan="7" style="padding:5px 7px;border:1px solid #ddd;color:#aaa;text-align:center;font-style:italic">Cupo disponible</td></tr>').join('');
   const html = '<div style="font-family:Roboto,Arial,sans-serif;color:#22303e;padding:24px;max-width:800px;margin:0 auto">' +
@@ -1127,7 +1139,7 @@ function shareRecPDF(id) {
   const now = new Date(); const fecha = now.toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' }); const hora = now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
   const tblRows = r.lista.map((l, i) => {
     const p = padBy(l.cedula);
-    return '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f4f6f9') + '"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;font-weight:700;color:#123c69">' + (i + 1) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-weight:700;font-size:10px">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-weight:600">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.edad + 'a' : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.sexo : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.nombre_cv : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.municipio : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-size:9.5px;color:#666">' + esc(l.registrado_en || '').slice(0, 16) + '</td></tr>';
+    return '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f4f6f9') + '"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;font-weight:700;color:#123c69">' + (i + 1) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-weight:700;font-size:10px">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-weight:600">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? (edadDe(p.fecha_nac) || p.edad || '-') + 'a' : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd;text-align:center">' + (p ? p.sexo : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.nombre_cv : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd">' + esc(p ? p.municipio : '') + '</td><td style="padding:5px 7px;border:1px solid #ddd;font-family:Consolas,monospace;font-size:9.5px;color:#666">' + esc(l.registrado_en || '').slice(0, 16) + '</td></tr>';
   }).join('');
   const emptyRows = Array.from({ length: 10 - n }, (_, i) => '<tr style="background:#f9fafb"><td style="padding:5px 7px;border:1px solid #ddd;text-align:center;color:#999">' + (n + i + 1) + '</td><td colspan="7" style="padding:5px 7px;border:1px solid #ddd;color:#aaa;text-align:center;font-style:italic">Cupo disponible</td></tr>').join('');
   const html = '<div style="font-family:Roboto,Arial,sans-serif;color:#22303e;padding:24px;max-width:800px;margin:0 auto">' +
@@ -1177,7 +1189,7 @@ function nrSearch() {
   }
   $('nrRes').innerHTML = res.map(p => {
     const a = asignDe(p.cedula);
-    return '<button class="rec-sel" ' + (a ? 'disabled' : '') + ' onclick="nrPick(\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p)) + '</span><span style="flex:1"><b style="font-size:12.5px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:11px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + p.edad + 'a  ' + esc(p.nombre_cv) + '</div></span>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<span class="chip chip-r">YA ASIGNADO</span>') : '<span class="chip chip-g">DISPONIBLE</span>') + '</button>';
+    return '<button class="rec-sel" ' + (a ? 'disabled' : '') + ' onclick="nrPick(\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p)) + '</span><span style="flex:1"><b style="font-size:12.5px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:11px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + esc(p.nombre_cv) + '</div></span>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<span class="chip chip-r">YA ASIGNADO</span>') : '<span class="chip chip-g">DISPONIBLE</span>') + '</button>';
   }).join('');
 }
 function nrPick(c) { const pp = padBy(c); window._nrSel = c; $('nrForm').style.display = 'block'; $('nrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC(pp ? pp.letra : 'V', c) + '</b> seleccionada</div></div>' }
@@ -1235,8 +1247,8 @@ function renderPadron() {
     if (f.txt) { const q = f.txt.toLowerCase(), cq = normC(f.txt); if (!((cq.length >= 3 && p.cedula.includes(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(q))) return false }
     if (f.sexo && p.sexo !== f.sexo) return false;
     if (f.centro && p.centro_votacion !== f.centro) return false;
-    if (f.e1 && (p.edad || 0) < +f.e1) return false;
-    if (f.e2 && (p.edad || 0) > +f.e2) return false;
+    if (f.e1 && (edadDe(p.fecha_nac) || p.edad || 0) < +f.e1) return false;
+    if (f.e2 && (edadDe(p.fecha_nac) || p.edad || 0) > +f.e2) return false;
     return true;
   });
   const per = 14; const pgs = Math.max(1, Math.ceil(all.length / per)); f.pg = Math.min(f.pg, pgs);
@@ -1253,13 +1265,13 @@ function renderPadron() {
     '<button class="btn btn-navy btn-xs" onclick="downloadPDF(\'padronContent\',\'Padrón CNE  Electores\')">' + ic('dl', 12) + ' PDF</button>' +
     '</div></div>' +
     '<div id="padronContent"><table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th><th>Centro de votacin</th><th>Municipio / Parroquia</th><th>Estatus compromiso</th></tr></thead><tbody>' +
-    (rows.map(p => { const a = asignDe(p.cedula); return '<tr><td class="mono" style="font-weight:700">' + fC(p.letra, p.cedula) + (p.es_manual ? ' <span class="chip chip-r">MANUAL</span>' : '') + '</td><td>' + esc(apeP(p)) + '</td><td>' + esc(nomP(p)) + '</td><td>' + (p.edad || 0) + '</td><td>' + p.sexo + '</td><td class="mono" style="font-size:11px">' + esc(p.fecha_nac || '') + '</td><td style="max-width:190px">' + esc(p.nombre_cv) + ' <span class="mono" style="font-size:10px;color:var(--mut)">' + p.centro_votacion + '</span></td><td>' + esc(p.municipio) + ' / ' + esc(p.parroquia) + '</td><td>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">? MOVILIZADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="openRec(' + a.r.id + ')">? #' + a.pos + '</button>') : '<span class="chip chip-gr">LIBRE</span>') + '</td></tr>' }).join('') || '<tr><td colspan="9"><div class="empty">Sin resultados.</div></td></tr>') +
+    (rows.map(p => { const a = asignDe(p.cedula); const ed = edadDe(p.fecha_nac) || p.edad || '-'; const fnStr = fmtFn(p.fecha_nac); return '<tr><td class="mono" style="font-weight:700">' + fC(p.letra, p.cedula) + (p.es_manual ? ' <span class="chip chip-r">MANUAL</span>' : '') + '</td><td>' + esc(apeP(p)) + '</td><td>' + esc(nomP(p)) + '</td><td>' + ed + '</td><td>' + esc(p.sexo || '') + '</td><td class="mono" style="font-size:11px">' + esc(fnStr) + '</td><td style="max-width:190px">' + esc(p.nombre_cv) + ' <span class="mono" style="font-size:10px;color:var(--mut)">' + p.centro_votacion + '</span></td><td>' + esc(p.municipio) + ' / ' + esc(p.parroquia) + '</td><td>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="openRec(' + a.r.id + ')">#' + a.pos + '</button>') : '<span class="chip chip-gr">LIBRE</span>') + '</td></tr>' }).join('') || '<tr><td colspan="9"><div class="empty">Sin resultados.</div></td></tr>') +
     '</tbody></table></div><div class="pager">' + Array.from({ length: Math.min(pgs, 20) }, (_, i) => '<button class="pg' + (i + 1 === f.pg ? ' on' : '') + '" onclick="PADF.pg=' + (i + 1) + ';renderPadron()">' + (i + 1) + '</button>').join('') + (pgs > 20 ? '<span style="align-self:center;color:var(--mut);font-size:12px"> ' + pgs + ' pgs</span>' : '') + '</div>');
   _refocus(prevFocus);
 }
 function expPadron() {
   const rows = [['Nro', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'EDAD', 'CODIGO_ESTADO', 'ESTADO', 'CODIGO_MUNICIPIO', 'MUNICIPIO', 'CODIGO_PARROQUIA', 'PARROQUIA', 'CENTRO_VOTACION', 'NOMBRE_CV', 'ESTATUS_COMPROMISO']];
-  CACHE.pad.forEach((p, i) => { const a = asignDe(p.cedula); rows.push([i + 1, p.letra, p.cedula, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv, a ? (a.tipo === 'reclutador' ? 'MOVILIZADOR' : 'ASIGNADO #' + a.pos) : 'LIBRE']) });
+  CACHE.pad.forEach((p, i) => { const a = asignDe(p.cedula); rows.push([i + 1, p.letra, p.cedula, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, fmtFn(p.fecha_nac), edadDe(p.fecha_nac) || p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv, a ? (a.tipo === 'reclutador' ? 'MOVILIZADOR' : 'ASIGNADO #' + a.pos) : 'LIBRE']) });
   dlCSV('padron_cne_turso.csv', rows); toast('Padrón exportado (' + rows.length + ')', 'ok');
 }
 
@@ -1326,7 +1338,7 @@ function runCargoSearch(codigo, idx) {
   const res = CACHE.pad.filter(p => (cq.length >= 3 && p.cedula.startsWith(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(ql)).slice(0, 5);
   const box = document.getElementById('cargo-res-' + idx);
   const manualBtn = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line2)"><button class="btn btn-navy btn-xs" onclick="openCargoManual(\'' + codigo + '\',' + idx + ',\'' + esc(q).replace(/'/g, "\\'") + '\')">' + ic('userPlus', 12) + ' Registrar manualmente y asignar</button></div>';
-  box.innerHTML = res.length ? res.map(p => '<button class="rec-sel" onclick="assignCargo(\'' + codigo + '\',' + idx + ',\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p) + ' ' + apeP(p)) + '</span><span style="flex:1;min-width:0"><b style="font-size:12px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:10.5px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + p.edad + 'a  ' + p.sexo + '</div></span></button>').join('') + manualBtn : '<div style="font-size:12px;color:var(--mut);padding:8px">Sin coincidencias en el padrón</div>' + manualBtn;
+  box.innerHTML = res.length ? res.map(p => '<button class="rec-sel" onclick="assignCargo(\'' + codigo + '\',' + idx + ',\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p) + ' ' + apeP(p)) + '</span><span style="flex:1;min-width:0"><b style="font-size:12px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:10.5px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + p.sexo + '</div></span></button>').join('') + manualBtn : '<div style="font-size:12px;color:var(--mut);padding:8px">Sin coincidencias en el padrón</div>' + manualBtn;
 }
 
 function openCargoManual(codigo, idx, query) {
@@ -1405,20 +1417,20 @@ function openCentro(cod) {
     if (p) {
       const tel = p.telefono ? (typeof p.telefono === 'string' ? p.telefono : '') : '';
       const dir = p.direccion ? (typeof p.direccion === 'string' ? p.direccion : '') : '';
-      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ' + borderColor + ';border-radius:6px;background:' + bgColor + '"><span class="uava" style="width:30px;height:30px;font-size:10px;border-radius:6px">' + ini(nomP(p) + ' ' + apeP(p)) + '</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:' + labelColor + '">' + esc(k.cargo) + '</div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + esc(apeP(p) + ', ' + nomP(p)) + '</div><div class="mono" style="font-size:10px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + (p.edad || '') + 'a  ' + (p.sexo || '') + '</div>' + (tel ? '<div style="font-size:10px;color:var(--mut);margin-top:2px">' + ic('chat', 10) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);text-decoration:none;font-weight:600">' + esc(tel) + '</a></div>' : '') + (dir ? '<div style="font-size:10px;color:var(--mut)">' + ic('pin', 10) + ' ' + esc(dir) + '</div>' : '') + '</div><button class="btn btn-w btn-xs" onclick="removeCargoCentro(\'' + cod + '\',' + i + ')" title="Remover">' + ic('x', 12) + '</button></div>';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ' + borderColor + ';border-radius:6px;background:' + bgColor + '"><span class="uava" style="width:30px;height:30px;font-size:10px;border-radius:6px">' + ini(nomP(p) + ' ' + apeP(p)) + '</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:' + labelColor + '">' + esc(k.cargo) + '</div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + esc(apeP(p) + ', ' + nomP(p)) + '</div><div class="mono" style="font-size:10px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + (p.sexo || '') + '</div>' + (tel ? '<div style="font-size:10px;color:var(--mut);margin-top:2px">' + ic('chat', 10) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);text-decoration:none;font-weight:600">' + esc(tel) + '</a></div>' : '') + (dir ? '<div style="font-size:10px;color:var(--mut)">' + ic('pin', 10) + ' ' + esc(dir) + '</div>' : '') + '</div><button class="btn btn-w btn-xs" onclick="removeCargoCentro(\'' + cod + '\',' + i + ')" title="Remover">' + ic('x', 12) + '</button></div>';
     } else {
       return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed #cbd5e1;border-radius:6px;background:#f8fafc"><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:var(--mut)">' + esc(k.cargo) + '</div><div style="font-size:11px;color:var(--mut);font-style:italic">Sin asignar</div></div><button class="btn btn-navy btn-xs" onclick="openCargoSearch(\'' + cod + '\',\'' + esc(k.cargo).replace(/'/g, "\\'") + '\',' + i + ')">' + ic('userPlus', 12) + ' Asignar</button></div><div id="cargo-panel-' + i + '"></div>';
     }
   }).join('');
 
   win(ic('school', 18) + ' ' + esc(c.nombre),
-    '<div class="mono" style="font-size:12px;color:var(--mut);margin-bottom:10px">Cdigo CNE ' + c.codigo + '  ' + esc(c.estado) + '  ' + esc(c.municipio) + '  ' + esc(c.parroquia) + '</div>' +
-    '<div class="grid g4" style="margin-bottom:14px"><div class="ck-it"><b>' + list.length + '</b><span>Electores</span></div><div class="ck-it"><b>' + list.filter(p => p.sexo === 'M').length + ' / ' + list.filter(p => p.sexo === 'F').length + '</b><span>M / F</span></div><div class="ck-it"><b>' + list.filter(p => asignDe(p.cedula)).length + '</b><span>Comprometidos</span></div><div class="ck-it"><b>' + (() => { const ev = list.filter(p => p.edad > 0 && p.edad <= 120); return ev.length ? (ev.reduce((a, p) => a + p.edad, 0) / ev.length).toFixed(0) : ''; })() + '</b><span>Edad prom.</span></div></div>' +
+    '<div class="mono" style="font-size:12px;color:var(--mut);margin-bottom:10px">Código CNE ' + c.codigo + '  ' + esc(c.estado) + '  ' + esc(c.municipio) + '  ' + esc(c.parroquia) + '</div>' +
+    '<div class="grid g4" style="margin-bottom:14px"><div class="ck-it"><b>' + list.length + '</b><span>Electores</span></div><div class="ck-it"><b>' + list.filter(p => p.sexo === 'M').length + ' / ' + list.filter(p => p.sexo === 'F').length + '</b><span>M / F</span></div><div class="ck-it"><b>' + list.filter(p => asignDe(p.cedula)).length + '</b><span>Comprometidos</span></div><div class="ck-it"><b>' + (() => { const ev = list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad; return ed > 0 && ed <= 120; }); return ev.length ? (ev.reduce((a, p) => a + (edadDe(p.fecha_nac) || p.edad || 0), 0) / ev.length).toFixed(0) : ''; })() + '</b><span>Edad prom.</span></div></div>' +
     '<label class="fl">Rango etario del centro</label><div id="ch-cenE"></div>' +
-    '<div style="margin-top:12px"><label class="fl">Mesas de votacin (editable)</label><div style="display:flex;gap:8px"><input class="inp" type="number" min="1" value="' + (c.mesas || 1) + '" style="max-width:110px" id="cMes"><button class="btn btn-w" onclick="updateMesas(\'' + c.codigo + '\')">Guardar en Turso</button></div></div>' +
+    '<div style="margin-top:12px"><label class="fl">Mesas de votación (editable)</label><div style="display:flex;gap:8px"><input class="inp" type="number" min="1" value="' + (c.mesas || 1) + '" style="max-width:110px" id="cMes"><button class="btn btn-w" onclick="updateMesas(\'' + c.codigo + '\')">Guardar en Turso</button></div></div>' +
     '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label class="fl" style="font-size:13px;margin-bottom:8px">Cargos del Centro Electoral <span class="chip chip-b">' + asignados + '/14 asignados</span></label><div style="display:grid;gap:8px">' + cargoRows + '</div></div>',
     '<button class="btn btn-w" onclick="closeModal();REPF.centro=\'' + c.codigo + '\';go(\'rep\')">' + ic('chart', 14) + ' Reportes</button><button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 780);
-  vbars('cenE', R.map(r => ({ l: r[2], v: list.filter(p => (p.edad || 0) >= r[0] && (p.edad || 0) <= r[1]).length })));
+  vbars('cenE', R.map(r => ({ l: r[2], v: list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad || 0; return ed >= r[0] && ed <= r[1]; }).length })));
 }
 async function updateMesas(cod) {
   const v = +$('cMes').value || 1;
@@ -1433,8 +1445,8 @@ function renderRep() {
     if (f.centro && p.centro_votacion !== f.centro) return false;
     if (f.municipio && p.municipio !== f.municipio) return false;
     if (f.sexo && p.sexo !== f.sexo) return false;
-    if (f.e1 && (p.edad || 0) < +f.e1) return false;
-    if (f.e2 && (p.edad || 0) > +f.e2) return false;
+    if (f.e1 && (edadDe(p.fecha_nac) || p.edad || 0) < +f.e1) return false;
+    if (f.e2 && (edadDe(p.fecha_nac) || p.edad || 0) > +f.e2) return false;
     return true;
   });
   const R = [[18, 25, '18–25'], [26, 35, '26–35'], [36, 45, '36–45'], [46, 55, '46–55'], [56, 65, '56–65'], [66, 999, '66+']];
@@ -1443,9 +1455,9 @@ function renderRep() {
   const total = list.length || 1;
   const comprometidos = list.filter(p => asignDe(p.cedula)).length;
   const cobertura = list.length ? (100 * comprometidos / list.length).toFixed(1) : '0.0';
-  const edadesVal = list.filter(p => p.edad > 0 && p.edad <= 120);
-  const edadProm = edadesVal.length ? (edadesVal.reduce((a, p) => a + p.edad, 0) / edadesVal.length).toFixed(1) : '';
-  const edades = R.map(r => ({ l: r[2], v: edadesVal.filter(p => p.edad >= r[0] && p.edad <= r[1]).length }));
+  const edadesVal = list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad; return ed > 0 && ed <= 120; });
+  const edadProm = edadesVal.length ? (edadesVal.reduce((a, p) => a + (edadDe(p.fecha_nac) || p.edad || 0), 0) / edadesVal.length).toFixed(1) : '';
+  const edades = R.map(r => ({ l: r[2], v: edadesVal.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad; return ed >= r[0] && ed <= r[1]; }).length }));
 
   let byC, desg;
   if (f.centro) {
@@ -1893,7 +1905,7 @@ function renderDireccion() {
             '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + esc(cargo) + '</div>' +
             '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:3px">' + esc(nomComp) + '</div>' +
             '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:4px">' +
-              '<b>C.I.:</b> ' + ci + (p.edad ? ' &nbsp;&bull;&nbsp; <b>Edad:</b> ' + p.edad + 'a' : '') + (p.sexo ? ' &nbsp;&bull;&nbsp; <b>Sexo:</b> ' + p.sexo : '') +
+              '<b>C.I.:</b> ' + ci + ((p.edad || edadDe(p.fecha_nac)) ? ' &nbsp;&bull;&nbsp; <b>Edad:</b> ' + (edadDe(p.fecha_nac) || p.edad) + 'a' : '') + (p.sexo ? ' &nbsp;&bull;&nbsp; <b>Sexo:</b> ' + p.sexo : '') +
             '</div>' +
             (cvNom ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('pin', 11) + ' <b>Centro:</b> ' + esc(cvNom) + (munPar ? ' (' + esc(munPar) + ')' : '') + '</div>' : '') +
             (tel ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('chat', 11) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + esc(tel) + '</a></div>' : '') +
@@ -1953,10 +1965,10 @@ function openDirView(id) {
       '<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;border-bottom:1px solid var(--line2);padding-bottom:6px">INFORMACIÓN COMPLETA DEL PADRÓN CNE</div>' +
       '<div class="grid g2" style="gap:8px;font-size:12px">' +
         '<div><b>Cédula:</b> <span class="mono">' + ci + '</span></div>' +
-        '<div><b>Fecha de Nacimiento:</b> ' + esc(p.fecha_nac || 'N/D') + '</div>' +
+        '<div><b>Fecha de Nacimiento:</b> ' + esc(fmtFn(p.fecha_nac) || 'N/D') + '</div>' +
         '<div><b>Apellidos:</b> ' + esc(apeP(p) || '-') + '</div>' +
         '<div><b>Nombres:</b> ' + esc(nomP(p) || '-') + '</div>' +
-        '<div><b>Edad:</b> ' + (p.edad ? p.edad + ' años' : 'N/D') + '</div>' +
+        '<div><b>Edad:</b> ' + ((edadDe(p.fecha_nac) || p.edad) ? (edadDe(p.fecha_nac) || p.edad) + ' años' : 'N/D') + '</div>' +
         '<div><b>Sexo:</b> ' + (p.sexo === 'M' ? 'Masculino (M)' : p.sexo === 'F' ? 'Femenino (F)' : '-') + '</div>' +
         '<div><b>Estado:</b> ' + esc(p.estado || '-') + '</div>' +
         '<div><b>Municipio:</b> ' + esc(p.municipio || '-') + '</div>' +
@@ -2010,7 +2022,7 @@ function dirBuscarCedula() {
         '<div style="flex:1">' +
           '<div style="font-size:14px;font-weight:700">' + esc(apeP(p) + ', ' + nomP(p)) + '</div>' +
           '<div class="mono" style="font-size:12px;margin-top:3px;color:var(--navy)">' +
-            'C.I.: <b>' + fC(p.letra, p.cedula) + '</b> &nbsp;&bull;&nbsp; Edad: <b>' + (p.edad || '-') + 'a</b> &nbsp;&bull;&nbsp; Sexo: <b>' + (p.sexo || '-') + '</b> &nbsp;&bull;&nbsp; F.Nac: <b>' + (p.fecha_nac || '-') + '</b>' +
+            'C.I.: <b>' + fC(p.letra, p.cedula) + '</b> &nbsp;&bull;&nbsp; Edad: <b>' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a</b> &nbsp;&bull;&nbsp; Sexo: <b>' + (p.sexo || '-') + '</b> &nbsp;&bull;&nbsp; F.Nac: <b>' + (fmtFn(p.fecha_nac) || '-') + '</b>' +
           '</div>' +
           '<div style="font-size:11px;color:var(--mut);margin-top:4px">' +
             '<b>Centro de Votación:</b> ' + esc(p.nombre_cv || '-') + '<br>' +
@@ -2190,9 +2202,9 @@ function printDireccion() {
     const sa = p.s_apellido || '';
     const pn = p.p_nombre || '';
     const sn = p.s_nombre || '';
-    const edad = p.edad !== undefined && p.edad !== null ? p.edad : '';
+    const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
     const sexo = p.sexo || '';
-    const fn = p.fecha_nac || '';
+    const fn = fmtFn(p.fecha_nac);
     const cv = p.nombre_cv || p.centro_votacion || '';
     const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
     const tel = x.telefono || '';
@@ -2248,9 +2260,9 @@ function downloadPDFDireccion() {
     const sa = p.s_apellido || '';
     const pn = p.p_nombre || '';
     const sn = p.s_nombre || '';
-    const edad = p.edad !== undefined && p.edad !== null ? p.edad : '';
+    const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
     const sexo = p.sexo || '';
-    const fn = p.fecha_nac || '';
+    const fn = fmtFn(p.fecha_nac);
     const cv = p.nombre_cv || p.centro_votacion || '';
     const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
     const tel = x.telefono || '';
