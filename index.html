@@ -1966,8 +1966,13 @@ function dirBuscarCedula() {
 }
 
 async function saveDirAuto(cedula) {
-  const cargo = $('dirCargo').value.trim();
-  if (!cargo) return toast('Debe seleccionar un cargo', 'err');
+  cedula = normC(cedula);
+  const cargoSelect = $('dirCargo');
+  const cargo = cargoSelect ? cargoSelect.value.trim() : '';
+  if (!cargo) {
+    if (cargoSelect) { cargoSelect.style.border = '2px solid var(--red)'; cargoSelect.focus(); }
+    return toast('Por favor seleccione un Cargo en el desplegable superior', 'err');
+  }
   const tel = ($('dirTel') ? $('dirTel').value : '').trim();
   const dir = ($('dirDir') ? $('dirDir').value : '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
@@ -1976,13 +1981,17 @@ async function saveDirAuto(cedula) {
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
   try {
+    await x('DELETE FROM direccion_ejecutiva WHERE cargo = ? OR cedula = ?', [cargo, cedula]);
     await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
       [cargo, cedula, nomComp, tel ? normTel(tel) : null, dir || null]);
     await registrarAct('user', 'Asignado a Dirección Ejecutiva: ' + nomComp + ' ➔ ' + cargo, USER.id);
-    await refreshAll(); renderDireccion(); closeModal(); toast('Registrado con éxito en Dirección Ejecutiva', 'ok');
+    await refreshAll();
+    renderDireccion();
+    closeModal();
+    toast('Cargo "' + cargo + '" asignado exitosamente', 'ok');
   } catch (e) {
-    if (e.message && e.message.includes('UNIQUE')) return toast('Esa cédula o cargo ya posee un registro activo', 'err');
-    toast('Error: ' + e.message, 'err');
+    console.error('Error guardando Dirección Ejecutiva:', e);
+    toast('Error al guardar: ' + e.message, 'err');
   }
 }
 
@@ -2017,8 +2026,13 @@ function openDirManualForm(ced) {
 }
 
 async function saveDirManualFull() {
-  const cargo = $('dirCargo').value.trim();
-  if (!cargo) return toast('Debe seleccionar un cargo', 'err');
+  const cargoSelect = $('dirCargo');
+  const cargo = cargoSelect ? cargoSelect.value.trim() : '';
+  if (!cargo) {
+    if (cargoSelect) { cargoSelect.style.border = '2px solid var(--red)'; cargoSelect.focus(); }
+    return toast('Por favor seleccione un Cargo en el desplegable superior', 'err');
+  }
+
   const ced = normC($('dmCed').value), letra = $('dmLet').value;
   const pa = $('dmPa').value.trim(), sa = $('dmSa').value.trim();
   const pn = $('dmPn').value.trim(), sn = $('dmSn').value.trim();
@@ -2041,14 +2055,18 @@ async function saveDirManualFull() {
     }
 
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
+    await x('DELETE FROM direccion_ejecutiva WHERE cargo = ? OR cedula = ?', [cargo, ced]);
     await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
       [cargo, ced, nomComp, tel ? normTel(tel) : null, dir || null]);
 
     await registrarAct('user', 'Alta manual Dirección Ejecutiva: ' + fC(letra, ced) + ' ➔ ' + cargo, USER.id);
-    await refreshAll(); renderDireccion(); closeModal(); toast('Registrado exitosamente', 'ok');
+    await refreshAll();
+    renderDireccion();
+    closeModal();
+    toast('Registrado exitosamente en Dirección Ejecutiva', 'ok');
   } catch (e) {
-    if (e.message && e.message.includes('UNIQUE')) return toast('La cédula o cargo ya existe en Dirección Ejecutiva', 'err');
-    toast('Error: ' + e.message, 'err');
+    console.error('Error en registro manual Dirección Ejecutiva:', e);
+    toast('Error al guardar: ' + e.message, 'err');
   }
 }
 
