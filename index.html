@@ -638,10 +638,13 @@ async function refreshAll() {
   } catch (e) {
     try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
   }
-  for (const r of CACHE.recl) {
-    try {
-      r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
-    } catch(e) { r.lista = []; }
+  try {
+    const allAsig = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula ORDER BY a.posicion');
+    for (const r of CACHE.recl) {
+      r.lista = allAsig.filter(a => a.reclutador_id === r.id);
+    }
+  } catch (e) {
+    for (const r of CACHE.recl) { r.lista = r.lista || []; }
   }
 }
 
@@ -662,22 +665,43 @@ function asignDe(c) {
 /* ----------- LOGIN ----------- */
 async function doLogin() {
   const u = $('lgU').value.trim(), p = $('lgP').value, selR = $('lgR').value;
+  const btn = document.querySelector('#vLogin button');
   if (!u || !p) return toast('Ingrese usuario y clave', 'err');
+
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:-3px;margin-right:6px"></span> Autenticando...'; }
+
   try {
     const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [u]);
-    if (!row.length) return toast('Usuario no encontrado o inactivo', 'err');
+    if (!row.length) {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
+      return toast('Usuario no encontrado o inactivo', 'err');
+    }
     const h = await hash(p);
-    if (row[0].clave_hash !== h) return toast('Clave incorrecta', 'err');
+    if (row[0].clave_hash !== h) {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
+      return toast('Clave incorrecta', 'err');
+    }
     const userRole = row[0].rol;
-    if (selR === 'J' && userRole !== 'J') return toast('Este usuario no tiene rol de Jefe de Comando', 'err');
-    if (selR === 'A' && !['J', 'A'].includes(userRole)) return toast('Este usuario no tiene rol de Administrador', 'err');
-    if (selR === 'O' && userRole !== 'O') return toast('Este usuario no tiene rol de Operador', 'err');
+    if (selR === 'J' && userRole !== 'J') {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Este usuario no tiene rol de Jefe de Comando'; }
+      return toast('Este usuario no tiene rol de Jefe de Comando', 'err');
+    }
+    if (selR === 'A' && !['J', 'A'].includes(userRole)) {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
+      return toast('Este usuario no tiene rol de Administrador', 'err');
+    }
+    if (selR === 'O' && userRole !== 'O') {
+      if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
+      return toast('Este usuario no tiene rol de Operador', 'err');
+    }
     USER = row[0];
     localStorage.setItem('session', JSON.stringify({ user: USER, cur: 'dash' }));
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
     await refreshAll();
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
     enterApp('dash');
   } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Ingresar al sistema ➜'; }
     toast('Error de conexión: ' + e.message, 'err', 8000);
   }
 }
