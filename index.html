@@ -590,13 +590,15 @@ const SCHEMA = [
 ];
 
 async function inicializarTurso() {
-  setLoad('Creando tablas en Turso...');
   try {
-    await turso(SCHEMA.map(s => ({ q: s, params: [] })));
+    await q('SELECT 1 FROM usuarios LIMIT 1');
+    return; // Tablas ya existen, omitir DDL en cada carga de página
   } catch (e) {
-    for (const sql of SCHEMA) {
-      try { await x(sql); } catch (err) {}
-    }
+    console.log('Inicializando esquema Turso por primera vez...');
+  }
+  setLoad('Creando tablas en Turso...');
+  for (const sql of SCHEMA) {
+    try { await x(sql); } catch (err) {}
   }
   try {
     const users = await q('SELECT COUNT(*) AS n FROM usuarios');
@@ -1891,17 +1893,26 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 
 /* ----------- ARRANQUE ----------- */
 (async function main() {
-  let safetyTimer = setTimeout(() => {
-    console.warn('Safety timeout: dismissing loading screen');
-    const loading = $('loading');
+  const hideLoading = () => {
+    const el = $('loading');
+    if (el) el.style.display = 'none';
+  };
+  const showLogin = (info) => {
+    hideLoading();
     const vLogin = $('vLogin');
-    if (loading) loading.style.display = 'none';
-    if (vLogin && (!USER || $('vApp').style.display !== 'block')) vLogin.style.display = 'flex';
-  }, 6000);
+    if (vLogin && (!USER || $('vApp').style.display !== 'block')) {
+      vLogin.style.display = 'flex';
+      if ($('lgInfo') && info !== undefined) $('lgInfo').textContent = info;
+    }
+  };
+
+  const safetyTimer = setTimeout(() => {
+    console.warn('Safety timeout: force hiding spinner');
+    showLogin('Acceso listo');
+  }, 4000);
 
   try {
     setLoad('Conectando con Turso...');
-    await q('SELECT 1');
     await inicializarTurso();
 
     const saved = (() => { try { return JSON.parse(localStorage.getItem('session')); } catch(e) { return null; } })();
@@ -1912,23 +1923,23 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
         USER = row[0];
         await refreshAll();
         clearTimeout(safetyTimer);
-        $('loading').style.display = 'none';
+        hideLoading();
         enterApp(saved.cur || 'dash');
         return;
       }
     }
     setLoad('Preparando acceso...');
-    const count = await q('SELECT COUNT(*) AS n FROM padron');
-    if ($('lgInfo')) $('lgInfo').textContent = (count[0] ? count[0].n : 0) + ' electores • Turso OK';
+    let countText = 'Turso OK';
+    try {
+      const count = await q('SELECT COUNT(*) AS n FROM padron');
+      if (count && count[0]) countText = count[0].n + ' electores • Turso OK';
+    } catch(e) {}
     clearTimeout(safetyTimer);
-    $('loading').style.display = 'none';
-    $('vLogin').style.display = 'flex';
+    showLogin(countText);
   } catch (e) {
     clearTimeout(safetyTimer);
     console.error('Error de arranque:', e);
-    $('loading').style.display = 'none';
-    $('vLogin').style.display = 'flex';
-    if ($('lgInfo')) $('lgInfo').textContent = 'Conectado a Turso • ' + (e.message || '');
+    showLogin('Turso conectado • ' + (e.message || ''));
   }
 })();
 
