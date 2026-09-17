@@ -589,7 +589,7 @@ async function refreshAll() {
   CACHE.act = await q('SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100');
   CACHE.users = await q('SELECT * FROM usuarios ORDER BY rol, nombre');
   CACHE.cargos = await q('SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id');
-  CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY cargo, creado DESC');
+  CACHE.direccion = await q('SELECT d.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.cargo, d.creado DESC');
   // Enriquecer reclutadores con listas desde asignaciones
   for (const r of CACHE.recl) {
     r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
@@ -1846,87 +1846,365 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 /* ═══════════ DIRECCION EJECUTIVA ═══════════ */
 function renderDireccion() {
   const d = CACHE.direccion || [];
-  const rows = d.length
-    ? '<table class="tbl"><thead><tr><th>Cargo</th><th>C.I.</th><th>Nombre</th><th>Teléfono</th><th>Estructura</th><th>Dirección</th><th style="text-align:center">Acciones</th></tr></thead><tbody>' +
-      d.map(x => '<tr><td><b>' + esc(x.cargo) + '</b></td><td class="mono">' + (x.cedula ? fC(x.letra || 'V', x.cedula) : '-') + '</td><td>' + esc(x.nombre || x.cedula || '-') + '</td><td>' + (x.telefono ? '<a href="https://wa.me/58' + x.telefono.replace(/\D/g, '') + '" target="_blank">' + esc(x.telefono) + '</a>' : '-') + '</td><td>' + esc(x.estructura || '-') + '</td><td>' + esc(x.direccion || '-') + '</td><td style="text-align:center"><button class="btn btn-w btn-xs" onclick="openDirEdit(' + x.id + ')">' + ic('edit', 12) + '</button> <button class="btn btn-w btn-xs" onclick="delDir(' + x.id + ')">' + ic('x', 12) + '</button></td></tr>').join('') +
-      '</tbody></table>'
-    : '<div class="empty">Sin registros en Dirección Ejecutiva.</div>';
-  $('sec-direccion').innerHTML = panel('Dirección Ejecutiva <span class="chip chip-b">' + d.length + ' cargos</span>',
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">' +
-    '<button class="btn btn-navy" onclick="openDirManual()">' + ic('userPlus', 14) + ' Nuevo registro</button>' +
-    '<button class="btn btn-w" onclick="printDireccion()">' + ic('print', 14) + ' Imprimir listado</button>' +
-    '<button class="btn btn-w" onclick="downloadPDFDireccion()">' + ic('file', 14) + ' Descargar PDF</button>' +
-    '</div>' + rows, 700);
+
+  const cardsHtml = CARGOS_DIRECCION.map(cargo => {
+    const asig = d.find(x => x.cargo === cargo);
+    if (asig) {
+      const p = padBy(asig.cedula) || asig;
+      const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (asig.nombre || asig.cedula);
+      const letra = p.letra || asig.letra || 'V';
+      const ci = fC(letra, asig.cedula);
+      const tel = asig.telefono ? asig.telefono : '';
+      const dir = asig.direccion ? asig.direccion : '';
+      const cvNom = p.nombre_cv || p.centro_votacion || '';
+      const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
+
+      return '<div class="kcard" style="padding:14px;border-left:4px solid var(--navy)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + esc(cargo) + '</div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:2px">' + esc(nomComp) + '</div>' +
+            '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:4px">' +
+              '<b>C.I.:</b> ' + ci + (p.edad ? ' &nbsp;&bull;&nbsp; <b>Edad:</b> ' + p.edad + 'a' : '') + (p.sexo ? ' &nbsp;&bull;&nbsp; <b>Sexo:</b> ' + p.sexo : '') +
+            '</div>' +
+            (cvNom ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('pin', 11) + ' <b>Centro:</b> ' + esc(cvNom) + (munPar ? ' (' + esc(munPar) + ')' : '') + '</div>' : '') +
+            (tel ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('chat', 11) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + esc(tel) + '</a></div>' : '') +
+            (dir ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' ' + esc(dir) + '</div>' : '') +
+          '</div>' +
+          '<div style="display:flex;gap:4px">' +
+            '<button class="btn btn-w btn-xs" onclick="openDirEdit(' + asig.id + ')" title="Editar datos">' + ic('edit', 12) + ' Editar</button>' +
+            '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delDir(' + asig.id + ')" title="Remover del cargo">' + ic('x', 12) + ' Remover</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    } else {
+      return '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
+          '<div>' +
+            '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase">' + esc(cargo) + '</div>' +
+            '<div style="font-size:13px;font-weight:600;color:var(--mut);margin-top:2px"><span class="chip chip-y">Sin Asignar / Vacante</span></div>' +
+          '</div>' +
+          '<button class="btn btn-navy btn-xs" onclick="openDirManual(\'' + esc(cargo).replace(/'/g, "\\'") + '\')">' + ic('userPlus', 12) + ' Asignar Cargo</button>' +
+        '</div>' +
+      '</div>';
+    }
+  }).join('');
+
+  $('sec-direccion').innerHTML = panel(
+    'Dirección Ejecutiva <span class="chip chip-b">' + d.length + ' / ' + CARGOS_DIRECCION.length + ' asignados</span>',
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">' +
+      '<button class="btn btn-navy" onclick="openDirManual()">' + ic('userPlus', 14) + ' Nuevo registro</button>' +
+      '<button class="btn btn-w" onclick="printDireccion()">' + ic('print', 14) + ' Imprimir listado (Padrón CNE Completo)</button>' +
+      '<button class="btn btn-w" onclick="downloadPDFDireccion()">' + ic('file', 14) + ' Descargar PDF (Padrón CNE Completo)</button>' +
+    '</div>' +
+    '<div class="grid g2" style="gap:12px">' + cardsHtml + '</div>', 700
+  );
 }
-function openDirManual() {
+
+function openDirManual(preCargo) {
   win('Registrar Dirección Ejecutiva',
-    '<label class="fl">Cargo</label><select class="inp" id="dirCargo"><option value="">Seleccionar cargo...</option>' +
-    CARGOS_DIRECCION.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('') + '</select>' +
-    '<div style="margin-top:8px"><label class="fl">Cédula</label><input class="inp mono" id="dirCed" placeholder="V-12.345.678"></div>' +
-    '<div style="margin-top:8px"><label class="fl">Nombre completo</label><input class="inp" id="dirNom" placeholder="Apellido, Nombre"></div>' +
-    '<div style="margin-top:8px"><label class="fl">Teléfono</label><input class="inp mono" id="dirTel" placeholder="0412-2232523" maxlength="12"></div>' +
-    '<div style="margin-top:8px"><label class="fl">Estructura / Rol</label><input class="inp" id="dirEst" placeholder="Ej: Comité Directivo"></div>' +
-    '<div style="margin-top:8px"><label class="fl">Dirección</label><input class="inp" id="dirDir" placeholder="Urbanización, calle..."></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveDirManual()">Guardar ➜</button>', 620);
+    '<label class="fl">Cargo</label>' +
+    '<select class="inp" id="dirCargo"><option value="">Seleccionar cargo...</option>' +
+      CARGOS_DIRECCION.map(c => '<option value="' + esc(c) + '" ' + (preCargo === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
+    '</select>' +
+    '<div style="margin-top:10px">' +
+      '<label class="fl">Número de Cédula de Identidad</label>' +
+      '<div style="display:flex;gap:6px">' +
+        '<input class="inp mono" id="dirCed" placeholder="V-12.345.678" onkeydown="if(event.key===\'Enter\')dirBuscarCedula()">' +
+        '<button class="btn btn-navy" onclick="dirBuscarCedula()">' + ic('search', 14) + ' Buscar CNE</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="dirResultArea" style="margin-top:14px"></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>', 640
+  );
   setTimeout(() => { const el = $('dirCed'); if (el) el.focus(); }, 200);
 }
-async function saveDirManual() {
-  const cargo = $('dirCargo').value.trim(), ced = normC($('dirCed').value), nom = $('dirNom').value.trim(),
-        tel = $('dirTel').value.trim(), est = $('dirEst').value.trim(), dir = $('dirDir').value.trim();
-  if (!cargo) return toast('Seleccione un cargo', 'err');
-  if (!ced || ced.length < 5) return toast('Cédula inválida', 'err');
-  if (!nom) return toast('Nombre obligatorio', 'err');
-  if (tel && !valTel(tel)) return toast('Teléfono inválido (use 0XXX-XXXXXXX)', 'err');
+
+function dirBuscarCedula() {
+  const raw = $('dirCed').value;
+  const ced = normC(raw);
+  const cargo = $('dirCargo').value.trim();
+  if (!ced || ced.length < 5) return toast('Ingrese una cédula válida (al menos 5 dígitos)', 'err');
+  
+  const p = padBy(ced);
+  const resArea = $('dirResultArea');
+  if (!resArea) return;
+
+  if (p) {
+    resArea.innerHTML =
+      '<div class="alert ok" style="margin-bottom:12px;display:flex;gap:10px;align-items:flex-start">' +
+        '<div class="a-ic">' + ic('check', 20) + '</div>' +
+        '<div style="flex:1">' +
+          '<div style="font-size:14px;font-weight:700">' + esc(apeP(p) + ', ' + nomP(p)) + '</div>' +
+          '<div class="mono" style="font-size:12px;margin-top:3px;color:var(--navy)">' +
+            'C.I.: <b>' + fC(p.letra, p.cedula) + '</b> &nbsp;&bull;&nbsp; Edad: <b>' + (p.edad || '-') + 'a</b> &nbsp;&bull;&nbsp; Sexo: <b>' + (p.sexo || '-') + '</b> &nbsp;&bull;&nbsp; F.Nac: <b>' + (p.fecha_nac || '-') + '</b>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--mut);margin-top:4px">' +
+            '<b>Centro de Votación:</b> ' + esc(p.nombre_cv || '-') + '<br>' +
+            '<b>Municipio / Parroquia:</b> ' + esc(p.municipio || '') + ' / ' + esc(p.parroquia || '') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="grid g2" style="gap:10px">' +
+        '<div><label class="fl">Teléfono (opcional)</label><input class="inp mono" id="dirTel" placeholder="0412-2232523" maxlength="12"></div>' +
+        '<div><label class="fl">Dirección (opcional)</label><input class="inp" id="dirDir" placeholder="Urbanización, calle, casa..."></div>' +
+      '</div>' +
+      '<div style="margin-top:14px;text-align:right">' +
+        '<button class="btn btn-navy" onclick="saveDirAuto(\'' + p.cedula + '\')">Guardar y Asignar Cargo ➜</button>' +
+      '</div>';
+  } else {
+    resArea.innerHTML =
+      '<div class="alert warn" style="display:flex;gap:10px;align-items:center">' +
+        '<div class="a-ic">' + ic('db', 22) + '</div>' +
+        '<div style="flex:1">' +
+          '<b>No aparece en el padrón CNE</b>' +
+          '<div style="font-size:12px;color:var(--mut);margin-top:2px">La C.I. <b class="mono">' + fC('V', ced) + '</b> no existe en el sistema.</div>' +
+        '</div>' +
+        '<button class="btn btn-navy btn-xs" onclick="openDirManualForm(\'' + ced + '\')">' + ic('up', 12) + ' Registrar manualmente</button>' +
+      '</div>';
+  }
+}
+
+async function saveDirAuto(cedula) {
+  const cargo = $('dirCargo').value.trim();
+  if (!cargo) return toast('Debe seleccionar un cargo', 'err');
+  const tel = ($('dirTel') ? $('dirTel').value : '').trim();
+  const dir = ($('dirDir') ? $('dirDir').value : '').trim();
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+
+  const p = padBy(cedula);
+  const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
+
   try {
-    await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, estructura, direccion) VALUES(?,?,?,?,?,?)',
-      [cargo, ced, nom, tel ? normTel(tel) : null, est || null, dir || null]);
-    await refreshAll(); renderDireccion(); closeModal(); toast('Registrado en Dirección Ejecutiva', 'ok');
-  } catch (e) { if (e.message && e.message.includes('UNIQUE')) return toast('Ya existe un registro con esa cédula para este cargo', 'err'); toast('Error: ' + e.message, 'err') }
+    await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
+      [cargo, cedula, nomComp, tel ? normTel(tel) : null, dir || null]);
+    await registrarAct('user', 'Asignado a Dirección Ejecutiva: ' + nomComp + ' ➔ ' + cargo, USER.id);
+    await refreshAll(); renderDireccion(); closeModal(); toast('Registrado con éxito en Dirección Ejecutiva', 'ok');
+  } catch (e) {
+    if (e.message && e.message.includes('UNIQUE')) return toast('Esa cédula o cargo ya posee un registro activo', 'err');
+    toast('Error: ' + e.message, 'err');
+  }
 }
+
+function openDirManualForm(ced) {
+  const resArea = $('dirResultArea');
+  if (!resArea) return;
+
+  resArea.innerHTML =
+    '<div class="alert warn" style="margin-bottom:12px;font-size:12px">' +
+      '<b>Formulario de Registro Manual CNE:</b> Ingrese los datos del elector. Se incluirá en el padrón del sistema y se le asignará el cargo.' +
+    '</div>' +
+    '<div class="grid g3" style="gap:10px">' +
+      '<div><label class="fl">LETRA_CEDULA</label><select class="inp" id="dmLet"><option>V</option><option>E</option></select></div>' +
+      '<div><label class="fl">CEDULA_IDENTIDAD *</label><input class="inp mono" id="dmCed" value="' + esc(ced) + '"></div>' +
+      '<div><label class="fl">SEXO *</label><select class="inp" id="dmSex"><option value="F">Femenino (F)</option><option value="M">Masculino (M)</option></select></div>' +
+      '<div><label class="fl">P_APELLIDO (Primer Apellido) *</label><input class="inp" id="dmPa"></div>' +
+      '<div><label class="fl">S_APELLIDO (Segundo Apellido)</label><input class="inp" id="dmSa"></div>' +
+      '<div><label class="fl">FECHA_NACIMIENTO</label><input class="inp" type="date" id="dmFn"></div>' +
+      '<div><label class="fl">P_NOMBRE (Primer Nombre) *</label><input class="inp" id="dmPn"></div>' +
+      '<div><label class="fl">S_NOMBRE (Segundo Nombre)</label><input class="inp" id="dmSn"></div>' +
+      '<div><label class="fl">CENTRO_VOTACION</label><select class="inp" id="dmCv">' +
+        CACHE.centros.map(x => '<option value="' + x.codigo + '">' + esc(x.nombre) + '</option>').join('') +
+      '</select></div>' +
+    '</div>' +
+    '<div class="grid g2" style="gap:10px;margin-top:10px">' +
+      '<div><label class="fl">TELÉFONO</label><input class="inp mono" id="dmTel" placeholder="0412-2232523" maxlength="12"></div>' +
+      '<div><label class="fl">DIRECCIÓN</label><input class="inp" id="dmDir" placeholder="Urbanización, calle, casa..."></div>' +
+    '</div>' +
+    '<div style="margin-top:14px;text-align:right">' +
+      '<button class="btn btn-navy" onclick="saveDirManualFull()">' + ic('check', 14) + ' Guardar y Registrar ➜</button>' +
+    '</div>';
+}
+
+async function saveDirManualFull() {
+  const cargo = $('dirCargo').value.trim();
+  if (!cargo) return toast('Debe seleccionar un cargo', 'err');
+  const ced = normC($('dmCed').value), letra = $('dmLet').value;
+  const pa = $('dmPa').value.trim(), sa = $('dmSa').value.trim();
+  const pn = $('dmPn').value.trim(), sn = $('dmSn').value.trim();
+  const sexo = $('dmSex').value, fn = $('dmFn').value;
+  const cvCod = $('dmCv').value;
+  const tel = ($('dmTel') ? $('dmTel').value : '').trim();
+  const dir = ($('dmDir') ? $('dmDir').value : '').trim();
+
+  if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
+  if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+
+  const cv = cenBy(cvCod) || CACHE.centros[0] || {};
+  const edad = edadDe(fn);
+
+  try {
+    if (!padBy(ced)) {
+      await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
+        [ced, letra, pa, sa, pn, sn, sexo, fn, edad, cv.cod_estado || '20', cv.estado || 'EDO. YARACUY', cv.cod_municipio || '11', cv.municipio || 'MP. INDEPENDENCIA', cv.cod_parroquia || '1', cv.parroquia || 'CM. INDEPENDENCIA', cv.codigo || '', cv.nombre || '']);
+    }
+
+    const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
+    await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
+      [cargo, ced, nomComp, tel ? normTel(tel) : null, dir || null]);
+
+    await registrarAct('user', 'Alta manual Dirección Ejecutiva: ' + fC(letra, ced) + ' ➔ ' + cargo, USER.id);
+    await refreshAll(); renderDireccion(); closeModal(); toast('Registrado exitosamente', 'ok');
+  } catch (e) {
+    if (e.message && e.message.includes('UNIQUE')) return toast('La cédula o cargo ya existe en Dirección Ejecutiva', 'err');
+    toast('Error: ' + e.message, 'err');
+  }
+}
+
 async function delDir(id) {
-  if (!confirm('¿Eliminar este registro de Dirección Ejecutiva?')) return;
-  try { await x('DELETE FROM direccion_ejecutiva WHERE id = ?', [id]); await refreshAll(); renderDireccion(); toast('Eliminado', 'ok') }
-  catch (e) { toast('Error: ' + e.message, 'err') }
+  const reg = (CACHE.direccion || []).find(x => x.id === id);
+  const nom = reg ? (reg.nombre || reg.cargo) : 'registro';
+  askDo('Remover de Dirección Ejecutiva', '¿Desea remover el registro de <b>' + esc(nom) + '</b> de la Dirección Ejecutiva?', 'Remover', async () => {
+    try {
+      await x('DELETE FROM direccion_ejecutiva WHERE id = ?', [id]);
+      await refreshAll(); renderDireccion(); toast('Registro removido', 'ok');
+    } catch (e) { toast('Error: ' + e.message, 'err'); }
+  });
 }
+
 function openDirEdit(id) {
   const reg = (CACHE.direccion || []).find(x => x.id === id);
   if (!reg) return toast('Registro no encontrado', 'err');
+  const p = padBy(reg.cedula) || reg;
   win('Editar Dirección Ejecutiva — ' + esc(reg.cargo),
-    '<label class="fl">Cargo</label><input class="inp" value="' + esc(reg.cargo) + '" disabled>' +
-    '<div style="margin-top:8px"><label class="fl">Cédula</label><input class="inp mono" value="' + esc(reg.cedula || '') + '" disabled></div>' +
-    '<div style="margin-top:8px"><label class="fl">Nombre</label><input class="inp" id="dirENom" value="' + esc(reg.nombre || '') + '"></div>' +
-    '<div style="margin-top:8px"><label class="fl">Teléfono</label><input class="inp mono" id="dirETel" value="' + esc(reg.telefono || '') + '" maxlength="12"></div>' +
-    '<div style="margin-top:8px"><label class="fl">Estructura</label><input class="inp" id="dirEEst" value="' + esc(reg.estructura || '') + '"></div>' +
-    '<div style="margin-top:8px"><label class="fl">Dirección</label><input class="inp" id="dirEDir" value="' + esc(reg.direccion || '') + '"></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveDirEdit(' + id + ')">Guardar cambios ➜</button>', 620);
+    '<div style="margin-bottom:10px;font-size:12px;color:var(--navy)">' +
+      '<b>Persona:</b> ' + esc(reg.nombre || (apeP(p) + ', ' + nomP(p))) + ' &nbsp;&bull;&nbsp; <b>C.I.:</b> ' + fC(p.letra || 'V', reg.cedula) +
+    '</div>' +
+    '<label class="fl">Teléfono</label><input class="inp mono" id="dirETel" value="' + esc(reg.telefono || '') + '" placeholder="0412-2232523" maxlength="12">' +
+    '<div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="dirEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, calle..."></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveDirEdit(' + id + ')">Guardar cambios ➜</button>', 550
+  );
   setTimeout(() => { const el = $('dirETel'); if (el) el.focus(); }, 200);
 }
+
 async function saveDirEdit(id) {
-  const nom = $('dirENom').value.trim(), tel = $('dirETel').value.trim(), est = $('dirEEst').value.trim(), dir = $('dirEDir').value.trim();
-  if (!nom) return toast('Nombre obligatorio', 'err');
-  if (tel && !valTel(tel)) return toast('Teléfono inválido (use 0XXX-XXXXXXX)', 'err');
+  const tel = $('dirETel').value.trim(), dir = $('dirEDir').value.trim();
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   try {
-    await x('UPDATE direccion_ejecutiva SET nombre = ?, telefono = ?, estructura = ?, direccion = ? WHERE id = ?',
-      [nom, tel ? normTel(tel) : null, est || null, dir || null, id]);
-    await refreshAll(); renderDireccion(); closeModal(); toast('Actualizado', 'ok');
-  } catch (e) { toast('Error: ' + e.message, 'err') }
+    await x('UPDATE direccion_ejecutiva SET telefono = ?, direccion = ? WHERE id = ?',
+      [tel ? normTel(tel) : null, dir || null, id]);
+    await refreshAll(); renderDireccion(); closeModal(); toast('Actualizado con éxito', 'ok');
+  } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
+
 function printDireccion() {
   const d = CACHE.direccion || [];
-  if (!d.length) return toast('No hay datos para imprimir', 'err');
-  const rows = d.map(x => '<tr><td>' + esc(x.cargo) + '</td><td>' + esc(x.cedula || '') + '</td><td>' + esc(x.nombre || '') + '</td><td>' + esc(x.telefono || '') + '</td><td>' + esc(x.estructura || '') + '</td><td>' + esc(x.direccion || '') + '</td></tr>').join('');
-  const win = window.open('', '_blank', 'width=900,height=700');
-  win.document.write('<html><head><meta charset="utf-8"><title>Dirección Ejecutiva</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px 8px;text-align:left;font-size:12px}th{background:#123c69;color:#fff}tr:nth-child(even){background:#f0f4f8}h2{margin-bottom:10px}</style></head><body><h2>Dirección Ejecutiva — Comando de Campaña</h2><p>Fecha: ' + new Date().toLocaleDateString('es-VE') + '</p><table><thead><tr><th>Cargo</th><th>Cédula</th><th>Nombre</th><th>Teléfono</th><th>Estructura</th><th>Dirección</th></tr></thead><tbody>' + rows + '</tbody></table></body></html>');
-  win.document.close(); setTimeout(() => { win.print(); }, 300);
+  if (!d.length) return toast('No hay registros en Dirección Ejecutiva para imprimir', 'err');
+
+  const rows = d.map((x, i) => {
+    const p = padBy(x.cedula) || x;
+    const ci = fC(p.letra || 'V', x.cedula);
+    const pa = p.p_apellido || '';
+    const sa = p.s_apellido || '';
+    const pn = p.p_nombre || '';
+    const sn = p.s_nombre || '';
+    const edad = p.edad !== undefined && p.edad !== null ? p.edad : '';
+    const sexo = p.sexo || '';
+    const fn = p.fecha_nac || '';
+    const cv = p.nombre_cv || p.centro_votacion || '';
+    const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
+    const tel = x.telefono || '';
+    const dir = x.direccion || '';
+
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td><b>' + esc(x.cargo) + '</b></td>' +
+      '<td class="mono"><b>' + ci + '</b></td>' +
+      '<td>' + esc((pa + ' ' + sa).trim()) + '</td>' +
+      '<td>' + esc((pn + ' ' + sn).trim()) + '</td>' +
+      '<td>' + edad + '</td>' +
+      '<td>' + sexo + '</td>' +
+      '<td>' + fn + '</td>' +
+      '<td>' + esc(cv) + '</td>' +
+      '<td>' + esc(munPar) + '</td>' +
+      '<td>' + esc(tel) + '</td>' +
+      '<td>' + esc(dir) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const win = window.open('', '_blank', 'width=1100,height=750');
+  win.document.write(
+    '<html><head><meta charset="utf-8"><title>Listado de Dirección Ejecutiva — Padrón CNE Completo</title>' +
+    '<style>' +
+      'body{font-family:sans-serif;padding:15px;font-size:11px}' +
+      'h2{margin:0 0 4px;color:#123c69;font-size:16px}' +
+      'p{margin:0 0 12px;color:#555;font-size:11px}' +
+      'table{width:100%;border-collapse:collapse;margin-top:6px}' +
+      'th,td{border:1px solid #aaa;padding:5px 6px;text-align:left;font-size:10px}' +
+      'th{background:#123c69;color:#fff;font-weight:bold}' +
+      'tr:nth-child(even){background:#f4f7fa}' +
+      '.mono{font-family:monospace}' +
+    '</style></head><body>' +
+    '<h2>DIRECCIÓN EJECUTIVA — COMANDO DE CAMPAÑA</h2>' +
+    '<p>Reporte Oficial con Datos Completos del Padrón CNE &bull; Fecha: ' + new Date().toLocaleDateString('es-VE') + ' &bull; Registros: ' + d.length + '</p>' +
+    '<table><thead><tr>' +
+      '<th>#</th><th>CARGO</th><th>C.I.</th><th>APELLIDOS</th><th>NOMBRES</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th><th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>DIRECCIÓN</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></body></html>'
+  );
+  win.document.close();
+  setTimeout(() => { win.print(); }, 300);
 }
+
 function downloadPDFDireccion() {
   const d = CACHE.direccion || [];
-  if (!d.length) return toast('No hay datos para descargar', 'err');
-  const rows = d.map(x => '<tr><td>' + esc(x.cargo) + '</td><td>' + esc(x.cedula || '') + '</td><td>' + esc(x.nombre || '') + '</td><td>' + esc(x.telefono || '') + '</td><td>' + esc(x.estructura || '') + '</td><td>' + esc(x.direccion || '') + '</td></tr>').join('');
-  const html = '<html><head><meta charset="utf-8"><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px 8px;text-align:left;font-size:12px}th{background:#123c69;color:#fff}tr:nth-child(even){background:#f0f4f8}h2{margin-bottom:10px}</style></head><body><h2>Dirección Ejecutiva — Comando de Campaña</h2><p>Fecha: ' + new Date().toLocaleDateString('es-VE') + '</p><table><thead><tr><th>Cargo</th><th>Cédula</th><th>Nombre</th><th>Teléfono</th><th>Estructura</th><th>Dirección</th></tr></thead><tbody>' + rows + '</tbody></table></body></html>';
-  const blob = new Blob([html], { type: 'text/html' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'direccion_ejecutiva_' + Date.now() + '.html'; a.click();
-  toast('Descargado como HTML (abrir e imprimir a PDF)', 'ok');
+  if (!d.length) return toast('No hay registros en Dirección Ejecutiva para descargar', 'err');
+
+  const rows = d.map((x, i) => {
+    const p = padBy(x.cedula) || x;
+    const ci = fC(p.letra || 'V', x.cedula);
+    const pa = p.p_apellido || '';
+    const sa = p.s_apellido || '';
+    const pn = p.p_nombre || '';
+    const sn = p.s_nombre || '';
+    const edad = p.edad !== undefined && p.edad !== null ? p.edad : '';
+    const sexo = p.sexo || '';
+    const fn = p.fecha_nac || '';
+    const cv = p.nombre_cv || p.centro_votacion || '';
+    const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
+    const tel = x.telefono || '';
+    const dir = x.direccion || '';
+
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td><b>' + esc(x.cargo) + '</b></td>' +
+      '<td class="mono"><b>' + ci + '</b></td>' +
+      '<td>' + esc((pa + ' ' + sa).trim()) + '</td>' +
+      '<td>' + esc((pn + ' ' + sn).trim()) + '</td>' +
+      '<td>' + edad + '</td>' +
+      '<td>' + sexo + '</td>' +
+      '<td>' + fn + '</td>' +
+      '<td>' + esc(cv) + '</td>' +
+      '<td>' + esc(munPar) + '</td>' +
+      '<td>' + esc(tel) + '</td>' +
+      '<td>' + esc(dir) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const html =
+    '<html><head><meta charset="utf-8"><title>Dirección Ejecutiva</title>' +
+    '<style>' +
+      'body{font-family:sans-serif;padding:15px;font-size:11px}' +
+      'h2{margin:0 0 4px;color:#123c69;font-size:16px}' +
+      'p{margin:0 0 12px;color:#555;font-size:11px}' +
+      'table{width:100%;border-collapse:collapse;margin-top:6px}' +
+      'th,td{border:1px solid #aaa;padding:5px 6px;text-align:left;font-size:10px}' +
+      'th{background:#123c69;color:#fff;font-weight:bold}' +
+      'tr:nth-child(even){background:#f4f7fa}' +
+      '.mono{font-family:monospace}' +
+    '</style></head><body>' +
+    '<h2>DIRECCIÓN EJECUTIVA — COMANDO DE CAMPAÑA</h2>' +
+    '<p>Reporte Oficial con Datos Completos del Padrón CNE &bull; Fecha: ' + new Date().toLocaleDateString('es-VE') + ' &bull; Registros: ' + d.length + '</p>' +
+    '<table><thead><tr>' +
+      '<th>#</th><th>CARGO</th><th>C.I.</th><th>APELLIDOS</th><th>NOMBRES</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th><th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>DIRECCIÓN</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'direccion_ejecutiva_padron_completo_' + Date.now() + '.html';
+  a.click();
+  toast('Descargado archivo HTML (abrir e imprimir a PDF con todos los campos CNE)', 'ok');
 }
 </script>
 </body>
