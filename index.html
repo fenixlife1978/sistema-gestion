@@ -219,6 +219,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
   <section class="sec" id="sec-users"></section>
   <section class="sec" id="sec-data"></section>
   <section class="sec" id="sec-direccion"></section>
+  <section class="sec" id="sec-comite"></section>
  </main>
 </div>
 <div id="mOv" onclick="if(event.target===this)closeModal()"><div class="win" id="mBox"></div></div>
@@ -482,7 +483,7 @@ const kc = (l, v, s, bar, full) => '<div class="kcard"><div class="kl">' + l + '
 /* ----------- ESTADO GLOBAL ----------- */
 let USER = null, CUR = 'dash', REG = { rec: null }, LAST_REC = null;
 let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '' };
-let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [] };
+let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [], comite: [] };
 
 /* ----------- ESQUEMA TURSO (AUTO-MIGRACIÓN) ----------- */
 const SCHEMA = [
@@ -586,7 +587,21 @@ const SCHEMA = [
   `ALTER TABLE direccion_ejecutiva ADD COLUMN estructura TEXT`,
   `ALTER TABLE direccion_ejecutiva ADD COLUMN direccion TEXT`,
   `ALTER TABLE direccion_ejecutiva ADD COLUMN creado TEXT`,
-  `CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)`
+  `CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)`,
+  `CREATE TABLE IF NOT EXISTS comite_vecinal (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    comunidad TEXT NOT NULL,
+    cedula TEXT NOT NULL UNIQUE,
+    nombre TEXT,
+    telefono TEXT,
+    direccion TEXT,
+    creado TEXT DEFAULT (datetime('now'))
+  )`,
+  `ALTER TABLE comite_vecinal ADD COLUMN comunidad TEXT`,
+  `ALTER TABLE comite_vecinal ADD COLUMN nombre TEXT`,
+  `ALTER TABLE comite_vecinal ADD COLUMN telefono TEXT`,
+  `ALTER TABLE comite_vecinal ADD COLUMN direccion TEXT`,
+  `CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)`
 ];
 
 async function inicializarTurso() {
@@ -632,6 +647,12 @@ async function refreshAll() {
   } catch (e) {
     console.warn('Fallback CACHE.direccion:', e);
     try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
+  }
+  try {
+    CACHE.comite = await q('SELECT cv.id, cv.comunidad, cv.cedula, cv.nombre, cv.telefono, cv.direccion, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC');
+  } catch (e) {
+    console.warn('Fallback CACHE.comite:', e);
+    try { CACHE.comite = await q('SELECT * FROM comite_vecinal ORDER BY id DESC'); } catch (err) { CACHE.comite = []; }
   }
   // Enriquecer reclutadores con listas desde asignaciones
   for (const r of CACHE.recl) {
@@ -694,7 +715,8 @@ const MODS = [
   { id: 'rep', l: 'Reportes y Cruces', i: 'chart' },
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
   { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] },
-  { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' }
+  { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' },
+  { id: 'comite', l: 'Comités Vecinales', i: 'users' }
 ];
 function buildTabs() {
   $('tabs').innerHTML = MODS.filter(m => !m.adm || m.adm.includes(USER.rol)).map(m =>
@@ -719,7 +741,7 @@ function go(id) {
   const t = $('tb-' + id); if (t) t.classList.add('on');
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
   $('sec-' + id).classList.add('on');
-  ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion })[id]();
+  ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion, comite: renderComite })[id]();
   window.scrollTo({ top: 0 });
 }
 function logout() { localStorage.removeItem('session'); location.reload() }
@@ -2366,6 +2388,519 @@ function downloadPDFDireccion() {
   a.download = 'direccion_ejecutiva_padron_completo_' + Date.now() + '.html';
   a.click();
   toast('Descargado archivo HTML (abrir e imprimir a PDF con todos los campos CNE)', 'ok');
+}
+
+/* ═══════════ COMITÉS VECINALES ═══════════ */
+let COMITE_FILTER = { comunidad: '', txt: '' };
+
+function getComunidadesPadron() {
+  const set = new Set();
+  (CACHE.pad || []).forEach(p => {
+    if (p.comunidad && String(p.comunidad).trim()) set.add(String(p.comunidad).trim().toUpperCase());
+    else if (p.parroquia && String(p.parroquia).trim()) set.add(String(p.parroquia).trim().toUpperCase());
+    else if (p.nombre_cv && String(p.nombre_cv).trim()) set.add(String(p.nombre_cv).trim().toUpperCase());
+  });
+  (CACHE.centros || []).forEach(c => {
+    if (c.comunidad && String(c.comunidad).trim()) set.add(String(c.comunidad).trim().toUpperCase());
+    else if (c.nombre && String(c.nombre).trim()) set.add(String(c.nombre).trim().toUpperCase());
+  });
+  (CACHE.comite || []).forEach(x => {
+    if (x.comunidad && String(x.comunidad).trim()) set.add(String(x.comunidad).trim().toUpperCase());
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+function renderComite() {
+  const comList = CACHE.comite || [];
+  const comunidades = getComunidadesPadron();
+  const fCom = COMITE_FILTER.comunidad;
+  const fTxt = (COMITE_FILTER.txt || '').trim().toLowerCase();
+
+  const list = comList.filter(x => {
+    if (fCom && String(x.comunidad || '').toUpperCase() !== fCom) return false;
+    if (fTxt) {
+      const p = padBy(x.cedula) || x;
+      const nom = ((p.p_nombre || '') + ' ' + (p.s_nombre || '') + ' ' + (p.p_apellido || '') + ' ' + (p.s_apellido || '') + ' ' + (x.nombre || '')).toLowerCase();
+      const ci = String(x.cedula || '');
+      const com = String(x.comunidad || '').toLowerCase();
+      if (!nom.includes(fTxt) && !ci.includes(fTxt) && !com.includes(fTxt)) return false;
+    }
+    return true;
+  });
+
+  const comunidadesVisualizadas = fCom ? [fCom] : comunidades;
+
+  const cardsHtml = comunidadesVisualizadas.map(comNom => {
+    const asig = comList.find(x => String(x.comunidad || '').trim().toUpperCase() === comNom);
+    if (asig) {
+      const p = padBy(asig.cedula) || asig;
+      const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (asig.nombre || asig.cedula);
+      const letra = p.letra || asig.letra || 'V';
+      const ci = fC(letra, asig.cedula);
+      const tel = asig.telefono ? asig.telefono : '';
+      const dir = asig.direccion ? asig.direccion : '';
+      const cvNom = p.nombre_cv || p.centro_votacion || '';
+      const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
+
+      return '<div class="kcard" style="padding:14px;border-left:4px solid var(--teal);background:#ffffff">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + ic('home', 12) + ' COMUNIDAD: ' + esc(comNom) + '</div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:4px">' + esc(nomComp) + '</div>' +
+            '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:4px">' +
+              '<b>C.I.:</b> ' + ci + ((p.edad || edadDe(p.fecha_nac)) ? ' &nbsp;&bull;&nbsp; <b>Edad:</b> ' + (edadDe(p.fecha_nac) || p.edad) + 'a' : '') + (p.sexo ? ' &nbsp;&bull;&nbsp; <b>Sexo:</b> ' + p.sexo : '') +
+            '</div>' +
+            (cvNom ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('pin', 11) + ' <b>Centro:</b> ' + esc(cvNom) + (munPar ? ' (' + esc(munPar) + ')' : '') + '</div>' : '') +
+            (tel ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('chat', 11) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + esc(tel) + '</a></div>' : '') +
+            (dir ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' ' + esc(dir) + '</div>' : '') +
+          '</div>' +
+          '<div style="display:flex;gap:4px;align-items:center">' +
+            '<button class="btn btn-navy btn-xs" onclick="openComiteView(' + asig.id + ')" title="Ver Detalle y Padrón CNE">' + ic('eye', 14) + ' Ver Datos</button>' +
+            '<button class="btn btn-w btn-xs" onclick="openComiteEdit(' + asig.id + ')" title="Editar datos">' + ic('edit', 12) + '</button>' +
+            '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delComite(' + asig.id + ')" title="Remover cargo de Comité Vecinal">' + ic('x', 12) + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    } else {
+      return '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
+          '<div>' +
+            '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase">' + ic('home', 12) + ' COMUNIDAD: ' + esc(comNom) + '</div>' +
+            '<div style="font-size:13px;font-weight:600;color:var(--mut);margin-top:2px"><span class="chip chip-y">Sin Asignar / Vacante</span></div>' +
+          '</div>' +
+          '<button class="btn btn-navy btn-xs" onclick="openComiteManual(\'' + esc(comNom).replace(/'/g, "\\'") + '\')">' + ic('userPlus', 12) + ' Asignar Comité</button>' +
+        '</div>' +
+      '</div>';
+    }
+  }).join('');
+
+  const asignadosCount = comList.length;
+  const totalComunidades = comunidades.length;
+  const pctCobertura = totalComunidades ? ((asignadosCount / totalComunidades) * 100).toFixed(1) : '0.0';
+
+  $('sec-comite').innerHTML = panel(
+    'Comités Vecinales <span class="chip chip-b">' + asignadosCount + ' / ' + totalComunidades + ' comunidades asignadas (' + pctCobertura + '%)</span>',
+    '<div class="grid g3" style="gap:10px;margin-bottom:14px">' +
+      kc('Comunidades Totales CNE', totalComunidades, 'extraídas del padrón') +
+      kc('Comités Vecinales Asignados', asignadosCount, 'líderes registrados', (asignadosCount/Math.max(1,totalComunidades))*100) +
+      kc('Cobertura Territorial', pctCobertura + '%', 'de comunidades cubiertas', pctCobertura, true) +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--bg2);padding:10px;border-radius:8px;border:1px solid var(--line2)">' +
+      '<div style="flex:1;min-width:200px">' +
+        '<label class="fl">Filtrar por Comunidad CNE</label>' +
+        '<select class="inp" id="comSelCom" onchange="COMITE_FILTER.comunidad=this.value;renderComite()">' +
+          '<option value="">Todas las comunidades (' + totalComunidades + ')...</option>' +
+          comunidades.map(c => '<option value="' + esc(c) + '" ' + (fCom === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
+        '</select>' +
+      '</div>' +
+      '<div style="flex:1;min-width:200px">' +
+        '<label class="fl">Buscar responsable / cédula</label>' +
+        '<input class="inp" id="comTxt" placeholder="Nombre, C.I. o comunidad..." value="' + esc(COMITE_FILTER.txt) + '" oninput="COMITE_FILTER.txt=this.value;renderComite()">' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;margin-top:18px">' +
+        '<button class="btn btn-navy" onclick="openComiteManual()">' + ic('userPlus', 14) + ' Asignar Comité</button>' +
+        '<button class="btn btn-w" onclick="printComite()">' + ic('print', 14) + ' Imprimir</button>' +
+        '<button class="btn btn-w" onclick="downloadPDFComite()">' + ic('file', 14) + ' PDF</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="grid g2" style="gap:12px">' + cardsHtml + '</div>', 700
+  );
+}
+
+function openComiteView(id) {
+  const reg = (CACHE.comite || []).find(x => x.id === id);
+  if (!reg) return toast('Registro no encontrado', 'err');
+  const p = padBy(reg.cedula) || reg;
+  const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (reg.nombre || reg.cedula);
+  const letra = p.letra || reg.letra || 'V';
+  const ci = fC(letra, reg.cedula);
+  const tel = reg.telefono ? reg.telefono : '';
+  const dir = reg.direccion ? reg.direccion : '';
+
+  win(ic('eye', 18) + ' Expediente — Comité Vecinal (' + esc(reg.comunidad) + ')',
+    '<div class="alert ok" style="margin-bottom:14px;display:flex;gap:12px;align-items:center">' +
+      '<span class="uava" style="width:42px;height:42px;font-size:14px;border-radius:8px">' + ini(nomComp) + '</span>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:16px;font-weight:700;color:var(--navy)">' + esc(nomComp) + '</div>' +
+        '<div style="font-size:12px;font-weight:600;color:var(--teal)">Cargo: Responsable de Comité Vecinal — ' + esc(reg.comunidad) + '</div>' +
+        '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:2px">C.I.: <b>' + ci + '</b></div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--line2)">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;border-bottom:1px solid var(--line2);padding-bottom:6px">INFORMACIÓN COMPLETA DEL PADRÓN CNE</div>' +
+      '<div class="grid g2" style="gap:8px;font-size:12px">' +
+        '<div><b>Cédula:</b> <span class="mono">' + ci + '</span></div>' +
+        '<div><b>Fecha de Nacimiento:</b> ' + esc(fmtFn(p.fecha_nac) || 'N/D') + '</div>' +
+        '<div><b>Apellidos:</b> ' + esc(apeP(p) || '-') + '</div>' +
+        '<div><b>Nombres:</b> ' + esc(nomP(p) || '-') + '</div>' +
+        '<div><b>Edad:</b> ' + ((edadDe(p.fecha_nac) || p.edad) ? (edadDe(p.fecha_nac) || p.edad) + ' años' : 'N/D') + '</div>' +
+        '<div><b>Sexo:</b> ' + (p.sexo === 'M' ? 'Masculino (M)' : p.sexo === 'F' ? 'Femenino (F)' : '-') + '</div>' +
+        '<div><b>Estado:</b> ' + esc(p.estado || '-') + '</div>' +
+        '<div><b>Municipio:</b> ' + esc(p.municipio || '-') + '</div>' +
+        '<div><b>Parroquia:</b> ' + esc(p.parroquia || '-') + '</div>' +
+        '<div><b>Código Centro:</b> <span class="mono">' + esc(p.centro_votacion || '-') + '</span></div>' +
+        '<div style="grid-column:1/-1"><b>Centro de Votación:</b> ' + esc(p.nombre_cv || '-') + '</div>' +
+      '</div>' +
+      '<div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px;border-bottom:1px solid var(--line2);padding-bottom:6px">DATOS COMPLEMENTARIOS DE CONTACTO</div>' +
+      '<div class="grid g2" style="gap:8px;font-size:12px">' +
+        '<div><b>Teléfono:</b> ' + (tel ? '<a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + ic('chat', 12) + ' ' + esc(tel) + '</a>' : '<span style="color:var(--mut)">No registrado</span>') + '</div>' +
+        '<div><b>Dirección:</b> ' + esc(dir || 'No registrada') + '</div>' +
+      '</div>' +
+    '</div>',
+    '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 640
+  );
+}
+
+function openComiteManual(preComunidad) {
+  const comunidades = getComunidadesPadron();
+  win('Asignar Comité Vecinal por Comunidad',
+    '<label class="fl">Comunidad (extraída del Padrón CNE)</label>' +
+    '<select class="inp" id="comComunidad"><option value="">Seleccionar comunidad...</option>' +
+      comunidades.map(c => '<option value="' + esc(c) + '" ' + (preComunidad === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
+    '</select>' +
+    '<div style="margin-top:10px">' +
+      '<label class="fl">Número de Cédula de Identidad del Responsable</label>' +
+      '<div style="display:flex;gap:6px">' +
+        '<input class="inp mono" id="comCed" placeholder="V-12.345.678" onkeydown="if(event.key===\'Enter\')comiteBuscarCedula()">' +
+        '<button class="btn btn-navy" onclick="comiteBuscarCedula()">' + ic('search', 14) + ' Buscar CNE</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="comResultArea" style="margin-top:14px"></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>', 640
+  );
+  setTimeout(() => { const el = $('comCed'); if (el) el.focus(); }, 200);
+}
+
+function comiteBuscarCedula() {
+  const raw = $('comCed').value;
+  const ced = normC(raw);
+  const comSelect = $('comComunidad');
+  const comunidad = comSelect ? comSelect.value.trim() : '';
+  if (!ced || ced.length < 5) return toast('Ingrese una cédula válida (al menos 5 dígitos)', 'err');
+
+  const p = padBy(ced);
+  const resArea = $('comResultArea');
+  if (!resArea) return;
+
+  if (p) {
+    resArea.innerHTML =
+      '<div class="alert ok" style="margin-bottom:12px;display:flex;gap:10px;align-items:flex-start">' +
+        '<div class="a-ic">' + ic('check', 20) + '</div>' +
+        '<div style="flex:1">' +
+          '<div style="font-size:14px;font-weight:700">' + esc(apeP(p) + ', ' + nomP(p)) + '</div>' +
+          '<div class="mono" style="font-size:12px;margin-top:3px;color:var(--navy)">' +
+            'C.I.: <b>' + fC(p.letra, p.cedula) + '</b> &nbsp;&bull;&nbsp; Edad: <b>' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a</b> &nbsp;&bull;&nbsp; Sexo: <b>' + (p.sexo || '-') + '</b> &nbsp;&bull;&nbsp; F.Nac: <b>' + (fmtFn(p.fecha_nac) || '-') + '</b>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--mut);margin-top:4px">' +
+            '<b>Centro de Votación:</b> ' + esc(p.nombre_cv || '-') + '<br>' +
+            '<b>Municipio / Parroquia:</b> ' + esc(p.municipio || '') + ' / ' + esc(p.parroquia || '') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="grid g2" style="gap:10px">' +
+        '<div><label class="fl">Teléfono (opcional)</label><input class="inp mono" id="comTel" placeholder="0412-2232523" maxlength="12"></div>' +
+        '<div><label class="fl">Dirección (opcional)</label><input class="inp" id="comDir" placeholder="Urbanización, calle, casa..."></div>' +
+      '</div>' +
+      '<div style="margin-top:14px;text-align:right">' +
+        '<button class="btn btn-navy" onclick="saveComiteAuto(\'' + p.cedula + '\')">Guardar y Asignar Comité Vecinal ➜</button>' +
+      '</div>';
+  } else {
+    resArea.innerHTML =
+      '<div class="alert warn" style="display:flex;gap:10px;align-items:center">' +
+        '<div class="a-ic">' + ic('db', 22) + '</div>' +
+        '<div style="flex:1">' +
+          '<b>No aparece en el padrón CNE</b>' +
+          '<div style="font-size:12px;color:var(--mut);margin-top:2px">La C.I. <b class="mono">' + fC('V', ced) + '</b> no existe en el sistema.</div>' +
+        '</div>' +
+        '<button class="btn btn-navy btn-xs" onclick="openComiteManualForm(\'' + ced + '\')">' + ic('up', 12) + ' Registrar manualmente</button>' +
+      '</div>';
+  }
+}
+
+async function saveComiteAuto(cedula) {
+  cedula = normC(cedula);
+  const comSelect = $('comComunidad');
+  const comunidad = comSelect ? comSelect.value.trim() : '';
+  if (!comunidad) {
+    if (comSelect) { comSelect.style.border = '2px solid var(--red)'; comSelect.focus(); }
+    return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
+  }
+  const tel = ($('comTel') ? $('comTel').value : '').trim();
+  const dir = ($('comDir') ? $('comDir').value : '').trim();
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+
+  const p = padBy(cedula);
+  const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
+
+  try {
+    await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, cedula]);
+    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
+      [comunidad, cedula, nomComp, tel ? normTel(tel) : null, dir || null]);
+    await registrarAct('user', 'Asignado a Comité Vecinal: ' + nomComp + ' ➔ ' + comunidad, USER.id);
+    await refreshAll();
+    renderComite();
+    closeModal();
+    toast('Comité Vecinal asignado a "' + comunidad + '" exitosamente', 'ok');
+  } catch (e) {
+    console.error('Error guardando Comité Vecinal:', e);
+    toast('Error al guardar: ' + e.message, 'err');
+  }
+}
+
+function openComiteManualForm(ced) {
+  const resArea = $('comResultArea');
+  if (!resArea) return;
+
+  resArea.innerHTML =
+    '<div class="alert warn" style="margin-bottom:12px;font-size:12px">' +
+      '<b>Formulario de Registro Manual CNE:</b> Ingrese los datos del elector. Se incluirá en el padrón del sistema y se le asignará el comité vecinal.' +
+    '</div>' +
+    '<div class="grid g3" style="gap:10px">' +
+      '<div><label class="fl">LETRA_CEDULA</label><select class="inp" id="cmLet"><option>V</option><option>E</option></select></div>' +
+      '<div><label class="fl">CEDULA_IDENTIDAD *</label><input class="inp mono" id="cmCed" value="' + esc(ced) + '"></div>' +
+      '<div><label class="fl">SEXO *</label><select class="inp" id="cmSex"><option value="F">Femenino (F)</option><option value="M">Masculino (M)</option></select></div>' +
+      '<div><label class="fl">P_APELLIDO (Primer Apellido) *</label><input class="inp" id="cmPa"></div>' +
+      '<div><label class="fl">S_APELLIDO (Segundo Apellido)</label><input class="inp" id="cmSa"></div>' +
+      '<div><label class="fl">FECHA_NACIMIENTO</label><input class="inp" type="date" id="cmFn"></div>' +
+      '<div><label class="fl">P_NOMBRE (Primer Nombre) *</label><input class="inp" id="cmPn"></div>' +
+      '<div><label class="fl">S_NOMBRE (Segundo Nombre)</label><input class="inp" id="cmSn"></div>' +
+      '<div><label class="fl">CENTRO_VOTACION</label><select class="inp" id="cmCv">' +
+        CACHE.centros.map(x => '<option value="' + x.codigo + '">' + esc(x.nombre) + '</option>').join('') +
+      '</select></div>' +
+    '</div>' +
+    '<div class="grid g2" style="gap:10px;margin-top:10px">' +
+      '<div><label class="fl">TELÉFONO</label><input class="inp mono" id="cmTel" placeholder="0412-2232523" maxlength="12"></div>' +
+      '<div><label class="fl">DIRECCIÓN</label><input class="inp" id="cmDir" placeholder="Urbanización, calle, casa..."></div>' +
+    '</div>' +
+    '<div style="margin-top:14px;text-align:right">' +
+      '<button class="btn btn-navy" onclick="saveComiteManualFull()">' + ic('check', 14) + ' Guardar y Registrar ➜</button>' +
+    '</div>';
+}
+
+async function saveComiteManualFull() {
+  const comSelect = $('comComunidad');
+  const comunidad = comSelect ? comSelect.value.trim() : '';
+  if (!comunidad) {
+    if (comSelect) { comSelect.style.border = '2px solid var(--red)'; comSelect.focus(); }
+    return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
+  }
+
+  const ced = normC($('cmCed').value), letra = $('cmLet').value;
+  const pa = $('cmPa').value.trim(), sa = $('cmSa').value.trim();
+  const pn = $('cmPn').value.trim(), sn = $('cmSn').value.trim();
+  const sexo = $('cmSex').value, fn = $('cmFn').value;
+  const cvCod = $('cmCv').value;
+  const tel = ($('cmTel') ? $('cmTel').value : '').trim();
+  const dir = ($('cmDir') ? $('cmDir').value : '').trim();
+
+  if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
+  if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+
+  const cv = cenBy(cvCod) || CACHE.centros[0] || {};
+  const p = padBy(ced);
+  if (p && p.centro_votacion && (p.centro_votacion !== cvCod && p.nombre_cv !== cv.nombre)) {
+    return toast('⛔ Registro rechazado: La persona C.I. V-' + ced + ' ya pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cvCod) + ').', 'err', 8000);
+  }
+  const edad = edadDe(fn);
+
+  try {
+    if (!padBy(ced)) {
+      await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
+        [ced, letra, pa, sa, pn, sn, sexo, fn, edad, cv.cod_estado || '20', cv.estado || 'EDO. YARACUY', cv.cod_municipio || '11', cv.municipio || 'MP. INDEPENDENCIA', cv.cod_parroquia || '1', cv.parroquia || 'CM. INDEPENDENCIA', cv.codigo || '', cv.nombre || '']);
+    }
+
+    const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
+    await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, ced]);
+    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
+      [comunidad, ced, nomComp, tel ? normTel(tel) : null, dir || null]);
+
+    await registrarAct('user', 'Alta manual Comité Vecinal: ' + fC(letra, ced) + ' ➔ ' + comunidad, USER.id);
+    await refreshAll();
+    renderComite();
+    closeModal();
+    toast('Registrado exitosamente en Comité Vecinal', 'ok');
+  } catch (e) {
+    console.error('Error en registro manual Comité Vecinal:', e);
+    toast('Error al guardar: ' + e.message, 'err');
+  }
+}
+
+async function delComite(id) {
+  const reg = (CACHE.comite || []).find(x => x.id === id);
+  const nom = reg ? (reg.nombre || reg.comunidad) : 'registro';
+  askDo('Remover de Comité Vecinal', '¿Desea remover a <b>' + esc(nom) + '</b> de la comunidad <b>' + esc(reg.comunidad) + '</b>?', 'Remover', async () => {
+    try {
+      await x('DELETE FROM comite_vecinal WHERE id = ?', [id]);
+      await refreshAll(); renderComite(); toast('Registro removido', 'ok');
+    } catch (e) { toast('Error: ' + e.message, 'err'); }
+  });
+}
+
+function openComiteEdit(id) {
+  const reg = (CACHE.comite || []).find(x => x.id === id);
+  if (!reg) return toast('Registro no encontrado', 'err');
+  const p = padBy(reg.cedula) || reg;
+  win('Editar Comité Vecinal — Comunidad: ' + esc(reg.comunidad),
+    '<div style="margin-bottom:10px;font-size:12px;color:var(--navy)">' +
+      '<b>Persona:</b> ' + esc(reg.nombre || (apeP(p) + ', ' + nomP(p))) + ' &nbsp;&bull;&nbsp; <b>C.I.:</b> ' + fC(p.letra || 'V', reg.cedula) +
+    '</div>' +
+    '<label class="fl">Teléfono</label><input class="inp mono" id="comETel" value="' + esc(reg.telefono || '') + '" placeholder="0412-2232523" maxlength="12">' +
+    '<div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="comEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, calle..."></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveComiteEdit(' + id + ')">Guardar cambios ➜</button>', 550
+  );
+  setTimeout(() => { const el = $('comETel'); if (el) el.focus(); }, 200);
+}
+
+async function saveComiteEdit(id) {
+  const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  try {
+    await x('UPDATE comite_vecinal SET telefono = ?, direccion = ? WHERE id = ?',
+      [tel ? normTel(tel) : null, dir || null, id]);
+    await refreshAll(); renderComite(); closeModal(); toast('Actualizado con éxito', 'ok');
+  } catch (e) { toast('Error: ' + e.message, 'err'); }
+}
+
+function printComite() {
+  const comList = CACHE.comite || [];
+  if (!comList.length) return toast('No hay registros de Comités Vecinales para imprimir', 'err');
+
+  const rows = comList.map((x, i) => {
+    const p = padBy(x.cedula) || x;
+    const ci = fC(p.letra || 'V', x.cedula);
+    const pa = p.p_apellido || '';
+    const sa = p.s_apellido || '';
+    const pn = p.p_nombre || '';
+    const sn = p.s_nombre || '';
+    const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
+    const sexo = p.sexo || '';
+    const fn = fmtFn(p.fecha_nac);
+    const cv = p.nombre_cv || p.centro_votacion || '';
+    const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
+    const tel = x.telefono || '';
+    const dir = x.direccion || '';
+
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td style="font-weight:700">' + esc(x.comunidad) + '</td>' +
+      '<td class="mono">' + ci + '</td>' +
+      '<td>' + esc(pa) + '</td>' +
+      '<td>' + esc(sa) + '</td>' +
+      '<td>' + esc(pn) + '</td>' +
+      '<td>' + esc(sn) + '</td>' +
+      '<td>' + edad + '</td>' +
+      '<td>' + sexo + '</td>' +
+      '<td class="mono">' + esc(fn) + '</td>' +
+      '<td>' + esc(cv) + '</td>' +
+      '<td>' + esc(munPar) + '</td>' +
+      '<td class="mono">' + esc(tel) + '</td>' +
+      '<td>' + esc(dir) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comités Vecinales — Padrón CNE Completo</title>' +
+    '<style>' +
+      'body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}' +
+      'h2{margin:0 0 4px 0;font-size:16px;color:#1e293b;text-transform:uppercase}' +
+      'p{margin:0 0 14px 0;color:#64748b;font-size:11px}' +
+      'table{width:100%;border-collapse:collapse;margin-top:10px}' +
+      'th,td{border:1px solid #cbd5e1;padding:5px 7px;text-align:left;font-size:10px}' +
+      'th{background:#f1f5f9;font-weight:700;color:#334155;text-transform:uppercase;font-size:9px}' +
+      '.mono{font-family:monospace}' +
+      '@page{size:landscape;margin:12mm}' +
+    '</style></head><body>' +
+      '<h2>Estructura de Comités Vecinales por Comunidad</h2>' +
+      '<p>Sistema de Gestión Electoral • Reporte Oficial con Padrón CNE • Total: ' + comList.length + ' asignados</p>' +
+      '<table><thead><tr>' +
+        '<th>#</th><th>Comunidad</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
+        '<th>Primer Nombre</th><th>Segundo Nombre</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th>' +
+        '<th>Centro Votación</th><th>Municipio / Parroquia</th><th>Teléfono</th><th>Dirección</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</body></html>';
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 500);
+}
+
+function downloadPDFComite() {
+  const comList = CACHE.comite || [];
+  if (!comList.length) return toast('No hay registros de Comités Vecinales para descargar', 'err');
+
+  const rows = comList.map((x, i) => {
+    const p = padBy(x.cedula) || x;
+    const ci = fC(p.letra || 'V', x.cedula);
+    const pa = p.p_apellido || '';
+    const sa = p.s_apellido || '';
+    const pn = p.p_nombre || '';
+    const sn = p.s_nombre || '';
+    const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
+    const sexo = p.sexo || '';
+    const fn = fmtFn(p.fecha_nac);
+    const cv = p.nombre_cv || p.centro_votacion || '';
+    const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
+    const tel = x.telefono || '';
+    const dir = x.direccion || '';
+
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td style="font-weight:700">' + esc(x.comunidad) + '</td>' +
+      '<td class="mono">' + ci + '</td>' +
+      '<td>' + esc(pa) + '</td>' +
+      '<td>' + esc(sa) + '</td>' +
+      '<td>' + esc(pn) + '</td>' +
+      '<td>' + esc(sn) + '</td>' +
+      '<td>' + edad + '</td>' +
+      '<td>' + sexo + '</td>' +
+      '<td class="mono">' + esc(fn) + '</td>' +
+      '<td>' + esc(cv) + '</td>' +
+      '<td>' + esc(munPar) + '</td>' +
+      '<td class="mono">' + esc(tel) + '</td>' +
+      '<td>' + esc(dir) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const content = '<div style="font-family:Arial,sans-serif;font-size:10px;color:#111">' +
+    '<h2 style="margin:0 0 4px 0;font-size:15px;color:#1e293b;text-transform:uppercase">Estructura de Comités Vecinales por Comunidad</h2>' +
+    '<p style="margin:0 0 12px 0;color:#64748b;font-size:10px">Sistema de Gestión Electoral • Reporte Oficial con Padrón CNE • Total: ' + comList.length + ' asignados</p>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:9px"><thead style="background:#f1f5f9"><tr>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">#</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Comunidad</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Cédula</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Primer Apellido</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Segundo Apellido</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Primer Nombre</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Segundo Nombre</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Edad</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Sexo</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">F. Nacimiento</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Centro Votación</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Municipio / Parroquia</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Teléfono</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Dirección</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+  const container = document.createElement('div');
+  container.innerHTML = content;
+  document.body.appendChild(container);
+
+  const title = 'comites_vecinales_padron_completo_' + Date.now();
+  html2pdf().set({
+    margin: 8,
+    filename: title + '.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+  }).from(container).save().then(() => {
+    document.body.removeChild(container);
+    toast('PDF de Comités Vecinales generado exitosamente', 'ok');
+  }).catch(err => {
+    if (container.parentNode) document.body.removeChild(container);
+    console.error('Error generando PDF:', err);
+    toast('Error al descargar PDF', 'err');
+  });
 }
 </script>
 </body>
