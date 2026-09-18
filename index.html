@@ -2398,11 +2398,10 @@ function getComunidadesPadron() {
   (CACHE.pad || []).forEach(p => {
     if (p.comunidad && String(p.comunidad).trim()) set.add(String(p.comunidad).trim().toUpperCase());
     else if (p.parroquia && String(p.parroquia).trim()) set.add(String(p.parroquia).trim().toUpperCase());
-    else if (p.nombre_cv && String(p.nombre_cv).trim()) set.add(String(p.nombre_cv).trim().toUpperCase());
   });
   (CACHE.centros || []).forEach(c => {
     if (c.comunidad && String(c.comunidad).trim()) set.add(String(c.comunidad).trim().toUpperCase());
-    else if (c.nombre && String(c.nombre).trim()) set.add(String(c.nombre).trim().toUpperCase());
+    else if (c.parroquia && String(c.parroquia).trim()) set.add(String(c.parroquia).trim().toUpperCase());
   });
   (CACHE.comite || []).forEach(x => {
     if (x.comunidad && String(x.comunidad).trim()) set.add(String(x.comunidad).trim().toUpperCase());
