@@ -2409,23 +2409,13 @@ function getComunidadesPadron() {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
-function renderComite() {
+function filterComiteCards() {
+  const el = $('comTxt');
+  if (el) COMITE_FILTER.txt = el.value;
   const comList = CACHE.comite || [];
   const comunidades = getComunidadesPadron();
   const fCom = COMITE_FILTER.comunidad;
   const fTxt = (COMITE_FILTER.txt || '').trim().toLowerCase();
-
-  const list = comList.filter(x => {
-    if (fCom && String(x.comunidad || '').toUpperCase() !== fCom) return false;
-    if (fTxt) {
-      const p = padBy(x.cedula) || x;
-      const nom = ((p.p_nombre || '') + ' ' + (p.s_nombre || '') + ' ' + (p.p_apellido || '') + ' ' + (p.s_apellido || '') + ' ' + (x.nombre || '')).toLowerCase();
-      const ci = String(x.cedula || '');
-      const com = String(x.comunidad || '').toLowerCase();
-      if (!nom.includes(fTxt) && !ci.includes(fTxt) && !com.includes(fTxt)) return false;
-    }
-    return true;
-  });
 
   const comunidadesVisualizadas = fCom ? [fCom] : comunidades;
 
@@ -2440,6 +2430,11 @@ function renderComite() {
       const dir = asig.direccion ? asig.direccion : '';
       const cvNom = p.nombre_cv || p.centro_votacion || '';
       const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
+
+      if (fTxt) {
+        const fullText = (nomComp + ' ' + ci + ' ' + comNom + ' ' + cvNom + ' ' + tel + ' ' + dir).toLowerCase();
+        if (!fullText.includes(fTxt)) return '';
+      }
 
       return '<div class="kcard" style="padding:14px;border-left:4px solid var(--teal);background:#ffffff">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
@@ -2461,6 +2456,7 @@ function renderComite() {
         '</div>' +
       '</div>';
     } else {
+      if (fTxt && !comNom.toLowerCase().includes(fTxt)) return '';
       return '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2)">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
           '<div>' +
@@ -2472,6 +2468,22 @@ function renderComite() {
       '</div>';
     }
   }).join('');
+
+  const grid = $('comCardsGrid');
+  if (grid) {
+    grid.innerHTML = cardsHtml || '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--mut)">No se encontraron comunidades ni responsables con el criterio buscado.</div>';
+  }
+}
+
+function renderComite() {
+  const activeEl = document.activeElement;
+  const isComTxt = activeEl && activeEl.id === 'comTxt';
+  const selStart = isComTxt ? activeEl.selectionStart : null;
+  const selEnd = isComTxt ? activeEl.selectionEnd : null;
+
+  const comList = CACHE.comite || [];
+  const comunidades = getComunidadesPadron();
+  const fCom = COMITE_FILTER.comunidad;
 
   const asignadosCount = comList.length;
   const totalComunidades = comunidades.length;
@@ -2494,7 +2506,7 @@ function renderComite() {
       '</div>' +
       '<div style="flex:1;min-width:200px">' +
         '<label class="fl">Buscar responsable / cédula</label>' +
-        '<input class="inp" id="comTxt" placeholder="Nombre, C.I. o comunidad..." value="' + esc(COMITE_FILTER.txt) + '" oninput="COMITE_FILTER.txt=this.value;renderComite()">' +
+        '<input class="inp" id="comTxt" placeholder="Nombre, C.I. o comunidad..." value="' + esc(COMITE_FILTER.txt) + '" oninput="filterComiteCards()">' +
       '</div>' +
       '<div style="display:flex;gap:6px;margin-top:18px">' +
         '<button class="btn btn-navy" onclick="openComiteManual()">' + ic('userPlus', 14) + ' Asignar Comité</button>' +
@@ -2502,8 +2514,20 @@ function renderComite() {
         '<button class="btn btn-w" onclick="downloadPDFComite()">' + ic('file', 14) + ' PDF</button>' +
       '</div>' +
     '</div>' +
-    '<div class="grid g2" style="gap:12px">' + cardsHtml + '</div>', 700
+    '<div id="comCardsGrid" class="grid g2" style="gap:12px"></div>', 700
   );
+
+  filterComiteCards();
+
+  if (isComTxt) {
+    const inputEl = $('comTxt');
+    if (inputEl) {
+      inputEl.focus();
+      if (selStart !== null && selEnd !== null) {
+        inputEl.setSelectionRange(selStart, selEnd);
+      }
+    }
+  }
 }
 
 function openComiteView(id) {
