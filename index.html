@@ -197,7 +197,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
   <button class="tb" onclick="tbSave()"><span class="g" id="gSave"></span>Guardar</button>
   <button class="tb" onclick="tbEdit()"><span class="g" id="gEdit"></span>Editar</button>
   <button class="tb" onclick="tbDel()"><span class="g" id="gDel"></span>Eliminar</button>
-  <button class="tb" onclick="window.print()"><span class="g" id="gPrint"></span>Imprimir</button>
+  <button class="tb" onclick="vistaPreviaPantallaActual()"><span class="g" id="gPrint"></span>Imprimir</button>
   <button class="tb" onclick="openSearch()"><span class="g" id="gSearch"></span>Buscar</button>
   <button class="tb" onclick="refreshAll();go(CUR)"><span class="g" id="gRef"></span>Actualizar</button>
   <button class="tb" onclick="openHist()"><span class="g" id="gHist"></span>Historial</button>
@@ -415,6 +415,18 @@ function _pdfTable(headers, rows) {
   });
   h += '</tbody></table>';
   return h;
+}
+function vistaPreviaPantallaActual() {
+  const main = document.getElementById('main');
+  if (!main) return toast('No se encontró el contenido de la pantalla actual', 'err');
+  const visible = Array.from(main.querySelectorAll('.sec')).find(x => x.classList.contains('on')) || main;
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Vista previa • Pantalla actual</title>' +
+    '<style>body{font:12px/1.5 Arial,sans-serif;color:#22303e;background:#fff;padding:20px}.no-print{display:none!important}@media print{body{padding:0}}</style>' +
+    '</head><body>'+visible.innerHTML+'</body></html>';
+  window.__previewDocHtml=html;
+  vistaPreviaDocumento('Vista previa • Pantalla actual',html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'pantalla_actual\')">'+ic('file',13)+' Descargar PDF</button>');
 }
 function printSection(elId, title) {
   const el = document.getElementById(elId);
@@ -1331,8 +1343,10 @@ async function confirmarAutorizacionDuplicidad(cedula, destino) {
     const user=rows[0];
     if(!['J','A'].includes(user.rol)) return toast('Solo un Jefe de Comando o Administrador puede autorizar esta operación','err');
     if(user.clave_hash !== await hash(p)) return toast('Clave de autorización incorrecta','err');
+    const origenes=(encontrados||[]).map(x=>x.tipo).filter(Boolean);
+    const detalles=(encontrados||[]).map(x=>x.detalle).filter(Boolean);
     await x('INSERT INTO autorizaciones_duplicidad_persona(cedula,contexto_origen,contexto_destino,detalle_duplicidad,motivo,autorizado_por,registrado_por) VALUES(?,?,?,?,?,?,?)',[
-      normC(cedula),'DUPLICIDAD_GLOBAL',destino,'Persona existente en otra función del sistema',motivo,user.id,USER?.id||null
+      normC(cedula),origenes.join(' | ') || 'OTRO',destino,detalles.join(' '),motivo,user.id,USER?.id||null
     ]);
     await registrarAct('autorizacion','Duplicidad autorizada: '+fC('V',cedula)+' → '+destino+' • autorizó '+user.usuario+' • '+motivo,USER?.id||null);
     const resolve=window.__authResolve; window.__authResolve=null; closeModal();
@@ -2741,59 +2755,26 @@ async function saveDirEdit(id) {
 function printDireccion() {
   const d = CACHE.direccion || [];
   if (!d.length) return toast('No hay registros en Dirección Ejecutiva para imprimir', 'err');
-
   const rows = d.map((x, i) => {
     const p = padBy(x.cedula) || x;
     const ci = fC(p.letra || 'V', x.cedula);
-    const pa = p.p_apellido || '';
-    const sa = p.s_apellido || '';
-    const pn = p.p_nombre || '';
-    const sn = p.s_nombre || '';
     const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
-    const sexo = p.sexo || '';
-    const fn = fmtFn(p.fecha_nac);
     const cv = p.nombre_cv || p.centro_votacion || '';
     const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
-    const tel = x.telefono || '';
-    const dir = x.direccion || '';
-
-    return '<tr>' +
-      '<td>' + (i + 1) + '</td>' +
-      '<td><b>' + esc(x.cargo) + '</b></td>' +
-      '<td class="mono"><b>' + ci + '</b></td>' +
-      '<td>' + esc((pa + ' ' + sa).trim()) + '</td>' +
-      '<td>' + esc((pn + ' ' + sn).trim()) + '</td>' +
-      '<td>' + edad + '</td>' +
-      '<td>' + sexo + '</td>' +
-      '<td>' + fn + '</td>' +
-      '<td>' + esc(cv) + '</td>' +
-      '<td>' + esc(munPar) + '</td>' +
-      '<td>' + esc(tel) + '</td>' +
-      '<td>' + esc(dir) + '</td>' +
-    '</tr>';
+    return '<tr><td>' + (i+1) + '</td><td><b>' + esc(x.cargo) + '</b></td><td class="mono"><b>' + ci + '</b></td>' +
+      '<td>' + esc(((p.p_apellido||'')+' '+(p.s_apellido||'')).trim()) + '</td><td>' + esc(((p.p_nombre||'')+' '+(p.s_nombre||'')).trim()) + '</td>' +
+      '<td>' + edad + '</td><td>' + esc(p.sexo||'') + '</td><td>' + fmtFn(p.fecha_nac) + '</td><td>' + esc(cv) + '</td>' +
+      '<td>' + esc(munPar) + '</td><td>' + esc(x.telefono||'') + '</td><td>' + esc(x.direccion||'') + '</td></tr>';
   }).join('');
-
-  const win = window.open('', '_blank', 'width=1100,height=750');
-  win.document.write(
-    '<html><head><meta charset="utf-8"><title>Listado de Dirección Ejecutiva — Padrón CNE Completo</title>' +
-    '<style>' +
-      'body{font-family:sans-serif;padding:15px;font-size:11px}' +
-      'h2{margin:0 0 4px;color:#123c69;font-size:16px}' +
-      'p{margin:0 0 12px;color:#555;font-size:11px}' +
-      'table{width:100%;border-collapse:collapse;margin-top:6px}' +
-      'th,td{border:1px solid #aaa;padding:5px 6px;text-align:left;font-size:10px}' +
-      'th{background:#123c69;color:#fff;font-weight:bold}' +
-      'tr:nth-child(even){background:#f4f7fa}' +
-      '.mono{font-family:monospace}' +
-    '</style></head><body>' +
-    '<h2>DIRECCIÓN EJECUTIVA — COMANDO DE CAMPAÑA</h2>' +
-    '<p>Reporte Oficial con Datos Completos del Padrón CNE &bull; Fecha: ' + new Date().toLocaleDateString('es-VE') + ' &bull; Registros: ' + d.length + '</p>' +
-    '<table><thead><tr>' +
-      '<th>#</th><th>CARGO</th><th>C.I.</th><th>APELLIDOS</th><th>NOMBRES</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th><th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>DIRECCIÓN</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table></body></html>'
-  );
-  win.document.close();
-  setTimeout(() => { win.print(); }, 300);
+  const html='<html><head><meta charset="utf-8"><title>Dirección Ejecutiva — Padrón CNE Completo</title>' +
+    '<style>body{font-family:sans-serif;padding:15px;font-size:11px}h2{margin:0 0 4px;color:#123c69;font-size:16px}p{margin:0 0 12px;color:#555;font-size:11px}' +
+    'table{width:100%;border-collapse:collapse;margin-top:6px}th,td{border:1px solid #aaa;padding:5px 6px;text-align:left;font-size:10px}th{background:#123c69;color:#fff;font-weight:bold}tr:nth-child(even){background:#f4f7fa}.mono{font-family:monospace}</style></head><body>' +
+    '<h2>DIRECCIÓN EJECUTIVA — COMANDO DE CAMPAÑA</h2><p>Reporte Oficial con Datos Completos del Padrón CNE &bull; Fecha: ' + new Date().toLocaleDateString('es-VE') + ' &bull; Registros: ' + d.length + '</p>' +
+    '<table><thead><tr><th>#</th><th>CARGO</th><th>C.I.</th><th>APELLIDOS</th><th>NOMBRES</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th><th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>DIRECCIÓN</th></tr></thead><tbody>' + rows + '</tbody></table></body></html>';
+  window.__previewDocHtml=html;
+  vistaPreviaDocumento('Vista previa • Dirección Ejecutiva',html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'direccion_ejecutiva_padron_completo\')">'+ic('file',13)+' Descargar PDF</button>');
 }
 
 function downloadPDFDireccion() {
