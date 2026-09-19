@@ -3382,7 +3382,8 @@ async function agregarMiembroAccidental(codigo,mesa) {
   const ced=prompt('C.I. de la persona que reemplazará el cargo:');
   if(!ced) return;
   const c=normC(ced); const p=padBy(c);
-  if(!p && ![...(CACHE.cargos||[]),...(CACHE.recl||[]),...(CACHE.comite||[]),...(CACHE.direccion||[])].some(x=>normC(x.cedula)===c)) return toast('La persona debe estar registrada previamente en el sistema','err');
+  const existeEnCargos = [...(CACHE.cargos||[]),...(CACHE.comite||[]),...(CACHE.direccion||[])].some(x=>normC(x.cedula)===c) || (CACHE.recl||[]).some(r=>normC(r.cedula)===c || (r.lista||[]).some(x=>normC(x.cedula)===c));
+  if(!p && !existeEnCargos) return toast('La persona debe estar registrada previamente en el sistema','err');
   const cargo=prompt('Cargo que reemplazará en la Mesa:');
   if(!cargo) return;
   const auth=await autorizarOperacion('Reemplazo accidental de cargo en Mesa '+mesa+' • '+cargo);
