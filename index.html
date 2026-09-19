@@ -484,7 +484,7 @@ const kc = (l, v, s, bar, full) => '<div class="kcard"><div class="kl">' + l + '
 /* ----------- ESTADO GLOBAL ----------- */
 let USER = null, CUR = 'dash', REG = { rec: null }, LAST_REC = null;
 let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '' };
-let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [], comite: [], verificacion: [], actasMesa: [] };
+let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [], comite: [], verificacion: [], actasMesa: [], mesasOperativas: [], mesaMiembros: [], cortes: [] };
 let CONTROL_ELECTORAL = { centro: '', search: '' };
 
 /* ----------- ESQUEMA TURSO (AUTO-MIGRACIÓN) ----------- */
@@ -789,7 +789,31 @@ const SCHEMA = [
     FOREIGN KEY(registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mesa_miembros_mesa ON mesa_miembros(mesa_operativa_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_mesa_miembros_ci ON mesa_miembros(cedula)`
+  `CREATE INDEX IF NOT EXISTS idx_mesa_miembros_ci ON mesa_miembros(cedula)`,
+  `CREATE TABLE IF NOT EXISTS cortes_electorales (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    centro_codigo TEXT NOT NULL,
+    etiqueta TEXT,
+    tomado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    tomado_por INTEGER,
+    personas_universo INTEGER NOT NULL DEFAULT 0,
+    verificados INTEGER NOT NULL DEFAULT 0,
+    pendientes INTEGER NOT NULL DEFAULT 0,
+    porcentaje_verificado REAL NOT NULL DEFAULT 0,
+    masculinos_universo INTEGER NOT NULL DEFAULT 0,
+    femeninos_universo INTEGER NOT NULL DEFAULT 0,
+    masculinos_verificados INTEGER NOT NULL DEFAULT 0,
+    femeninos_verificados INTEGER NOT NULL DEFAULT 0,
+    mesas_total INTEGER NOT NULL DEFAULT 0,
+    mesas_con_acta INTEGER NOT NULL DEFAULT 0,
+    votos_partido_acta INTEGER NOT NULL DEFAULT 0,
+    diferencia_acta INTEGER,
+    detalle_json TEXT,
+    FOREIGN KEY(centro_codigo) REFERENCES centros(codigo) ON DELETE CASCADE,
+    FOREIGN KEY(tomado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_cortes_centro_fecha ON cortes_electorales(centro_codigo, tomado_en DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_cortes_fecha ON cortes_electorales(tomado_en DESC)`
 ];
 
 async function migrarActasMesaPartido() {
@@ -866,6 +890,7 @@ async function refreshAll() {
   CACHE.actasMesa = await q('SELECT * FROM actas_mesa ORDER BY centro_codigo, mesa');
   CACHE.mesasOperativas = await q('SELECT * FROM mesa_operativa ORDER BY centro_codigo, mesa');
   CACHE.mesaMiembros = await q('SELECT * FROM mesa_miembros ORDER BY mesa_operativa_id, id');
+  CACHE.cortes = await q('SELECT * FROM cortes_electorales ORDER BY tomado_en DESC, id DESC');
   // Enriquecer reclutadores con listas desde asignaciones
   for (const r of CACHE.recl) {
     r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
@@ -3025,6 +3050,66 @@ function controlVerif(cedula) {
 function controlMesaTexto(v) {
   return v ? String(v.mesa || '') : '';
 }
+function origenRegistroPersona(cedula) {
+  const c = normC(cedula);
+  const cargo = (CACHE.cargos || []).find(x => normC(x.cedula) === c);
+  if (cargo) return 'Cargo de centro: ' + (cargo.cargo || 'Sin cargo');
+  const dir = (CACHE.direccion || []).find(x => normC(x.cedula) === c);
+  if (dir) return 'Dirección Ejecutiva: ' + (dir.cargo || 'Sin cargo');
+  const com = (CACHE.comite || []).find(x => normC(x.cedula) === c);
+  if (com) return 'Comité Vecinal: ' + (com.comunidad || 'Sin comunidad');
+  const movil = (CACHE.recl || []).find(x => normC(x.cedula) === c);
+  if (movil) return 'Movilizador';
+  for (const rr of (CACHE.recl || [])) {
+    const a = (rr.lista || []).find(x => normC(x.cedula) === c);
+    if (a) return '1×10 • ' + nomP(padBy(rr.cedula) || rr);
+  }
+  return padBy(c) ? 'Padrón CNE' : 'Registro existente';
+}
+
+function metricasCorteCentro(codigo) {
+  const centro = cenBy(codigo);
+  if (!centro) return null;
+  const personas = controlPersonasCentro(codigo);
+  const verificados = personas.filter(x => !!controlVerif(x.l.cedula));
+  const mM = personas.filter(x => x.p.sexo === 'M').length;
+  const mF = personas.filter(x => x.p.sexo === 'F').length;
+  const vM = verificados.filter(x => x.p.sexo === 'M').length;
+  const vF = verificados.filter(x => x.p.sexo === 'F').length;
+  const mesas = Math.max(1, Number(centro.mesas || 1));
+  const detalle = [];
+  for (let i=1;i<=mesas;i++) {
+    const mesa=String(i);
+    const vv=verificados.filter(x => controlMesaTexto(controlVerif(x.l.cedula))===mesa).length;
+    const acta=(CACHE.actasMesa||[]).find(a=>a.centro_codigo===codigo && String(a.mesa)===mesa);
+    detalle.push({mesa, verificados:vv, votos_partido:acta ? Number(acta.votos_partido||0) : null, diferencia:acta ? vv-Number(acta.votos_partido||0) : null});
+  }
+  const actasCargadas=detalle.filter(x=>x.votos_partido!==null).length;
+  const totalActa=detalle.reduce((a,x)=>a+(x.votos_partido===null?0:x.votos_partido),0);
+  const verifConActa=detalle.filter(x=>x.votos_partido!==null).reduce((a,x)=>a+x.verificados,0);
+  return {personas:personas.length,verificados:verificados.length,pendientes:Math.max(0,personas.length-verificados.length),pct:personas.length?verificados.length/personas.length*100:0,mM,mF,vM,vF,mesas,actasCargadas,totalActa,diffTotal:actasCargadas?verifConActa-totalActa:null,detalle};
+}
+
+async function crearCorteElectoral(codigo) {
+  const met=metricasCorteCentro(codigo);
+  if(!met) return toast('Seleccione un centro válido para tomar el corte','err');
+  const centro=cenBy(codigo);
+  const etiqueta=prompt('Etiqueta del corte (opcional):','Corte '+new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit'}));
+  if(etiqueta===null) return;
+  try {
+    await x('INSERT INTO cortes_electorales(centro_codigo,etiqueta,tomado_en,tomado_por,personas_universo,verificados,pendientes,porcentaje_verificado,masculinos_universo,femeninos_universo,masculinos_verificados,femeninos_verificados,mesas_total,mesas_con_acta,votos_partido_acta,diferencia_acta,detalle_json) VALUES(?,?,datetime("now"),?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[codigo,etiqueta.trim()||null,USER.id,met.personas,met.verificados,met.pendientes,met.pct,met.mM,met.mF,met.vM,met.vF,met.mesas,met.actasCargadas,met.totalActa,met.diffTotal===null?null:met.diffTotal,JSON.stringify(met.detalle)]);
+    await registrarAct('corte','Corte de métricas • Centro '+codigo+' • '+(centro?.nombre||'')+' • '+(etiqueta.trim()||'Sin etiqueta'),USER.id);
+    await refreshAll(); renderControlElectoral(); toast('Corte registrado correctamente','ok');
+  } catch(e){toast('No se pudo guardar el corte: '+e.message,'err',8000);}
+}
+
+function renderCortesPanel(codigo) {
+  const centro=cenBy(codigo);
+  const cortes=(CACHE.cortes||[]).filter(x=>String(x.centro_codigo)===String(codigo)).slice(0,20);
+  const rows=cortes.map(c=>'<tr><td class="mono">'+esc(c.tomado_en||'')+'</td><td>'+esc(c.etiqueta||'Sin etiqueta')+'</td><td>'+c.personas_universo+'</td><td>'+c.verificados+'</td><td>'+c.pendientes+'</td><td>'+Number(c.porcentaje_verificado||0).toFixed(1)+'%</td><td>'+c.mesas_con_acta+'/'+c.mesas_total+'</td><td>'+c.votos_partido_acta+'</td><td>'+(c.diferencia_acta===null||c.diferencia_acta===undefined?'—':c.diferencia_acta)+'</td><td>'+esc(((CACHE.users||[]).find(u=>Number(u.id)===Number(c.tomado_por))||{}).nombre||'')+'</td></tr>').join('');
+  return panel('Cortes de control • '+esc(centro?.nombre||codigo),'<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><div style="font-size:12px;color:var(--mut)">Cada corte conserva una fotografía de las métricas y del detalle por mesa en ese momento.</div><button class="btn btn-navy btn-xs" onclick="crearCorteElectoral(\''+esc(codigo)+'\')">'+ic('check',13)+' Tomar corte ahora</button></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Fecha / hora</th><th>Etiqueta</th><th>Universo</th><th>Verificados</th><th>Pendientes</th><th>Avance</th><th>Actas</th><th>Votos partido</th><th>Diferencia</th><th>Operador</th></tr></thead><tbody>'+(rows||'<tr><td colspan="10" class="empty">Todavía no hay cortes registrados para este centro.</td></tr>')+'</tbody></table></div>',800);
+}
+
 function renderControlElectoral() {
   const centro = controlCentroActual();
   if (!centro) {
@@ -3132,6 +3217,8 @@ function renderControlElectoral() {
       '<div class="panel"><div class="panel-h">' + ic('chart',15) + ' Control por mesa</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
         '<thead><tr><th>Mesa</th><th>Verificados</th><th>Votos del partido (acta CNE)</th><th>Diferencia</th><th>Conciliación</th><th>Constitución</th><th>Acciones</th></tr></thead>' +
         '<tbody>' + mesaHtml + '</tbody></table></div></div></div>' +
+
+      renderCortesPanel(centro.codigo) +
 
       '<div class="panel"><div class="panel-h">' + ic('users',15) + ' Últimas verificaciones</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
         '<thead><tr><th>Hora</th><th>Persona</th><th>C.I.</th><th>Mesa</th><th>Origen</th><th>Cargo / función</th><th>Operador</th></tr></thead>' +
@@ -3272,7 +3359,7 @@ function abrirConstitucionMesa(codigo, mesa) {
     '</div>' +
     '<div style="margin-top:14px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="font-weight:700;color:var(--navy);margin-bottom:8px">Miembros predeterminados del centro • afectos al partido</div><div style="max-height:220px;overflow:auto">'+predHtml+'</div></div>' +
     '<div style="margin-top:12px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--navy)">Miembros accidentales / reemplazos</b><button class="btn btn-w btn-xs" onclick="agregarMiembroAccidental(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">+ Agregar reemplazo</button></div><div id="mesaAccidentales">'+acc+'</div><div style="font-size:11px;color:var(--mut);margin-top:7px">Los reemplazos requieren autorización de Jefe de Comando o Administrador. Se almacenan separadamente y no modifican el universo normal de verificación ni los resultados del acta.</div></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cerrar</button><button class="btn btn-g" onclick="guardarConstitucionMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">Guardar constitución</button><button class="btn btn-navy" onclick="imprimirActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('print',14)+' Imprimir acta</button><button class="btn btn-navy" onclick="downloadPDFActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('file',14)+' PDF</button>',820
+    '<button class="btn btn-w" onclick="closeModal()">Cerrar</button><button class="btn btn-g" onclick="guardarConstitucionMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">Guardar constitución</button><label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--navy)">Formato <select class="inp" id="mesaActaFormato" style="width:auto;padding:6px 9px"><option value="A4">A4</option><option value="CARTA">Carta</option></select></label><button class="btn btn-navy" onclick="imprimirActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('print',14)+' Imprimir acta</button><button class="btn btn-navy" onclick="downloadPDFActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('file',14)+' PDF</button>',820
   );
 }
 async function guardarConstitucionMesa(codigo,mesa) {
@@ -3303,30 +3390,34 @@ async function agregarMiembroAccidental(codigo,mesa) {
   const mo=mesaOperativa(codigo,mesa);
   if(!mo) return toast('Primero guarde la constitución de la Mesa','err');
   try {
-    await x('INSERT INTO mesa_miembros(mesa_operativa_id,cedula,cargo,tipo,origen,autorizado,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?,?)',[mo.id,c,cargo,'ACCIDENTAL','REGISTRO_EXISTENTE',1,auth.user.id,new Date().toISOString(),USER.id]);
+    await x('INSERT INTO mesa_miembros(mesa_operativa_id,cedula,cargo,tipo,origen,autorizado,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?,?)',[mo.id,c,cargo,'ACCIDENTAL',origenRegistroPersona(c),1,auth.user.id,new Date().toISOString(),USER.id]);
     await registrarAct('autorizacion','Reemplazo accidental autorizado • C.I. '+c+' • Centro '+codigo+' • Mesa '+mesa+' • Cargo '+cargo+' • Autorizó '+auth.user.nombre,USER.id);
     await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Reemplazo autorizado y registrado','ok');
   } catch(e){toast('No se pudo registrar el reemplazo: '+e.message,'err',8000);}
 }
-function actaInicializacionHTML(codigo,mesa) {
+function actaInicializacionHTML(codigo,mesa,formato) {
   const centro=cenBy(codigo), mo=mesaOperativa(codigo,mesa), ms=mesaMiembros(codigo,mesa);
-  const row=m=>{const inf=personaNombreCedula(m.cedula);return '<tr><td>'+esc(fC(inf.letra,m.cedula))+'</td><td>'+esc(inf.nombre)+'</td><td>'+esc(m.cargo)+'</td><td>'+esc(m.tipo)+'</td><td>'+esc(m.autorizado?'Sí':'No')+'</td></tr>';};
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Acta de Inicialización • Mesa '+esc(mesa)+'</title><style>body{font-family:Arial,sans-serif;color:#111;margin:18px;font-size:11px}h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;margin:16px 0 7px;border-bottom:1px solid #bbb;padding-bottom:4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:5px;text-align:left}th{background:#f1f5f9}.box{border:1px solid #bbb;padding:10px;margin-top:10px}.sig{height:55px;border-bottom:1px solid #777;margin-top:20px;width:45%;display:inline-block;margin-right:4%}@page{size:A4 portrait;margin:12mm}</style></head><body>' +
-    '<h1>ACTA DE INICIALIZACIÓN DE MESA</h1><div>Sistema de Gestión Electoral</div><div class="box"><b>Centro:</b> '+esc(centro?.nombre||codigo)+'<br><b>Código:</b> '+esc(codigo)+'<br><b>Mesa:</b> '+esc(mesa)+'<br><b>Hora de Constitución:</b> '+esc(mo?.hora_constitucion||'No registrada')+'<br><b>Hora de Inicio del Acto de Votación:</b> '+esc(mo?.hora_inicio_votacion||'No registrada')+'<br><b>Testigos asistentes:</b> '+Number(mo?.testigos_asistieron||0)+'</div>' +
-    '<h2>Miembros de mesa registrados</h2><table><thead><tr><th>C.I.</th><th>Nombre</th><th>Cargo</th><th>Tipo</th><th>Autorización</th></tr></thead><tbody>'+(ms.length?ms.map(row).join(''):'<tr><td colspan="5">Sin miembros registrados</td></tr>')+'</tbody></table>' +
+  const fmt=(formato||'A4').toUpperCase()==='CARTA'?'CARTA':'A4';
+  const page=fmt==='CARTA'?'letter':'A4';
+  const row=m=>{const inf=personaNombreCedula(m.cedula);return '<tr><td>'+esc(fC(inf.letra,m.cedula))+'</td><td>'+esc(inf.nombre)+'</td><td>'+esc(m.cargo)+'</td><td>'+esc(m.tipo)+'</td><td>'+esc(m.origen||origenRegistroPersona(m.cedula))+'</td><td>'+esc(m.autorizado?'Sí':'No')+'</td></tr>';};
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Acta de Inicialización • Mesa '+esc(mesa)+'</title><style>body{font-family:Arial,sans-serif;color:#111;margin:18px;font-size:11px}h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;margin:16px 0 7px;border-bottom:1px solid #bbb;padding-bottom:4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:5px;text-align:left}th{background:#f1f5f9}.box{border:1px solid #bbb;padding:10px;margin-top:10px}.sig{height:55px;border-bottom:1px solid #777;margin-top:20px;width:45%;display:inline-block;margin-right:4%}@page{size:${page} portrait;margin:12mm}</style></head><body>' +
+    '<h1>ACTA DE INICIALIZACIÓN DE MESA</h1><div>Sistema de Gestión Electoral</div><div class="box"><b>Centro:</b> '+esc(centro?.nombre||codigo)+'<br><b>Código:</b> '+esc(codigo)+'<br><b>Mesa:</b> '+esc(mesa)+'<br><b>Formato:</b> '+fmt+'<br><b>Hora de Constitución:</b> '+esc(mo?.hora_constitucion||'No registrada')+'<br><b>Hora de Inicio del Acto de Votación:</b> '+esc(mo?.hora_inicio_votacion||'No registrada')+'<br><b>Testigos asistentes:</b> '+Number(mo?.testigos_asistieron||0)+'</div>' +
+    '<h2>Miembros de mesa registrados</h2><table><thead><tr><th>C.I.</th><th>Nombre</th><th>Cargo</th><th>Tipo</th><th>Origen</th><th>Autorización</th></tr></thead><tbody>'+(ms.length?ms.map(row).join(''):'<tr><td colspan="6">Sin miembros registrados</td></tr>')+'</tbody></table>' +
     '<div class="sig">Firma / responsable</div><div class="sig">Observaciones</div></body></html>';
 }
-function imprimirActaInicializacion(codigo,mesa) {
-  const html=actaInicializacionHTML(codigo,mesa), w=window.open('','_blank');
+function formatoActaInicializacion(){return String($('mesaActaFormato')?.value||'A4').toUpperCase()==='CARTA'?'CARTA':'A4';}
+function imprimirActaInicializacion(codigo,mesa,formato){
+  const html=actaInicializacionHTML(codigo,mesa,formato||formatoActaInicializacion()), w=window.open('','_blank');
   if(!w) return toast('El navegador bloqueó la ventana de impresión','err');
   w.document.write(html); w.document.close(); setTimeout(()=>{w.focus();w.print();},400);
 }
-function downloadPDFActaInicializacion(codigo,mesa) {
+function downloadPDFActaInicializacion(codigo,mesa,formato){
   const mo=mesaOperativa(codigo,mesa); if(!mo) return toast('Guarde primero la constitución de la Mesa','err');
-  const center=actaInicializacionHTML(codigo,mesa).replace(/<!DOCTYPE html>[\s\S]*?<body>/,'').replace(/<\/body><\/html>$/,'');
+  const fmt=(formato||formatoActaInicializacion()).toUpperCase()==='CARTA'?'CARTA':'A4';
+  const center=actaInicializacionHTML(codigo,mesa,fmt).replace(/<!DOCTYPE html>[\s\S]*?<body>/,'').replace(/<\/body><\/html>$/,'');
   const box=document.createElement('div'); box.innerHTML=center; box.style.background='#fff'; box.style.padding='12px'; document.body.appendChild(box);
   if(typeof html2pdf!=='function'){document.body.removeChild(box);return toast('Generador PDF no disponible','err');}
-  html2pdf().set({margin:8,filename:'acta_inicializacion_'+String(codigo)+'_mesa_'+String(mesa)+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(box).save().then(()=>document.body.removeChild(box)).catch(()=>document.body.removeChild(box));
+  html2pdf().set({margin:8,filename:'acta_inicializacion_'+String(codigo)+'_mesa_'+String(mesa)+'_'+fmt.toLowerCase()+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:fmt==='CARTA'?'letter':'a4',orientation:'portrait'}}).from(box).save().then(()=>document.body.removeChild(box)).catch(()=>document.body.removeChild(box));
 }
 function editarActaMesa(codigo, mesa) {
   const a=(CACHE.actasMesa||[]).find(x=>x.centro_codigo===codigo && String(x.mesa)===String(mesa));
