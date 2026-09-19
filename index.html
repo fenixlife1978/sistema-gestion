@@ -858,10 +858,29 @@ async function migrarActasMesaPartido() {
 async function inicializarTurso() {
   setLoad('Creando tablas en Turso...', 'Preparando estructura de datos...');
   let schemaWarn = 0;
+  const schemaErrors = [];
+  const isBenignMigrationError = e => {
+    const msg = String(e?.message || e || '').toLowerCase();
+    return /duplicate column name|already exists|duplicate index|duplicate table/.test(msg);
+  };
   await migrarActasMesaPartido();
   for (let i = 0; i < SCHEMA.length; i++) {
     setLoad('Creando tablas en Turso...', 'Paso ' + (i + 1) + ' de ' + SCHEMA.length);
-    try { await x(SCHEMA[i]); } catch (e) { schemaWarn++; console.warn('Schema warn:', e.message); }
+    try {
+      await x(SCHEMA[i]);
+    } catch (e) {
+      if (isBenignMigrationError(e)) {
+        schemaWarn++;
+        console.warn('Migración ya aplicada:', e.message);
+      } else {
+        schemaErrors.push({ paso: i + 1, error: String(e?.message || e) });
+        console.error('Schema error:', e);
+      }
+    }
+  }
+  if (schemaErrors.length) {
+    const detalle = schemaErrors.map(x => 'Paso ' + x.paso + ': ' + x.error).join(' | ');
+    throw new Error('La estructura de Turso no pudo validarse completamente. ' + detalle);
   }
   setLoad('Verificando usuarios iniciales...', schemaWarn ? ('Estructura lista con ' + schemaWarn + ' avisos de migración') : 'Estructura creada correctamente');
   const users = await q('SELECT COUNT(*) AS n FROM usuarios');
@@ -952,8 +971,12 @@ async function doLogin() {
     if (selR === 'J' && userRole !== 'J') return toast('Este usuario no tiene rol de Jefe de Comando', 'err');
     if (selR === 'A' && !['J', 'A'].includes(userRole)) return toast('Este usuario no tiene rol de Administrador', 'err');
     if (selR === 'O' && userRole !== 'O') return toast('Este usuario no tiene rol de Operador', 'err');
-    USER = row[0];
-    localStorage.setItem('session', JSON.stringify({ user: USER, cur: 'dash' }));
+    USER = { ...row[0] };
+    delete USER.clave_hash;
+    localStorage.setItem('session', JSON.stringify({ user: {
+      id: USER.id, usuario: USER.usuario, nombre: USER.nombre, rol: USER.rol,
+      cargo: USER.cargo, telefono: USER.telefono, activo: USER.activo
+    }, cur: 'dash' }));
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
     await refreshAll();
     enterApp('dash');
@@ -1002,7 +1025,10 @@ function go(id) {
   const m = MODS.find(x => x.id === id);
   if (m.adm && !m.adm.includes(USER.rol)) return toast('Módulo restringido a ' + m.adm.join('/'), 'err');
   CUR = id;
-  localStorage.setItem('session', JSON.stringify({ user: USER, cur: CUR }));
+  localStorage.setItem('session', JSON.stringify({ user: {
+    id: USER.id, usuario: USER.usuario, nombre: USER.nombre, rol: USER.rol,
+    cargo: USER.cargo, telefono: USER.telefono, activo: USER.activo
+  }, cur: CUR }));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   const t = $('tb-' + id); if (t) t.classList.add('on');
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
@@ -1010,7 +1036,11 @@ function go(id) {
   ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion, comite: renderComite, control: renderControlElectoral })[id]();
   window.scrollTo({ top: 0 });
 }
-function logout() { localStorage.removeItem('session'); location.reload() }
+function logout() {
+  localStorage.removeItem('session');
+  USER = null;
+  location.reload();
+}
 
 /* ----------- TOOLBAR ----------- */
 async function tbSave() {
