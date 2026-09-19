@@ -3227,16 +3227,23 @@ function metricasCorteCentro(codigo) {
 }
 
 async function crearCorteElectoral(codigo) {
-  const met=metricasCorteCentro(codigo);
-  if(!met) return toast('Seleccione un centro válido para tomar el corte','err');
   const centro=cenBy(codigo);
+  if(!centro) return toast('Seleccione un centro válido para tomar el corte','err');
   const etiqueta=prompt('Etiqueta del corte (opcional):','Corte '+new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit'}));
   if(etiqueta===null) return;
   try {
-    await x('INSERT INTO cortes_electorales(centro_codigo,etiqueta,tomado_en,tomado_por,personas_universo,verificados,pendientes,porcentaje_verificado,masculinos_universo,femeninos_universo,masculinos_verificados,femeninos_verificados,mesas_total,mesas_con_acta,votos_partido_acta,diferencia_acta,detalle_json) VALUES(?,?,datetime("now"),?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[codigo,etiqueta.trim()||null,USER.id,met.personas,met.verificados,met.pendientes,met.pct,met.mM,met.mF,met.vM,met.vF,met.mesas,met.actasCargadas,met.totalActa,met.diffTotal===null?null:met.diffTotal,JSON.stringify(met.detalle)]);
-    await registrarAct('corte','Corte de métricas • Centro '+codigo+' • '+(centro?.nombre||'')+' • '+(etiqueta.trim()||'Sin etiqueta'),USER.id);
-    await refreshAll(); renderControlElectoral(); toast('Corte registrado correctamente','ok');
-  } catch(e){toast('No se pudo guardar el corte: '+e.message,'err',8000);}
+    const rr=await fetch('/api/cortes',{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({centro_codigo:String(codigo),etiqueta:etiqueta.trim()})
+    });
+    const data=await rr.json().catch(()=>({}));
+    if(!rr.ok) throw new Error(data.error||'No se pudo guardar el corte');
+    await refreshAll();
+    renderControlElectoral();
+    toast('Corte registrado correctamente','ok');
+  }catch(e){toast('No se pudo guardar el corte: '+e.message,'err',8000);}
 }
 
 function renderCortesPanel(codigo) {
