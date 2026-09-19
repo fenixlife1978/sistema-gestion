@@ -2767,6 +2767,7 @@ function openComiteView(id) {
   const ci = fC(letra, reg.cedula);
   const tel = reg.telefono ? reg.telefono : '';
   const dir = reg.direccion ? reg.direccion : '';
+  const problemas = problemasTextoComite(reg.id);
 
   win(ic('eye', 18) + ' Expediente — Comité Vecinal (' + esc(reg.comunidad) + ')',
     '<div class="alert ok" style="margin-bottom:14px;display:flex;gap:12px;align-items:center">' +
@@ -2799,7 +2800,7 @@ function openComiteView(id) {
         '<div><b>Número de calle:</b> ' + esc(reg.numero_calle || 'No registrado') + '</div>' +
         '<div><b>Número de casa:</b> ' + esc(reg.numero_casa || 'No registrado') + '</div>' +
       '</div>' +
-      '<div style="margin-top:12px;padding:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;font-size:12px"><b style="color:#8d6e00">Problemática Actual:</b><div style="margin-top:4px;white-space:pre-wrap">' + esc(reg.problematica_actual || 'No registrada') + '</div></div>' +
+      '<div style="margin-top:12px;padding:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;font-size:12px"><b style="color:#8d6e00">Problemáticas seleccionadas:</b><div style="margin-top:4px;white-space:pre-wrap">' + esc(problemas || 'Ninguna seleccionada') + '</div><div style="margin-top:8px"><b style="color:#8d6e00">Observación adicional:</b><div style="margin-top:4px;white-space:pre-wrap">' + esc(reg.problematica_actual || 'Sin observación adicional') + '</div></div></div>' +
     '</div>',
     '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 640
   );
@@ -2861,6 +2862,7 @@ function comiteBuscarCedula() {
       '<div style="margin-top:14px;text-align:right">' +
         '<button class="btn btn-navy" onclick="saveComiteAuto(\'' + p.cedula + '\')">Guardar y Asignar Comité Vecinal ➜</button>' +
       '</div>';
+    renderComiteProblemasSelected('com');
   } else {
     resArea.innerHTML =
       '<div class="alert warn" style="display:flex;gap:10px;align-items:center">' +
@@ -2945,6 +2947,7 @@ function openComiteManualForm(ced) {
     '<div style="margin-top:14px;text-align:right">' +
       '<button class="btn btn-navy" onclick="saveComiteManualFull()">' + ic('check', 14) + ' Guardar y Registrar ➜</button>' +
     '</div>';
+  renderComiteProblemasSelected('cm');
 }
 
 async function saveComiteManualFull() {
@@ -3034,7 +3037,7 @@ function openComiteEdit(id) {
     comiteProblemasHTML('comE', (CACHE.comiteProblemas || []).filter(x => Number(x.comite_id) === Number(id)).map(x => Number(x.problema_id)), reg.problematica_actual || ''),
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveComiteEdit(' + id + ')">Guardar cambios ➜</button>', 550
   );
-  setTimeout(() => { const el = $('comETel'); if (el) el.focus(); }, 200);
+  setTimeout(() => { renderComiteProblemasSelected('comE'); const el = $('comETel'); if (el) el.focus(); }, 200);
 }
 
 async function saveComiteEdit(id) {
@@ -3090,7 +3093,9 @@ function datosComiteFila(item) {
   const dir = x ? (x.direccion || p.direccion || '') : '';
   const nroCalle = x ? (x.numero_calle || '') : '';
   const nroCasa = x ? (x.numero_casa || '') : '';
-  const problematica = x ? (x.problematica_actual || '') : '';
+  const legacyProblem = x ? (x.problematica_actual || '') : '';
+  const catalogProblems = x ? problemasTextoComite(x.id) : '';
+  const problematica = [catalogProblems, legacyProblem ? 'Observación: ' + legacyProblem : ''].filter(Boolean).join(' • ');
   return { ci, pa, sa, pn, sn, nombre, edad, sexo, fn, cv, munPar, tel, dir, nroCalle, nroCasa, problematica };
 }
 
