@@ -3261,7 +3261,7 @@ function openComiteView(id) {
       '<span class="uava" style="width:42px;height:42px;font-size:14px;border-radius:8px">' + ini(nomComp) + '</span>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:16px;font-weight:700;color:var(--navy)">' + esc(nomComp) + '</div>' +
-        '<div style="font-size:12px;font-weight:600;color:var(--teal)">Cargo: Responsable de Comité Vecinal — ' + esc(reg.comunidad) + '</div>' +
+        '<div style="font-size:12px;font-weight:600;color:var(--teal)">Cargo: ' + esc(reg.cargo || 'Comité Vecinal') + ' — ' + esc(reg.comunidad) + '</div>' +
         '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:2px">C.I.: <b>' + ci + '</b></div>' +
       '</div>' +
     '</div>' +
@@ -3547,23 +3547,18 @@ async function saveComiteEdit(id) {
 }
 
 function getComiteListadoCompleto() {
-  const asignados = CACHE.comite || [];
-  const porComunidad = new Map();
-  asignados.forEach(r => {
-    if (r && r.comunidad) porComunidad.set(String(r.comunidad).trim().toUpperCase(), r);
+  const asignados=CACHE.comite||[], cargos=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
+  const porClave=new Map();
+  asignados.forEach(r=>porClave.set(String(r.comunidad||'').trim().toUpperCase()+'|'+String(r.cargo||'').trim().toUpperCase(),r));
+  const out=[];
+  getComunidadesCatalogo().forEach((comunidad,i)=>{
+    cargos.forEach(cargo=>{
+      const asignado=porClave.get(String(comunidad).trim().toUpperCase()+'|'+cargo)||null;
+      const p=asignado?(padBy(asignado.cedula)||asignado):{};
+      out.push({nro:i+1,comunidad,cargo,asignado,p,estado:asignado?'ASIGNADO':'SIN ASIGNAR'});
+    });
   });
-
-  return getComunidadesCatalogo().map((comunidad, i) => {
-    const asignado = porComunidad.get(String(comunidad).trim().toUpperCase()) || null;
-    const p = asignado ? (padBy(asignado.cedula) || asignado) : {};
-    return {
-      nro: i + 1,
-      comunidad,
-      asignado,
-      p,
-      estado: asignado ? 'ASIGNADO' : 'SIN ASIGNAR'
-    };
-  });
+  return out;
 }
 
 function datosComiteFila(item) {
@@ -3600,6 +3595,7 @@ function printComite() {
     return '<tr' + muted + '>' +
       '<td>' + item.nro + '</td>' +
       '<td style="font-weight:700">' + esc(item.comunidad) + '</td>' +
+      '<td style="font-weight:700">' + esc(item.cargo) + '</td>' +
       '<td style="font-weight:700">' + esc(item.estado) + '</td>' +
       '<td class="mono">' + esc(d.ci) + '</td>' +
       '<td>' + esc(d.pa) + '</td>' +
@@ -3631,7 +3627,7 @@ function printComite() {
     '<h2>Estructura de Comités Vecinales por Comunidad</h2>' +
     '<p>Sistema de Gestión Electoral • Catálogo oficial de 118 comunidades • Asignados: ' + asignados + ' • Sin asignar: ' + (listado.length - asignados) + ' • Total: ' + listado.length + '</p>' +
     '<table><thead><tr>' +
-      '<th>#</th><th>Comunidad</th><th>Estado</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
+      '<th>#</th><th>Comunidad</th><th>Cargo</th><th>Estado</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
       '<th>Primer Nombre</th><th>Segundo Nombre</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th>' +
       '<th>Centro Votación</th><th>Municipio / Parroquia</th><th>Teléfono</th><th>Dirección</th><th>Nro. Calle</th><th>Nro. Casa</th><th>Problemática Actual</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
@@ -3647,7 +3643,7 @@ function printComite() {
     const d = datosComiteFila(item);
     const muted = item.asignado ? '' : 'color:#64748b;font-style:italic;';
     return '<tr style="'+muted+'">'+
-      '<td>'+item.nro+'</td><td><b>'+esc(item.comunidad)+'</b></td><td><b>'+esc(item.estado)+'</b></td><td class="mono">'+esc(d.ci)+'</td>'+
+      '<td>'+item.nro+'</td><td><b>'+esc(item.comunidad)+'</b></td><td><b>'+esc(item.cargo)+'</b></td><td><b>'+esc(item.estado)+'</b></td><td class="mono">'+esc(d.ci)+'</td>'+
       '<td>'+esc(d.pa)+'</td><td>'+esc(d.sa)+'</td><td>'+esc(d.pn)+'</td><td>'+esc(d.sn)+'</td><td>'+esc(d.edad)+'</td><td>'+esc(d.sexo)+'</td><td class="mono">'+esc(d.fn)+'</td>'+
       '<td>'+esc(d.cv)+'</td><td>'+esc(d.munPar)+'</td><td class="mono">'+esc(d.tel)+'</td><td>'+esc(d.dir)+'</td><td>'+esc(d.nroCalle)+'</td><td>'+esc(d.nroCasa)+'</td><td>'+esc(d.problematica)+'</td></tr>';
   }).join('');
