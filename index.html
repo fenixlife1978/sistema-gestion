@@ -632,7 +632,7 @@ async function refreshAll() {
     try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
   }
   try {
-    CACHE.comite = await q('SELECT cv.id, cv.comunidad, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC');
+    CACHE.comite = await q('SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC');
   } catch (e) {
     console.warn('Fallback CACHE.comite:', e);
     try { CACHE.comite = await q('SELECT * FROM comite_vecinal ORDER BY id DESC'); } catch (err) { CACHE.comite = []; }
@@ -2653,75 +2653,30 @@ function getComunidadesCatalogo() {
 }
 
 function filterComiteCards() {
-  const elCom = $('comSearch');
-  if (elCom) COMITE_FILTER.comunidad = elCom.value;
-  const el = $('comTxt');
-  if (el) COMITE_FILTER.txt = el.value;
-  const comList = CACHE.comite || [];
-  const comunidades = getComunidadesCatalogo();
-  const fCom = (COMITE_FILTER.comunidad || '').trim().toLowerCase();
-  const fTxt = (COMITE_FILTER.txt || '').trim().toLowerCase();
-
-  const comunidadesVisualizadas = fCom
-    ? comunidades.filter(c => c.toLowerCase().includes(fCom))
-    : comunidades;
-
-  const cardsHtml = comunidadesVisualizadas.map(comNom => {
-    const asig = comList.find(x => String(x.comunidad || '').trim().toUpperCase() === comNom);
-    if (asig) {
-      const p = padBy(asig.cedula) || asig;
-      const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (asig.nombre || asig.cedula);
-      const letra = p.letra || asig.letra || 'V';
-      const ci = fC(letra, asig.cedula);
-      const tel = asig.telefono ? asig.telefono : '';
-      const dir = asig.direccion ? asig.direccion : '';
-      const cvNom = p.nombre_cv || p.centro_votacion || '';
-      const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
-
-      if (fTxt) {
-        const fullText = (nomComp + ' ' + ci + ' ' + comNom + ' ' + cvNom + ' ' + tel + ' ' + dir).toLowerCase();
-        if (!fullText.includes(fTxt)) return '';
+  const elCom=$('comSearch'); if(elCom) COMITE_FILTER.comunidad=elCom.value;
+  const el=$('comTxt'); if(el) COMITE_FILTER.txt=el.value;
+  const comList=CACHE.comite||[], comunidades=getComunidadesCatalogo();
+  const fCom=(COMITE_FILTER.comunidad||'').trim().toLowerCase(), fTxt=(COMITE_FILTER.txt||'').trim().toLowerCase();
+  const cargos=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
+  const visual=fCom?comunidades.filter(c=>c.toLowerCase().includes(fCom)):comunidades;
+  const cardsHtml=visual.map(comNom=>{
+    const rows=cargos.map(cargo=>{
+      const asig=comList.find(x=>String(x.comunidad||'').trim().toUpperCase()===comNom && String(x.cargo||'').trim().toUpperCase()===cargo);
+      if(asig){
+        const p=padBy(asig.cedula)||asig, nomComp=(p.p_nombre||p.p_apellido)?(apeP(p)+', '+nomP(p)):(asig.nombre||asig.cedula);
+        const ci=fC(p.letra||asig.letra||'V',asig.cedula),tel=asig.telefono||'';
+        const full=(nomComp+' '+ci+' '+comNom+' '+cargo+' '+tel).toLowerCase();
+        if(fTxt&&!full.includes(fTxt))return '';
+        return '<div style="display:flex;gap:8px;align-items:center;padding:9px;border:1px solid var(--line2);border-radius:6px;background:#fff"><div style="flex:1;min-width:0"><div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase">'+esc(cargo)+'</div><div style="font-size:13px;font-weight:700;color:var(--navy);margin-top:2px">'+esc(nomComp)+'</div><div class="mono" style="font-size:11px;color:var(--mut)">'+esc(ci)+(tel?' • '+esc(tel):'')+'</div></div><button class="btn btn-navy btn-xs" onclick="openComiteView('+asig.id+')">'+ic('eye',13)+'</button><button class="btn btn-w btn-xs" onclick="openComiteEdit('+asig.id+')">'+ic('edit',12)+'</button><button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delComite('+asig.id+')">'+ic('x',12)+'</button></div>';
       }
-
-      return '<div class="kcard" style="padding:14px;border-left:4px solid var(--teal);background:#ffffff">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
-          '<div style="flex:1;min-width:0">' +
-            '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + ic('home', 12) + ' COMUNIDAD: ' + esc(comNom) + '</div>' +
-            '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:4px">' + esc(nomComp) + '</div>' +
-            '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:4px">' +
-              '<b>C.I.:</b> ' + ci + ((p.edad || edadDe(p.fecha_nac)) ? ' &nbsp;&bull;&nbsp; <b>Edad:</b> ' + (edadDe(p.fecha_nac) || p.edad) + 'a' : '') + (p.sexo ? ' &nbsp;&bull;&nbsp; <b>Sexo:</b> ' + p.sexo : '') +
-            '</div>' +
-            (cvNom ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('pin', 11) + ' <b>Centro:</b> ' + esc(cvNom) + (munPar ? ' (' + esc(munPar) + ')' : '') + '</div>' : '') +
-            (tel ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('chat', 11) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + esc(tel) + '</a></div>' : '') +
-            (dir ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' ' + esc(dir) + '</div>' : '') +
-          '</div>' +
-          '<div style="display:flex;gap:4px;align-items:center">' +
-          '<button class="btn btn-navy btn-xs" onclick="openComiteView(' + asig.id + ')" title="Ver Detalle y Padrón CNE">' + ic('eye', 14) + ' Ver Datos</button>' +
-            '<button class="btn btn-w btn-xs" onclick="openComiteEdit(' + asig.id + ')" title="Editar datos">' + ic('edit', 12) + '</button>' +
-            '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delComite(' + asig.id + ')" title="Remover cargo de Comité Vecinal">' + ic('x', 12) + '</button>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    } else {
-      if (fTxt && !comNom.toLowerCase().includes(fTxt)) return '';
-      return '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
-          '<div>' +
-            '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase">' + ic('home', 12) + ' COMUNIDAD: ' + esc(comNom) + '</div>' +
-            '<div style="font-size:13px;font-weight:600;color:var(--mut);margin-top:2px"><span class="chip chip-y">Sin Asignar / Vacante</span></div>' +
-          '</div>' +
-          '<button class="btn btn-navy btn-xs" onclick="openComiteManual(\'' + esc(comNom).replace(/'/g, "\\'") + '\')">' + ic('userPlus', 12) + ' Asignar Comité</button>' +
-        '</div>' +
-      '</div>';
-    }
+      if(fTxt&&!((comNom+' '+cargo).toLowerCase().includes(fTxt)))return '';
+      const safe=esc(comNom).replace(/'/g,"\\'");
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px;border:1px dashed #cbd5e1;border-radius:6px;background:#f8fafc"><div><div style="font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase">'+esc(cargo)+'</div><span class="chip chip-y">Vacante</span></div><button class="btn btn-navy btn-xs" onclick="openComiteManual(\''+safe+'\')">'+ic('userPlus',12)+' Asignar</button></div>';
+    }).join('');
+    return '<div class="kcard" style="padding:14px;border-left:4px solid var(--teal)"><div style="font-size:12px;font-weight:700;color:var(--teal);text-transform:uppercase">'+ic('home',12)+' COMUNIDAD: '+esc(comNom)+'</div><div style="margin-top:10px;display:grid;gap:7px">'+rows+'</div></div>';
   }).join('');
-
-  const grid = $('comCardsGrid');
-  if (grid) {
-    grid.innerHTML = cardsHtml || '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--mut)">No se encontraron comunidades ni responsables con el criterio buscado.</div>';
-  }
+  const grid=$('comCardsGrid'); if(grid)grid.innerHTML=cardsHtml||'<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--mut)">No se encontraron comunidades ni cargos con el criterio buscado.</div>';
 }
-
 
 function controlCentroActual() {
   return cenBy(CONTROL_ELECTORAL.centro) || CACHE.centros[0] || null;
@@ -3248,13 +3203,14 @@ function renderComite() {
 
   const asignadosCount = comList.length;
   const totalComunidades = comunidades.length;
-  const pctCobertura = totalComunidades ? ((asignadosCount / totalComunidades) * 100).toFixed(1) : '0.0';
+  const totalCargos = totalComunidades * 5;
+  const pctCobertura = totalCargos ? ((asignadosCount / totalCargos) * 100).toFixed(1) : '0.0';
 
   $('sec-comite').innerHTML = panel(
-    'Comités Vecinales <span class="chip chip-b">' + asignadosCount + ' / ' + totalComunidades + ' comunidades asignadas (' + pctCobertura + '%)</span>',
+    'Comités Vecinales <span class="chip chip-b">' + asignadosCount + ' / ' + totalCargos + ' cargos asignados (' + pctCobertura + '%)</span>',
     '<div class="grid g3" style="gap:10px;margin-bottom:14px">' +
       kc('Comunidades Totales', totalComunidades, 'del catálogo oficial') +
-      kc('Comités Vecinales Asignados', asignadosCount, 'líderes registrados', (asignadosCount/Math.max(1,totalComunidades))*100) +
+      kc('Cargos Asignados', asignadosCount, 'de 5 cargos por comunidad', (asignadosCount/Math.max(1,totalCargos))*100) +
       kc('Cobertura Territorial', pctCobertura + '%', 'de comunidades cubiertas', pctCobertura, true) +
     '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--bg2);padding:10px;border-radius:8px;border:1px solid var(--line2)">' +
@@ -3344,7 +3300,7 @@ function openComiteManual(preComunidad) {
       comunidades.map(c => '<option value="' + esc(c) + '" ' + (preComunidad === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
     '</select>' +
     '<div style="margin-top:10px">' +
-      '<label class="fl">Número de Cédula de Identidad del Responsable</label>' +
+      '<label class="fl">Cargo a asignar</label><select class="inp" id="comCargo"><option value="">Seleccionar cargo...</option><option>COORDINADOR</option><option>RESPONSABLE DE ORGANIZACIÓN</option><option>RESPONSABLE ELECTORAL</option><option>RESPONSABLE DE JUVENTUD</option><option>RESPONSABLE DE ACCIÓN SOCIAL</option></select><label class="fl">Número de Cédula de Identidad del Responsable</label>' +
       '<div style="display:flex;gap:6px">' +
         '<input class="inp mono" id="comCed" placeholder="V-12.345.678" onkeydown="if(event.key===\'Enter\')comiteBuscarCedula()">' +
         '<button type="button" class="btn btn-navy" id="btnComiteBuscarCne">' + ic('search', 14) + ' Buscar CNE</button>' +
