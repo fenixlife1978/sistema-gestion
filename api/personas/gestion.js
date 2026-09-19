@@ -75,6 +75,34 @@ module.exports=async function(req,res){
       return res.json({ok:true,id:rr.id||null});
     }
 
+    if(action==='crear_comprometido_manual'){
+      const ced=s(b.cedula), letra=s(b.letra)||'V', pa=s(b.p_apellido), sa=s(b.s_apellido), pn=s(b.p_nombre), sn=s(b.s_nombre);
+      const sexo=s(b.sexo), fecha=s(b.fecha_nac), tel=s(b.telefono), calle=s(b.numero_calle), casa=s(b.numero_casa), dir=s(b.direccion);
+      const rid=n(b.reclutador_id), cv=b.centro||{};
+      if(!CED.test(ced)||!pa||!pn||!rid) return res.status(400).json({error:'Datos del comprometido incompletos'});
+      if(!['V','E'].includes(letra)||!['M','F'].includes(sexo)) return res.status(400).json({error:'Datos de identidad inválidos'});
+      if(tel && !TEL.test(tel.replace(/\D/g,''))) return res.status(400).json({error:'Teléfono inválido'});
+      const r=rowsFrom(await exec([{q:'SELECT id,cedula FROM reclutadores WHERE id=? LIMIT 1',params:[rid]}]))[0];
+      if(!r) return res.status(404).json({error:'Movilizador no existe'});
+      const cnt=Number(rowsFrom(await exec([{q:'SELECT COUNT(*) n FROM asignaciones WHERE reclutador_id=?',params:[rid]}]))[0]?.n||0);
+      if(cnt>=10) return res.status(409).json({error:'El movilizador ya tiene 10 compromisos'});
+      const exists=rowsFrom(await exec([{q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
+      if(exists) return res.status(409).json({error:'La cédula ya existe en el padrón'});
+      const any=rowsFrom(await exec([{q:'SELECT reclutador_id FROM asignaciones WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
+      if(any) return res.status(409).json({error:'La persona ya está asignada a otro movilizador'});
+      if(!s(cv.codigo)) return res.status(400).json({error:'Centro electoral requerido'});
+      const centro=rowsFrom(await exec([{q:'SELECT * FROM centros WHERE codigo=? LIMIT 1',params:[s(cv.codigo)]}]))[0];
+      if(!centro) return res.status(400).json({error:'Centro electoral no existe'});
+      const max=Number(rowsFrom(await exec([{q:'SELECT COALESCE(MAX(posicion),0) m FROM asignaciones WHERE reclutador_id=?',params:[rid]}]))[0]?.m||0);
+      const pos=max+1;
+      await exec([
+        {q:'INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',params:[ced,letra,pa,sa,pn,sn,sexo,fecha,edad(fecha),centro.cod_estado,centro.estado,centro.cod_municipio,centro.municipio,centro.cod_parroquia,centro.parroquia,centro.codigo,centro.nombre]},
+        {q:'INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)',params:[rid,ced,pos,tel?normTel(tel):null,calle||null,casa||null,dir||null]}
+      ]);
+      await log(a,'Alta manual CNE y asignación: '+letra+'-'+ced+' en lista #'+rid);
+      return res.json({ok:true,posicion:pos});
+    }
+
     if(action==='agregar_asignacion'){
       const rid=n(b.reclutador_id), ced=s(b.cedula), tel=s(b.telefono), calle=s(b.numero_calle), casa=s(b.numero_casa), dir=s(b.direccion);
       if(!rid||!CED.test(ced)) return res.status(400).json({error:'Datos de asignación inválidos'});
