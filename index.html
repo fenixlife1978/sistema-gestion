@@ -1837,6 +1837,12 @@ function openUserForm(id) {
     '<p style="font-size:12px;color:var(--mut);margin-top:12px">Los roles J y A pueden gestionar usuarios. El rol O solo opera el sistema.</p>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveUser(' + (id || 0) + ')">' + (u ? 'Actualizar' : 'Crear') + ' ?</button>', 620);
 }
+async function apiUsuario(action,payload={}){
+  const r=await fetch('/api/usuarios/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...payload})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
 async function saveUser(id) {
   const u = $('fuU').value.trim(), p = $('fuP').value, n = $('fuN').value.trim(), r = $('fuR').value, c = $('fuC').value, t = $('fuT').value.trim();
   if (!u || !n) return toast('Usuario y nombre son obligatorios', 'err');
@@ -1844,16 +1850,9 @@ async function saveUser(id) {
   const telFmt = normTel(t);
   if (t) { const dupTel = await verificarDuplicidadTelefono(t, id ? {origen:'USUARIO', id} : {}); if (dupTel) return toast(mensajeDuplicidadTelefono(t, dupTel), 'err', 8000); }
   try {
-    if (id) {
-      if (p) { const h = await hash(p); await x('UPDATE usuarios SET nombre=?,rol=?,cargo=?,telefono=?,clave_hash=? WHERE id=?', [n, r, c, telFmt, h, id]) }
-      else { await x('UPDATE usuarios SET nombre=?,rol=?,cargo=?,telefono=? WHERE id=?', [n, r, c, telFmt, id]) }
-      await registrarAct('user', 'Usuario actualizado: ' + u + ' (' + r + ')', USER.id);
-    } else {
-      if (!p) return toast('La clave es obligatoria al crear', 'err');
-      const h = await hash(p);
-      await x('INSERT INTO usuarios(usuario,clave_hash,nombre,rol,cargo,telefono) VALUES(?,?,?,?,?,?)', [u, h, n, r, c, telFmt]);
-      await registrarAct('user', 'Usuario creado: ' + u + ' (' + r + ')', USER.id);
-    }
+    if (!id && !p) return toast('La clave es obligatoria al crear', 'err');
+    await apiUsuario('save',{id,usuario:u,clave:p,nombre:n,rol:r,cargo:c,telefono:telFmt});
+    await registrarAct('user', (id?'Usuario actualizado: ':'Usuario creado: ')+u+' ('+r+')', USER.id);
     await refreshAll(); closeModal(); renderUsers(); toast('Usuario guardado', 'ok');
   } catch (e) {
     if (String(e.message).toLowerCase().includes('unique')) toast('El usuario ya existe', 'err');
@@ -1861,7 +1860,7 @@ async function saveUser(id) {
   }
 }
 async function toggleUser(id, nuevo) {
-  await x('UPDATE usuarios SET activo = ? WHERE id = ?', [nuevo, id]);
+  await apiUsuario('toggle',{id,activo:nuevo});
   await registrarAct('user', 'Usuario #' + id + (nuevo ? ' activado' : ' desactivado'), USER.id);
   await refreshAll(); renderUsers(); toast('Estado actualizado', 'ok');
 }
@@ -1874,7 +1873,7 @@ function delUser(id) {
   if (u.rol === 'J' && jCount <= 1) return toast('No puede eliminar el último Jefe de Comando', 'err');
   if (u.rol === 'A' && aCount <= 1 && jCount <= 1) return toast('No puede eliminar el último Administrador (no quedan Jefes)', 'err');
   askDo('Eliminar usuario', 'Se eliminará a <b>' + esc(u.nombre) + '</b> (' + esc(u.usuario) + ').', 'Eliminar', async () => {
-    await x('DELETE FROM usuarios WHERE id = ?', [id]);
+    await apiUsuario('delete',{id});
     await registrarAct('user', 'Usuario eliminado: ' + u.usuario, USER.id);
     await refreshAll(); renderUsers(); toast('Usuario eliminado', 'ok');
   });
