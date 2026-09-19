@@ -980,6 +980,42 @@ function renderRegistro(focus) {
   if (focus && inp) inp.focus();
   if (prevFocus) _refocus(prevFocus);
 }
+async function verificarDuplicidadPersona(cedula, contexto = '') {
+  const ced = normC(cedula);
+  if (!ced) return null;
+
+  const consultas = await Promise.all([
+    q('SELECT id, cedula, estructura, direccion FROM reclutadores WHERE cedula = ?', [ced]),
+    q('SELECT a.id, a.cedula, a.reclutador_id, a.posicion, r.cedula AS reclutador_cedula, r.estructura FROM asignaciones a LEFT JOIN reclutadores r ON r.id = a.reclutador_id WHERE a.cedula = ?', [ced]),
+    q('SELECT id, cargo, cedula FROM direccion_ejecutiva WHERE cedula = ?', [ced]),
+    q('SELECT id, comunidad, cedula FROM comite_vecinal WHERE cedula = ?', [ced]),
+    q('SELECT id, centro_codigo, cargo, cedula FROM centro_cargos WHERE cedula = ?', [ced])
+  ]);
+
+  if (consultas[0].length) return { tipo: 'MOVILIZADOR', detalle: 'ya está registrado como movilizador.' };
+  if (consultas[1].length) {
+    const a = consultas[1][0];
+    return { tipo: 'COMPROMETIDO', detalle: 'ya pertenece a la lista de Comprometidos de un movilizador.' };
+  }
+  if (consultas[2].length) {
+    const d = consultas[2][0];
+    return { tipo: 'DIRECCIÓN EJECUTIVA', detalle: 'ya ocupa el cargo "' + (d.cargo || '') + '" en Dirección Ejecutiva.' };
+  }
+  if (consultas[3].length) {
+    const cv = consultas[3][0];
+    return { tipo: 'COMITÉ VECINAL', detalle: 'ya está asignado a la comunidad "' + (cv.comunidad || '') + '".' };
+  }
+  if (consultas[4].length) {
+    const cc = consultas[4][0];
+    return { tipo: 'CARGO DE CENTRO', detalle: 'ya ocupa el cargo "' + (cc.cargo || '') + '" en el centro "' + (cc.centro_codigo || '') + '".' };
+  }
+  return null;
+}
+
+function mensajeDuplicidadPersona(cedula, dup) {
+  return '⛔ Registro rechazado: la C.I. ' + fC('V', cedula) + ' ' + dup.detalle + ' No puede registrarse simultáneamente en otro cargo, lista o función.';
+}
+
 async function doReg() {
   const r = CACHE.recl.find(x => x.id === REG.rec); if (!r) return;
   const c = normC($('cedIn').value); const tel = ($('telIn').value || '').trim(); const box = $('regBox');
@@ -996,6 +1032,9 @@ async function doReg() {
   }
   const own = r.lista.findIndex(l => l.cedula === c);
   if (own > -1) return R('<div class="alert warn"><div class="a-ic">' + ic('warn', 18) + '</div><div><b>Duplicado en la misma lista</b>Ya figura en posición #' + (own + 1) + '.</div></div>');
+  const dupGlobal = await verificarDuplicidadPersona(c, 'comprometido');
+  if (dupGlobal) return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div><b>⛔ Registro bloqueado por duplicidad</b>' + esc(mensajeDuplicidadPersona(c, dupGlobal)) + '</div></div>');
+
   const ex = asignDe(c);
   if (ex) {
     const np = padBy(ex.r.cedula); const nRecl = np ? nomP(np) + ' ' + apeP(np) : ex.r.cedula;
@@ -1079,6 +1118,8 @@ async function saveManual() {
   if (!/^\d{5,9}$/.test(ced) || !pa || !pn) return toast('Complete cédula y apellidos/nombres principales', 'err');
   const cv = cenBy($('mCv').value) || CACHE.centros[0];
   const p = padBy(ced);
+  const dupGlobal = await verificarDuplicidadPersona(ced, 'comprometido');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
   if (p && p.centro_votacion && (p.centro_votacion !== cv.codigo && p.nombre_cv !== cv.nombre)) {
     return toast('⛔ Registro rechazado: La persona con C.I. V-' + ced + ' ya pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cv.codigo) + ').', 'err', 8000);
   }
@@ -1260,7 +1301,8 @@ function nrSearch() {
 function nrPick(c) { const pp = padBy(c); window._nrSel = c; $('nrForm').style.display = 'block'; $('nrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC(pp ? pp.letra : 'V', c) + '</b> seleccionada</div></div>' }
 async function nrSave() {
   const p = padBy(window._nrSel); if (!p) return;
-  if (asignDe(p.cedula)) return toast('Cédula ya asignada', 'err');
+  const dupGlobal = await verificarDuplicidadPersona(p.cedula, 'movilizador');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula, dupGlobal), 'err', 8000);
   const tel = $('nrTel').value.trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   try {
@@ -1291,7 +1333,8 @@ async function saveNrManual() {
     return toast('⛔ Registro rechazado: La persona C.I. V-' + ced + ' pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cv.codigo) + ').', 'err', 8000);
   }
   if (p) return toast('La cédula ya existe en el padrón CNE', 'err');
-  if (asignDe(ced)) return toast('La cédula ya está asignada como movilizador', 'err');
+  const dupGlobal = await verificarDuplicidadPersona(ced, 'movilizador');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
   const fn = $('nrmFn').value; const edad = edadDe(fn);
   const letra = $('nrmLet').value, sexo = $('nrmSex').value;
   const tel = $('nrmTel').value.trim(), est = $('nrmEst').value, dir = $('nrmDir').value.trim();
@@ -1427,6 +1470,8 @@ async function saveCargoManual(codigo, idx) {
   if (!/^\d{5,9}$/.test(ced)) return toast('Ingrese una cédula válida (5-9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete primer apellido y primer nombre', 'err');
   const cv = cenBy($('cmCv').value) || cenBy(codigo);
+  const dupGlobal = await verificarDuplicidadPersona(ced, 'cargo');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
   const p = padBy(ced);
   if (p && p.centro_votacion && (p.centro_votacion !== cv.codigo && p.nombre_cv !== cv.nombre)) {
     return toast('⛔ Registro rechazado: La persona C.I. V-' + ced + ' pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cv.codigo) + ').', 'err', 8000);
@@ -1447,6 +1492,8 @@ async function saveCargoManual(codigo, idx) {
 
 async function assignCargo(codigo, idx, cedula, tel, dir) {
   const cargo = CARGOS_CENTRO[idx];
+  const dupGlobal = await verificarDuplicidadPersona(cedula, 'cargo');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(cedula, dupGlobal), 'err', 8000);
   const p = padBy(cedula);
   const targetCen = cenBy(codigo);
   if (p && p.centro_votacion && (p.centro_votacion !== codigo && p.nombre_cv !== (targetCen ? targetCen.nombre : ''))) {
@@ -2206,6 +2253,9 @@ async function saveDirManualFull() {
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
 
+  const dupGlobal = await verificarDuplicidadPersona(ced, 'direccion');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
+
   const cv = cenBy(cvCod) || CACHE.centros[0] || {};
   const p = padBy(ced);
   if (p && p.centro_votacion && (p.centro_votacion !== cvCod && p.nombre_cv !== cv.nombre)) {
@@ -2766,6 +2816,9 @@ async function saveComiteAuto(cedula) {
   const dir = ($('comDir') ? $('comDir').value : '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
 
+  const dupGlobal = await verificarDuplicidadPersona(cedula, 'comite');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(cedula, dupGlobal), 'err', 8000);
+
   const p = padBy(cedula);
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
@@ -2833,6 +2886,9 @@ async function saveComiteManualFull() {
   if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+
+  const dupGlobal = await verificarDuplicidadPersona(ced, 'comite');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
 
   const cv = cenBy(cvCod) || CACHE.centros[0] || {};
   const p = padBy(ced);
