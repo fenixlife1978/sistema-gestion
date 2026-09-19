@@ -980,7 +980,7 @@ function renderRegistro(focus) {
   if (focus && inp) inp.focus();
   if (prevFocus) _refocus(prevFocus);
 }
-async function verificarDuplicidadPersona(cedula, contexto = '') {
+async async function verificarDuplicidadPersona(cedula, contexto = '') {
   const ced = normC(cedula);
   if (!ced) return null;
 
@@ -995,7 +995,15 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
   if (consultas[0].length) return { tipo: 'MOVILIZADOR', detalle: 'ya está registrado como movilizador.' };
   if (consultas[1].length) {
     const a = consultas[1][0];
-    return { tipo: 'COMPROMETIDO', detalle: 'ya pertenece a la lista de Comprometidos de un movilizador.' };
+    const pRecl = padBy(a.reclutador_cedula);
+    const nombreRecl = pRecl ? (nomP(pRecl) + ' ' + apeP(pRecl)).trim() : ('C.I. ' + fC('V', a.reclutador_cedula || ''));
+    return {
+      tipo: 'COMPROMETIDO',
+      detalle: 'ya pertenece a la lista de Comprometidos del movilizador ' + nombreRecl + '.',
+      reclutador_id: a.reclutador_id,
+      reclutador_nombre: nombreRecl,
+      posicion: a.posicion
+    };
   }
   if (consultas[2].length) {
     const d = consultas[2][0];
@@ -1012,6 +1020,48 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
   return null;
 }
 
+async function verificarDuplicidadTelefono(telefono, exclude = {}) {
+  const tel = String(telefono || '').replace(/\D/g, '');
+  if (!tel) return null;
+
+  const filas = await q(`
+    SELECT 'USUARIO' AS origen, id, telefono, NULL AS cedula, nombre AS descripcion FROM usuarios WHERE telefono IS NOT NULL AND telefono != ''
+    UNION ALL
+    SELECT 'MOVILIZADOR', id, telefono, cedula, estructura FROM reclutadores WHERE telefono IS NOT NULL AND telefono != ''
+    UNION ALL
+    SELECT 'COMPROMETIDO', a.id, a.telefono, a.cedula, CAST(a.reclutador_id AS TEXT) FROM asignaciones a WHERE a.telefono IS NOT NULL AND a.telefono != ''
+    UNION ALL
+    SELECT 'DIRECCIÓN EJECUTIVA', id, telefono, cedula, cargo FROM direccion_ejecutiva WHERE telefono IS NOT NULL AND telefono != ''
+    UNION ALL
+    SELECT 'COMITÉ VECINAL', id, telefono, cedula, comunidad FROM comite_vecinal WHERE telefono IS NOT NULL AND telefono != ''
+    UNION ALL
+    SELECT 'CARGO DE CENTRO', id, telefono, cedula, cargo FROM centro_cargos WHERE telefono IS NOT NULL AND telefono != ''
+  `);
+  const found = filas.find(x => {
+    if (String(x.telefono || '').replace(/\D/g, '') !== tel) return false;
+    return !(exclude.origen && String(x.origen) === String(exclude.origen) && String(x.id) === String(exclude.id));
+  });
+  return found || null;
+}
+
+function mensajeDuplicidadTelefono(telefono, dup) {
+  const t = normTel(telefono);
+  let extra = '';
+  if (dup.origen === 'COMPROMETIDO') {
+    const reclId = Number(dup.descripcion);
+    const r = CACHE.recl.find(x => x.id === reclId);
+    const p = r ? padBy(r.cedula) : null;
+    const nombre = p ? (nomP(p) + ' ' + apeP(p)).trim() : (r ? r.cedula : '');
+    extra = nombre ? ' en la lista del movilizador ' + nombre : '';
+  } else if (dup.origen === 'MOVILIZADOR') {
+    const p = padBy(dup.cedula);
+    extra = p ? ' en el movilizador ' + (nomP(p) + ' ' + apeP(p)).trim() : '';
+  } else if (dup.descripcion) {
+    extra = ' (' + String(dup.descripcion) + ')';
+  }
+  return '⛔ Teléfono duplicado: el número ' + t + ' ya está registrado en ' + dup.origen + extra + '. No se permite repetir números telefónicos en ningún módulo del sistema.';
+}
+
 function mensajeDuplicidadPersona(cedula, dup) {
   return '⛔ Registro rechazado: la C.I. ' + fC('V', cedula) + ' ' + dup.detalle + ' No puede registrarse simultáneamente en otro cargo, lista o función.';
 }
@@ -1025,10 +1075,8 @@ async function doReg() {
   if (r.cedula === c) return R('<div class="alert err"><div class="a-ic">' + ic('warn', 18) + '</div><div><b>Bloqueado</b>La cédula corresponde al propio RECLUTADOR.</div></div>');
   if (tel && !valTel(tel)) return R('<div class="alert warn"><div class="a-ic">' + ic('warn', 18) + '</div><div><b>Teléfono inválido</b>Debe tener 11 dígitos comenzando en 0.<br>Ejemplo: <b>0412-2232523</b></div></div>');
   if (tel) {
-    const telNorm = tel.replace(/\D/g, '');
-    const allPhones = await q('SELECT a.telefono, a.cedula, u.nombre AS reclutador FROM asignaciones a LEFT JOIN reclutadores u ON u.id = a.reclutador_id WHERE a.telefono IS NOT NULL AND a.telefono != ""');
-    const dup = allPhones.find(x => x.telefono.replace(/\D/g, '') === telNorm && x.cedula !== c);
-    if (dup) return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div><b>⛔ Teléfono duplicado</b>El número <b class="mono">' + esc(normTel(tel)) + '</b> ya está registrado con <b>' + esc(dup.cedula) + '</b>' + (dup.reclutador ? ' (movilizador: ' + esc(dup.reclutador) + ')' : '') + '.<br>No se permite repetir números telefónicos.</div></div>');
+    const dupTel = await verificarDuplicidadTelefono(tel);
+    if (dupTel) return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div>' + esc(mensajeDuplicidadTelefono(tel, dupTel)) + '</div></div>');
   }
   const own = r.lista.findIndex(l => l.cedula === c);
   if (own > -1) return R('<div class="alert warn"><div class="a-ic">' + ic('warn', 18) + '</div><div><b>Duplicado en la misma lista</b>Ya figura en posición #' + (own + 1) + '.</div></div>');
@@ -1039,7 +1087,7 @@ async function doReg() {
   if (ex) {
     const np = padBy(ex.r.cedula); const nRecl = np ? nomP(np) + ' ' + apeP(np) : ex.r.cedula;
     const pDup = padBy(c); const letterDup = pDup ? pDup.letra : 'V';
-    return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div><b>? Registro bloqueado por duplicidad</b>La C.I. <b class="mono">' + fC(letterDup, c) + '</b> ya se encuentra asignada al MOVILIZADOR <b>' + esc(nRecl) + '</b>' + (ex.pos ? ' (posición #' + ex.pos + ')' : '') + '.<br><button class="btn btn-w btn-xs" style="margin-top:8px" onclick="openRec(' + ex.r.id + ')">' + ic('search', 12) + ' Ver lista del dueño</button></div></div>');
+    return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div><b>⛔ Registro bloqueado por duplicidad</b>La C.I. <b class="mono">' + fC(letterDup, c) + '</b> ya se encuentra en la lista del movilizador <b>' + esc(nRecl) + '</b>' + (ex.pos ? ' (posición #' + ex.pos + ')' : '') + '.<br><button class="btn btn-w btn-xs" style="margin-top:8px" onclick="openRec(' + ex.r.id + ')">' + ic('search', 12) + ' Ver lista del movilizador</button></div></div>');
   }
   const p = padBy(c);
   if (!p) { window._manC = c; return R('<div class="alert warn"><div class="a-ic">' + ic('db', 18) + '</div><div><b>No aparece en el padrón CNE</b>La C.I. <b class="mono">' + fC('V', c) + '</b> no existe.<br><button class="btn btn-navy btn-xs" style="margin-top:8px" onclick="openManual()">' + ic('up', 12) + ' Registrar manualmente</button></div></div>') }
@@ -1087,10 +1135,8 @@ async function saveTelComprometido(reclId, ced) {
   let tel = raw ? normTel(raw) : '';
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Debe tener 11 dígitos comenzando en 0 (ej: 0412-2232523)', 'err');
   if (tel) {
-    const telNorm = tel.replace(/\D/g, '');
-    const allPhones = await q('SELECT a.telefono, a.cedula, u.nombre AS reclutador FROM asignaciones a LEFT JOIN reclutadores u ON u.id = a.reclutador_id WHERE a.telefono IS NOT NULL AND a.telefono != ""');
-    const dup = allPhones.find(x => x.telefono.replace(/\D/g, '') === telNorm && x.cedula !== ced);
-    if (dup) return toast('El número ' + normTel(tel) + ' ya está registrado con otra cédula (' + dup.cedula + ')', 'err');
+    const dupTel = await verificarDuplicidadTelefono(tel, {origen:'COMPROMETIDO', id: await (async()=>{ const z=await q('SELECT id FROM asignaciones WHERE reclutador_id=? AND cedula=?',[reclId,ced]); return z[0]?.id || ''; })()});
+    if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000);
   }
   try {
     await x('UPDATE asignaciones SET telefono = ? WHERE reclutador_id = ? AND cedula = ?', [tel || null, reclId, ced]);
@@ -1304,7 +1350,7 @@ async function nrSave() {
   const dupGlobal = await verificarDuplicidadPersona(p.cedula, 'movilizador');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula, dupGlobal), 'err', 8000);
   const tel = $('nrTel').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('INSERT INTO reclutadores(cedula,telefono,estructura,direccion) VALUES(?,?,?,?)', [p.cedula, normTel(tel), $('nrEst').value, $('nrDir').value]);
     await registrarAct('user', 'Nuevo movilizador creado: ' + fC(p.letra, p.cedula), USER.id);
@@ -1338,7 +1384,7 @@ async function saveNrManual() {
   const fn = $('nrmFn').value; const edad = edadDe(fn);
   const letra = $('nrmLet').value, sexo = $('nrmSex').value;
   const tel = $('nrmTel').value.trim(), est = $('nrmEst').value, dir = $('nrmDir').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
       [ced, letra, pa, $('nrmSa').value.trim(), pn, $('nrmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
@@ -1480,7 +1526,7 @@ async function saveCargoManual(codigo, idx) {
   const fn = $('cmFn').value; const edad = edadDe(fn);
   const letra = $('cmLet').value, sexo = $('cmSex').value;
   const tel = ($('cmTel') ? $('cmTel').value : '').trim(), dir = ($('cmDir') ? $('cmDir').value : '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
       [ced, letra, pa, $('cmSa').value.trim(), pn, $('cmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
@@ -2183,7 +2229,7 @@ async function saveDirAuto(cedula) {
   }
   const tel = ($('dirTel') ? $('dirTel').value : '').trim();
   const dir = ($('dirDir') ? $('dirDir').value : '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
   const p = padBy(cedula);
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
@@ -2251,7 +2297,7 @@ async function saveDirManualFull() {
 
   if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
   const dupGlobal = await verificarDuplicidadPersona(ced, 'direccion');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
@@ -2313,7 +2359,7 @@ function openDirEdit(id) {
 
 async function saveDirEdit(id) {
   const tel = $('dirETel').value.trim(), dir = $('dirEDir').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'DIRECCIÓN EJECUTIVA', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('UPDATE direccion_ejecutiva SET telefono = ?, direccion = ? WHERE id = ?',
       [tel ? normTel(tel) : null, dir || null, id]);
@@ -2814,7 +2860,7 @@ async function saveComiteAuto(cedula) {
   }
   const tel = ($('comTel') ? $('comTel').value : '').trim();
   const dir = ($('comDir') ? $('comDir').value : '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
   const dupGlobal = await verificarDuplicidadPersona(cedula, 'comite');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(cedula, dupGlobal), 'err', 8000);
@@ -2885,7 +2931,7 @@ async function saveComiteManualFull() {
 
   if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
   const dupGlobal = await verificarDuplicidadPersona(ced, 'comite');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
@@ -2947,7 +2993,7 @@ function openComiteEdit(id) {
 
 async function saveComiteEdit(id) {
   const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'COMITÉ VECINAL', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('UPDATE comite_vecinal SET telefono = ?, direccion = ? WHERE id = ?',
       [tel ? normTel(tel) : null, dir || null, id]);
