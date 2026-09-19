@@ -3053,8 +3053,8 @@ function renderControlElectoral() {
       '<td>' + esc(((p.p_apellido || '') + ' ' + (p.p_nombre || '')).trim()) + '</td>' +
       '<td class="mono">' + esc(fC(p.letra || 'V', x.cedula)) + '</td>' +
       '<td><b>' + esc(x.mesa) + '</b></td>' +
-      '<td>' + esc(rp ? nomP(rp) : '') + '</td>' +
-      '<td>' + esc(as && as.pos ? as.pos : '') + '</td>' +
+      '<td>' + esc(x.origen || '') + '</td>' +
+      '<td>' + esc(x.cargo || (rp ? nomP(rp) : '')) + '</td>' +
       '<td>' + esc(((CACHE.users || []).find(u => Number(u.id) === Number(x.verificado_por)) || {}).nombre || '') + '</td>' +
     '</tr>';
   }).join('');
@@ -3063,7 +3063,7 @@ function renderControlElectoral() {
     panel(
       'Control Electoral • Verificación de asistencia',
       '<div class="grid g4" style="margin-bottom:14px">' +
-        kc('Personas en listas 1×10', personas.length, 'asociadas a este centro') +
+        kc('Personas con cargo / estructura', personas.length, 'asociadas a este centro') +
         kc('VOTARON / verificados', verificados.length, 'registro individual confirmado', pct, verificados.length === personas.length && personas.length > 0) +
         kc('Pendientes', pendientes, 'sin verificación individual') +
         kc('Avance', pct.toFixed(1) + '%', 'del universo del centro', pct, pct === 100) +
@@ -3098,7 +3098,7 @@ function renderControlElectoral() {
         '<tbody>' + mesaHtml + '</tbody></table></div></div></div>' +
 
       '<div class="panel"><div class="panel-h">' + ic('users',15) + ' Últimas verificaciones</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
-        '<thead><tr><th>Hora</th><th>Persona</th><th>C.I.</th><th>Mesa</th><th>Movilizador</th><th>Pos.</th><th>Operador</th></tr></thead>' +
+        '<thead><tr><th>Hora</th><th>Persona</th><th>C.I.</th><th>Mesa</th><th>Origen</th><th>Cargo / función</th><th>Operador</th></tr></thead>' +
         '<tbody>' + (ultimas || '<tr><td colspan="7" class="empty">Todavía no hay verificaciones.</td></tr>') + '</tbody>' +
       '</table></div></div></div>',
       900
@@ -3133,20 +3133,20 @@ function filtrarControlElectoral() {
   box.innerHTML=rows.length ? rows.map(x=>{
     const p=x.p||{}, v=controlVerif(x.l.cedula), nombre=apeP(p)+', '+nomP(p);
     return '<div class="kcard" style="margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
-      '<div style="flex:1;min-width:220px"><b style="font-size:14px;color:var(--navy)">'+esc(nombre)+'</b><div class="mono" style="font-size:11px;color:var(--mut)">'+esc(fC(p.letra||'V',x.l.cedula))+' • '+esc(p.nombre_cv||p.centro_votacion||'')+' • Movilizador: '+esc(nomP(padBy(x.reclutador.cedula)||x.reclutador))+' • Pos. '+x.posicion+'</div></div>' +
+      '<div style="flex:1;min-width:220px"><b style="font-size:14px;color:var(--navy)">'+esc(nombre)+'</b><div class="mono" style="font-size:11px;color:var(--mut)">'+esc(fC(p.letra||'V',x.l.cedula))+' • '+esc(p.nombre_cv||p.centro_votacion||'')+' • '+esc(x.origen||'')+(x.cargo?' • '+esc(x.cargo):'')+(x.reclutador?' • Movilizador: '+esc(nomP(padBy(x.reclutador.cedula)||x.reclutador))+(x.posicion?' • Pos. '+x.posicion:''):'')+'</div></div>' +
       (v ? '<span class="chip chip-g">✓ VOTÓ • MESA '+esc(v.mesa)+'</span><button class="btn btn-w btn-xs" onclick="abrirVerificacion(\''+esc(x.l.cedula)+'\')">Corregir mesa</button>' :
            '<button class="btn btn-navy btn-xs" onclick="abrirVerificacion(\''+esc(x.l.cedula)+'\')">'+ic('check',12)+' Verificar asistencia</button>') +
     '</div>';
-  }).join('') : '<div class="alert warn"><div class="a-ic">!</div><div><b>No encontrado</b>No hay una persona de las listas 1×10 de este centro que coincida con la búsqueda.</div></div>';
+  }).join('') : '<div class="alert warn"><div class="a-ic">!</div><div><b>No encontrado</b>No hay una persona con cargo o función registrada y asociada a este centro que coincida con la búsqueda.</div></div>';
 }
 function abrirVerificacion(cedula) {
   const persona=controlPersonasCentro(controlCentroActual()?.codigo||'').find(x=>normC(x.l.cedula)===normC(cedula));
-  if(!persona) return toast('La persona no pertenece a las listas 1×10 de este centro', 'err');
+  if(!persona) return toast('La persona no tiene un cargo o función registrada en este centro', 'err');
   const p=persona.p||{}, v=controlVerif(cedula);
   win(ic('check',18)+' Verificación de asistencia',
     '<div class="alert ok" style="margin-top:0"><span class="uava">'+ini(apeP(p)+' '+nomP(p))+'</span><div><b>'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono">'+esc(fC(p.letra||'V',cedula))+'</div></div></div>' +
     '<div style="margin-top:14px"><label class="fl" style="font-size:14px">MESA <span style="color:var(--red)">*</span></label><input class="inp mono" id="ctlMesaInput" value="'+esc(v?v.mesa:'')+'" placeholder="Escriba el número de mesa" inputmode="text" autofocus></div>' +
-    '<div style="margin-top:10px;font-size:12px;color:var(--mut)">Al confirmar se registrará individualmente la asistencia, la mesa indicada y la hora de verificación.</div>',
+    '<div style="margin-top:10px;font-size:12px;color:var(--mut)">Al confirmar se registrará individualmente la asistencia, la mesa indicada y la hora de verificación. La persona queda controlada aunque pertenezca a 1×10, Movilizadores, Comité Vecinal, Dirección Ejecutiva o un cargo del centro.</div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-g" onclick="guardarVerificacion(\''+esc(cedula)+'\')">'+ic('check',14)+' '+(v?'Actualizar verificación':'Marcar VOTÓ')+'</button>',520
   );
   setTimeout(()=>{const el=$('ctlMesaInput');if(el){el.focus();el.select()}},120);
@@ -3156,7 +3156,7 @@ async function guardarVerificacion(cedula) {
   if(!centro) return toast('Seleccione un centro', 'err');
   if(!mesa) return toast('Ingrese el número de Mesa', 'err');
   const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
-  if(!persona) return toast('La persona no pertenece a este centro', 'err');
+  if(!persona) return toast('La persona no tiene un cargo o función registrada en este centro', 'err');
   try {
     const existe=await q('SELECT id FROM verificaciones_votacion WHERE cedula = ? LIMIT 1',[normC(cedula)]);
     if(existe.length) await x('UPDATE verificaciones_votacion SET centro_codigo=?, mesa=?, estado=?, verificado_en=datetime("now"), verificado_por=? WHERE cedula=?',[centro.codigo,mesa,'VOTO_VERIFICADO',USER.id,normC(cedula)]);
