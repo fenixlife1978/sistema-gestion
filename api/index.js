@@ -1,34 +1,31 @@
 // Single Vercel Function dispatcher.
 // Vercel Hobby limits a deployment to 12 bundled Serverless Functions.
-// Keeping the route handlers as modules and exposing one entry point avoids
-// turning every file under /api into a separate deployed function.
+// Keep only this entry point exposed by Vercel; route handlers are loaded lazily
+// so an unrelated handler cannot crash the whole /api function at startup.
 
 const handlers = {
-  "auth/login": require("./auth/login"),
-  "auth/session": require("./auth/session"),
-  "auth/logout": require("./auth/logout"),
-  "health": require("./health"),
-  "bootstrap": require("./bootstrap"),
-  "duplicidades/autorizar": require("./duplicidades/autorizar"),
-  "personas/registrar": require("./personas/registrar"),
-  "personas/asignar-cargo": require("./personas/asignar-cargo"),
-  "comite/gestionar": require("./comite/gestionar"),
-  "mesas/miembros": require("./mesas/miembros"),
-  "verificaciones": require("./verificaciones"),
-  "actas": require("./actas"),
-  "cortes": require("./cortes"),
-  "usuarios/gestionar": require("./usuarios/gestionar"),
-  "sistema/vaciar": require("./sistema/vaciar"),
-  "centros/gestionar": require("./centros/gestionar"),
-  "padron/gestionar": require("./padron/gestionar"),
-  "direccion/gestionar": require("./direccion/gestionar"),
-  "auditar": require("./auditar"),
+  "auth/login": "./auth/login",
+  "auth/session": "./auth/session",
+  "auth/logout": "./auth/logout",
+  "health": "./health",
+  "bootstrap": "./bootstrap",
+  "duplicidades/autorizar": "./duplicidades/autorizar",
+  "personas/registrar": "./personas/registrar",
+  "personas/asignar-cargo": "./personas/asignar-cargo",
+  "comite/gestionar": "./comite/gestionar",
+  "mesas/miembros": "./mesas/miembros",
+  "verificaciones": "./verificaciones",
+  "actas": "./actas",
+  "cortes": "./cortes",
+  "usuarios/gestionar": "./usuarios/gestionar",
+  "sistema/vaciar": "./sistema/vaciar",
+  "centros/gestionar": "./centros/gestionar",
+  "padron/gestionar": "./padron/gestionar",
+  "direccion/gestionar": "./direccion/gestionar",
+  "auditar": "./auditar",
 };
 
 module.exports = async function handler(req, res) {
-  // The rewrite adds ?route=<original-api-path>.
-  // Fallback to the request pathname so the function also remains usable
-  // when invoked directly during local development.
   let route = req.query && req.query.route;
   if (Array.isArray(route)) route = route.join("/");
   route = String(route || "").replace(/^\/+|\/+$/g, "");
@@ -38,10 +35,25 @@ module.exports = async function handler(req, res) {
     route = pathname.replace(/^api\//, "");
   }
 
-  const target = handlers[route];
-  if (typeof target !== "function") {
+  const modulePath = handlers[route];
+  if (!modulePath) {
     return res.status(404).json({ error: "API route not found" });
   }
 
-  return target(req, res);
+  try {
+    const target = require(modulePath);
+    if (typeof target !== "function") {
+      return res.status(500).json({ error: "API handler is not callable" });
+    }
+    return await target(req, res);
+  } catch (error) {
+    console.error("[api-dispatcher] Handler failed:", route, error);
+    return res.status(500).json({
+      error: "Internal server error",
+      route,
+      detail: process.env.NODE_ENV === "development"
+        ? (error?.message || String(error))
+        : undefined
+    });
+  }
 };
