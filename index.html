@@ -2521,14 +2521,18 @@ function getComunidadesCatalogo() {
 }
 
 function filterComiteCards() {
+  const elCom = $('comSearch');
+  if (elCom) COMITE_FILTER.comunidad = elCom.value;
   const el = $('comTxt');
   if (el) COMITE_FILTER.txt = el.value;
   const comList = CACHE.comite || [];
   const comunidades = getComunidadesCatalogo();
-  const fCom = COMITE_FILTER.comunidad;
+  const fCom = (COMITE_FILTER.comunidad || '').trim().toLowerCase();
   const fTxt = (COMITE_FILTER.txt || '').trim().toLowerCase();
 
-  const comunidadesVisualizadas = fCom ? [fCom] : comunidades;
+  const comunidadesVisualizadas = fCom
+    ? comunidades.filter(c => c.toLowerCase().includes(fCom))
+    : comunidades;
 
   const cardsHtml = comunidadesVisualizadas.map(comNom => {
     const asig = comList.find(x => String(x.comunidad || '').trim().toUpperCase() === comNom);
@@ -2560,7 +2564,8 @@ function filterComiteCards() {
             (dir ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' ' + esc(dir) + '</div>' : '') +
           '</div>' +
           '<div style="display:flex;gap:4px;align-items:center">' +
-            '<button class="btn btn-navy btn-xs" onclick="openComiteView(' + asig.id + ')" title="Ver Detalle y Padrón CNE">' + ic('eye', 14) + ' Ver Datos</button>' +
+            '<button class="btn btn-xs" style="background:var(--ok);color:#fff;border-color:var(--ok);cursor:default" disabled title="Comunidad ya asignada">' + ic('check', 13) + ' Asignado</button>' +
+          '<button class="btn btn-navy btn-xs" onclick="openComiteView(' + asig.id + ')" title="Ver Detalle y Padrón CNE">' + ic('eye', 14) + ' Ver Datos</button>' +
             '<button class="btn btn-w btn-xs" onclick="openComiteEdit(' + asig.id + ')" title="Editar datos">' + ic('edit', 12) + '</button>' +
             '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delComite(' + asig.id + ')" title="Remover cargo de Comité Vecinal">' + ic('x', 12) + '</button>' +
           '</div>' +
@@ -2589,8 +2594,10 @@ function filterComiteCards() {
 function renderComite() {
   const activeEl = document.activeElement;
   const isComTxt = activeEl && activeEl.id === 'comTxt';
-  const selStart = isComTxt ? activeEl.selectionStart : null;
-  const selEnd = isComTxt ? activeEl.selectionEnd : null;
+  const isComSearch = activeEl && activeEl.id === 'comSearch';
+  const activeSearchId = isComTxt ? 'comTxt' : (isComSearch ? 'comSearch' : null);
+  const selStart = activeSearchId ? activeEl.selectionStart : null;
+  const selEnd = activeSearchId ? activeEl.selectionEnd : null;
 
   const comList = CACHE.comite || [];
   const comunidades = getComunidadesCatalogo();
@@ -2608,18 +2615,15 @@ function renderComite() {
       kc('Cobertura Territorial', pctCobertura + '%', 'de comunidades cubiertas', pctCobertura, true) +
     '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--bg2);padding:10px;border-radius:8px;border:1px solid var(--line2)">' +
-      '<div style="flex:1;min-width:200px">' +
-        '<label class="fl">Filtrar por Comunidad</label>' +
-        '<select class="inp" id="comSelCom" onchange="COMITE_FILTER.comunidad=this.value;renderComite()">' +
-          '<option value="">Todas las comunidades (' + totalComunidades + ')...</option>' +
-          comunidades.map(c => '<option value="' + esc(c) + '" ' + (fCom === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
-        '</select>' +
+      '<div style="flex:1;min-width:180px">' +
+        '<label class="fl">Buscar comunidad</label>' +
+        '<input class="inp" id="comSearch" placeholder="Escriba el nombre de la comunidad..." value="' + esc(COMITE_FILTER.comunidad || '') + '" oninput="filterComiteCards()">' +
       '</div>' +
-      '<div style="flex:1;min-width:200px">' +
+      '<div style="flex:1;min-width:180px">' +
         '<label class="fl">Buscar responsable / cédula</label>' +
-        '<input class="inp" id="comTxt" placeholder="Nombre, C.I. o comunidad..." value="' + esc(COMITE_FILTER.txt) + '" oninput="filterComiteCards()">' +
+        '<input class="inp" id="comTxt" placeholder="Nombre o C.I..." value="' + esc(COMITE_FILTER.txt) + '" oninput="filterComiteCards()">' +
       '</div>' +
-      '<div style="display:flex;gap:6px;margin-top:18px">' +
+      '<div style="display:flex;gap:6px;margin-top:18px"> +
         '<button class="btn btn-navy" onclick="openComiteManual()">' + ic('userPlus', 14) + ' Asignar Comité</button>' +
         '<button class="btn btn-w" onclick="printComite()">' + ic('print', 14) + ' Imprimir</button>' +
         '<button class="btn btn-w" onclick="downloadPDFComite()">' + ic('file', 14) + ' PDF</button>' +
@@ -2630,8 +2634,8 @@ function renderComite() {
 
   filterComiteCards();
 
-  if (isComTxt) {
-    const inputEl = $('comTxt');
+  if (activeSearchId) {
+    const inputEl = $(activeSearchId);
     if (inputEl) {
       inputEl.focus();
       if (selStart !== null && selEnd !== null) {
