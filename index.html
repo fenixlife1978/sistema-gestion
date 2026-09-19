@@ -1338,12 +1338,16 @@ function openManual() {
     '<div class="grid g3" style="gap:10px"><div><label class="fl">LETRA_CEDULA</label><select class="inp" id="mLet"><option>V</option><option>E</option></select></div><div><label class="fl">CEDULA_IDENTIDAD</label><input class="inp mono" value="' + c + '" id="mCed"></div><div><label class="fl">SEXO</label><select class="inp" id="mSex"><option>F</option><option>M</option></select></div>' +
     '<div><label class="fl">P_APELLIDO *</label><input class="inp" id="mPa"></div><div><label class="fl">S_APELLIDO</label><input class="inp" id="mSa"></div><div><label class="fl">FECHA_NACIMIENTO</label><input class="inp" type="date" id="mFn"></div>' +
     '<div><label class="fl">P_NOMBRE *</label><input class="inp" id="mPn"></div><div><label class="fl">S_NOMBRE</label><input class="inp" id="mSn"></div><div><label class="fl">CENTRO_VOTACION</label><select class="inp" id="mCv">' + CACHE.centros.map(x => '<option value="' + x.codigo + '">' + esc(x.nombre) + '</option>').join('') + '</select></div></div>' +
+    '<div class="grid g2" style="gap:10px;margin-top:10px"><div><label class="fl">TELÉFONO</label><input class="inp mono" id="mTel" placeholder="0412-2232523" maxlength="12"></div><div><label class="fl">NÚMERO DE CALLE</label><input class="inp" id="mCalle" placeholder="Ej. 5"></div><div><label class="fl">NÚMERO DE CASA</label><input class="inp" id="mCasa" placeholder="Ej. 12"></div><div><label class="fl">DIRECCIÓN</label><input class="inp" id="mDir" placeholder="Dirección del comprometido"></div></div>' +
     '<p style="font-size:12px;color:var(--mut);margin-top:10px">Se guarda directamente en Turso.</p>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveManual()">Guardar y asignar</button>', 640);
 }
 async function saveManual() {
   const ced = normC($('mCed').value), pa = $('mPa').value.trim(), pn = $('mPn').value.trim();
+  const tel = ($('mTel')?.value || '').trim(), calle = ($('mCalle')?.value || '').trim(), casa = ($('mCasa')?.value || '').trim(), direccion = ($('mDir')?.value || '').trim();
   if (!/^\d{5,9}$/.test(ced) || !pa || !pn) return toast('Complete cédula y apellidos/nombres principales', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   const cv = cenBy($('mCv').value) || CACHE.centros[0];
   const p = padBy(ced);
   const dupGlobal = await verificarDuplicidadPersona(ced, 'comprometido');
@@ -1360,7 +1364,7 @@ async function saveManual() {
     const r = CACHE.recl.find(x => x.id === REG.rec);
     if (r && r.lista.length < 10) {
       const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
-      await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,numero_calle,numero_casa) VALUES(?,?,?,?,?)', [r.id, ced, (max[0].m || 0) + 1, null, null]);
+      await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)', [r.id, ced, (max[0].m || 0) + 1, tel ? normTel(tel) : null, calle || null, casa || null, direccion || null]);
     }
     await refreshAll(); closeModal(); renderRegistro(true); toast('Elector incorporado a Turso', 'ok');
   } catch (e) { toast(e.message, 'err') }
@@ -1790,7 +1794,8 @@ function openCentro(cod) {
   vbars('cenE', R.map(r => ({ l: r[2], v: list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad || 0; return ed >= r[0] && ed <= r[1]; }).length })));
 }
 async function updateMesas(cod) {
-  const v = +$('cMes').value || 1;
+  const v = Number($('cMes')?.value);
+  if (!Number.isInteger(v) || v < 1 || v > 999) return toast('La cantidad de mesas debe ser un entero entre 1 y 999', 'err');
   await x('UPDATE centros SET mesas = ? WHERE codigo = ?', [v, cod]);
   await refreshAll(); closeModal(); renderCentros(); toast('Mesas actualizadas', 'ok');
 }
@@ -2180,6 +2185,7 @@ function startSync() {
       else if (CUR === 'centros') renderCentros();
       else if (CUR === 'rep') renderRep();
       else if (CUR === 'users') renderUsers();
+      else if (CUR === 'control') renderControlElectoral();
     } catch (e) {}
   }, 15000);
 }
@@ -2420,6 +2426,9 @@ async function saveDirAuto(cedula) {
   const dir = ($('dirDir') ? $('dirDir').value : '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+
+  const dupGlobal = await verificarDuplicidadPersona(cedula, 'direccion');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(cedula, dupGlobal), 'err', 8000);
 
   const p = padBy(cedula);
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
@@ -2933,7 +2942,8 @@ function renderControlElectoral() {
 
   const actasCargadas = mesaRows.filter(x => !!x.acta).length;
   const totalActa = mesaRows.reduce((sum, x) => sum + (x.acta ? Number(x.acta.votos_partido || 0) : 0), 0);
-  const diffTotal = actasCargadas ? verificados.length - totalActa : null;
+  const verificadosMesasConActa = mesaRows.filter(x => !!x.acta).reduce((sum, x) => sum + x.vv, 0);
+  const diffTotal = actasCargadas ? verificadosMesasConActa - totalActa : null;
 
   const centroOptions = CACHE.centros.map(x =>
     '<option value="' + esc(x.codigo) + '" ' + (x.codigo === centro.codigo ? 'selected' : '') + '>' + esc(x.nombre) + '</option>'
