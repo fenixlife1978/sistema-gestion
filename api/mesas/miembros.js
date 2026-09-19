@@ -55,10 +55,14 @@ module.exports=async function(req,res){
         {q:'SELECT cedula FROM comite_vecinal WHERE cedula=? LIMIT 1',params:[cedula]}
       ]));
       if(!exists.some(Boolean)) return fail(res,409,'La persona debe estar registrada previamente en el sistema');
+      const cargoCentro=rowsFrom(await turso([{q:'SELECT id FROM centro_cargos WHERE centro_codigo=? AND cargo=? LIMIT 1',params:[centro,cargo]}]));
+      if(!cargoCentro.length) return fail(res,409,'El cargo a reemplazar no está registrado en este centro');
       const dup=rowsFrom(await turso([{q:'SELECT id FROM mesa_miembros WHERE mesa_operativa_id=? AND cedula=? AND cargo=? LIMIT 1',params:[mesaId,cedula,cargo]}]));
       if(dup.length) return fail(res,409,'El reemplazo ya está registrado en esta mesa');
+      const now=new Date().toISOString();
       await turso([
-        {q:'INSERT INTO mesa_miembros(mesa_operativa_id,cedula,cargo,tipo,origen,autorizado,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?,?)',params:[mesaId,cedula,cargo,'ACCIDENTAL','AUTORIZACION_JA',1,au.id,new Date().toISOString(),session.uid]},
+        {q:'INSERT INTO autorizaciones_duplicidad_persona(cedula,contexto_origen,contexto_destino,detalle_duplicidad,motivo,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?)',params:[cedula,'CARGO DE CENTRO','MESA', 'Reemplazo de '+cargo+' en centro '+centro+' mesa '+mesa,'Reemplazo accidental de mesa',au.id,now,session.uid]},
+        {q:'INSERT INTO mesa_miembros(mesa_operativa_id,cedula,cargo,tipo,origen,autorizado,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?,?)',params:[mesaId,cedula,cargo,'ACCIDENTAL','AUTORIZACION_JA',1,au.id,now,session.uid]},
         {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['autorizacion','Reemplazo accidental autorizado • C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa+' • Cargo '+cargo+' • Autorizó '+au.nombre,session.uid]}
       ]);
       return res.status(201).json({ok:true,autorizado_por:{id:au.id,nombre:au.nombre}});
