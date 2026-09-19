@@ -1332,7 +1332,7 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
   return !!auth;
 }
 
-async async function confirmarAutorizacionDuplicidad(cedula, destino, encontrados) {
+async async async function confirmarAutorizacionDuplicidad(cedula, destino, encontrados) {
   const u=String($('authUser')?.value||'').trim(), p=$('authPass')?.value||'';
   const motivo=String($('authMotivo')?.value||'').trim();
   if(!u||!p) return toast('Ingrese usuario y clave de autorización','err');
