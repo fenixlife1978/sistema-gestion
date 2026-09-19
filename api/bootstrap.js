@@ -273,6 +273,10 @@ const PROBLEMAS = [
 const isBenign = e => /duplicate column name|already exists|duplicate index|duplicate table|no such column/i.test(String(e?.message||e||'').toLowerCase());
 
 async function execSchema() {
+  const marker=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_bootstrap_meta' LIMIT 1",params:[]}]));
+  if(marker.length){
+    return;
+  }
   const warnings=[];
   for (const sql of SCHEMA) {
     try { await turso([{q:sql,params:[]}]); }
@@ -312,6 +316,9 @@ async function execSchema() {
   } catch(e) {
     if(!isBenign(e)) throw e;
   }
+
+  await turso([{q:"CREATE TABLE IF NOT EXISTS erp_bootstrap_meta (id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT (datetime('now')))",params:[]}]);
+  await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:["2026-09-19-h1"]}]);
 
   for(let i=0;i<PROBLEMAS.length;i++){
     const [categoria,nombre]=PROBLEMAS[i];
