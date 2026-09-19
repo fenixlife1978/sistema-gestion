@@ -45,7 +45,7 @@ module.exports=async function(req,res){
     }
     const now=new Date().toISOString();
     if(tipo==='direccion'){
-      await turso([{q:'DELETE FROM direccion_ejecutiva WHERE cargo=? OR cedula=?',params:[cargo,cedula]},{q:'INSERT INTO direccion_ejecutiva(cargo,cedula,nombre,telefono,direccion) VALUES(?,?,?,?,?)',params:[cargo,cedula,nombre||cedula,telefono||null,direccion||null]},{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Dirección Ejecutiva asignada: C.I. '+cedula+' → '+cargo,session.uid]}]);
+      await turso([{q:'DELETE FROM direccion_ejecutiva WHERE cargo=?',params:[cargo]},{q:'INSERT INTO direccion_ejecutiva(cargo,cedula,nombre,telefono,direccion) VALUES(?,?,?,?,?)',params:[cargo,cedula,nombre||cedula,telefono||null,direccion||null]},{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Dirección Ejecutiva asignada: C.I. '+cedula+' → '+cargo,session.uid]}]);
     }else{
       const ex=rowsFrom(await turso([{q:'SELECT id FROM centro_cargos WHERE centro_codigo=? AND cargo=? LIMIT 1',params:[centro,cargo]}]));
       if(ex.length) await turso([{q:'UPDATE centro_cargos SET cedula=?,telefono=COALESCE(?,telefono),direccion=COALESCE(?,direccion),asignado_en=? WHERE id=?',params:[cedula,telefono||null,direccion||null,now,ex[0].id]}]);

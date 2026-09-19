@@ -856,6 +856,29 @@ async function migrarActasMesaPartido() {
   }
 }
 
+async function migrarDireccionEjecutiva() {
+  try {
+    const cols = await q('PRAGMA table_info(direccion_ejecutiva)');
+    if (!cols.length) return;
+    const indexes = await q('PRAGMA index_list(direccion_ejecutiva)');
+    let cedulaUnique = false;
+    for (const ix of indexes) {
+      if (!ix.unique) continue;
+      const info = await q('PRAGMA index_info(' + String(ix.name).replace(/'/g, "''") + ')');
+      if (info.length === 1 && info[0].name === 'cedula') { cedulaUnique = true; break; }
+    }
+    if (!cedulaUnique) return;
+    await x('CREATE TABLE IF NOT EXISTS direccion_ejecutiva_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, cargo TEXT NOT NULL UNIQUE, cedula TEXT NOT NULL, nombre TEXT, telefono TEXT, estructura TEXT, direccion TEXT, creado TEXT DEFAULT (datetime(\\'now\\')))');
+    await x('INSERT OR IGNORE INTO direccion_ejecutiva_v2(id,cargo,cedula,nombre,telefono,estructura,direccion,creado) SELECT id,cargo,cedula,nombre,telefono,estructura,direccion,creado FROM direccion_ejecutiva');
+    await x('DROP TABLE direccion_ejecutiva');
+    await x('ALTER TABLE direccion_ejecutiva_v2 RENAME TO direccion_ejecutiva');
+    await x('CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)');
+  } catch (e) {
+    console.error('Migración Dirección Ejecutiva:', e);
+    throw e;
+  }
+}
+
 async function inicializarTurso() {
   setLoad('Creando tablas en Turso...', 'Preparando estructura de datos...');
   let schemaWarn = 0;
@@ -865,6 +888,7 @@ async function inicializarTurso() {
     return /duplicate column name|already exists|duplicate index|duplicate table/.test(msg);
   };
   await migrarActasMesaPartido();
+  await migrarDireccionEjecutiva();
   for (let i = 0; i < SCHEMA.length; i++) {
     setLoad('Creando tablas en Turso...', 'Paso ' + (i + 1) + ' de ' + SCHEMA.length);
     try {
