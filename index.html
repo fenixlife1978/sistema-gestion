@@ -773,6 +773,7 @@ function openHist() {
 }
 function openDocs() {
   win(ic('file', 18) + ' Documentos y exportaciones',
+    '<div style="margin-bottom:10px"><label class="fl">Cargo</label><select class="inp" id="comECargo"><option>COORDINADOR</option><option>RESPONSABLE DE ORGANIZACIÓN</option><option>RESPONSABLE ELECTORAL</option><option>RESPONSABLE DE JUVENTUD</option><option>RESPONSABLE DE ACCIÓN SOCIAL</option></select></div>' +
     '<div class="grid g2" style="gap:10px">' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="expPadron()">' + ic('dl', 15) + ' Padrón CNE completo (CSV)</button>' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="expRep()">' + ic('dl', 15) + ' Reporte cruzado (CSV)</button>' +
@@ -2420,7 +2421,7 @@ function openDirEdit(id) {
   const p = padBy(reg.cedula) || reg;
   win('Editar Dirección Ejecutiva — ' + esc(reg.cargo),
     '<div style="margin-bottom:10px;font-size:12px;color:var(--navy)">' +
-      '<b>Persona:</b> ' + esc(reg.nombre || (apeP(p) + ', ' + nomP(p))) + ' &nbsp;&bull;&nbsp; <b>C.I.:</b> ' + fC(p.letra || 'V', reg.cedula) +
+      '<b>Cargo:</b> ' + esc(reg.cargo || '') + ' &nbsp;&bull;&nbsp; <b>Persona:</b> ' + esc(reg.nombre || (apeP(p) + ', ' + nomP(p))) + ' &nbsp;&bull;&nbsp; <b>C.I.:</b> ' + fC(p.letra || 'V', reg.cedula) +
     '</div>' +
     '<label class="fl">Teléfono</label><input class="inp mono" id="dirETel" value="' + esc(reg.telefono || '') + '" placeholder="0412-2232523" maxlength="12">' +
     '<div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="dirEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, calle..."></div>',
@@ -2434,7 +2435,7 @@ async function saveDirEdit(id) {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'DIRECCIÓN EJECUTIVA', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    const rr=await fetch('/api/direccion/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'editar',id,telefono:tel,direccion:dir})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar');
+    const rr=await fetch('/api/direccion/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'editar',id,cargo,telefono:tel,direccion:dir})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar');
     await refreshAll(); renderDireccion(); closeModal(); toast('Actualizado con éxito', 'ok');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -3379,6 +3380,8 @@ async function saveComiteAuto(cedula) {
   cedula = normC(cedula);
   const comSelect = $('comComunidad');
   const comunidad = comSelect ? comSelect.value.trim() : '';
+  const cargoEl=$('comCargo'); const cargo=cargoEl ? cargoEl.value.trim() : '';
+  if (!cargo) return toast('Seleccione el cargo que ocupará la persona', 'err');
   if (!comunidad) {
     if (comSelect) { comSelect.style.border = '2px solid var(--red)'; comSelect.focus(); }
     return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
@@ -3399,7 +3402,7 @@ async function saveComiteAuto(cedula) {
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
   try {
-    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cedula,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:(p&&p.centro_votacion)||'' ,letra:(p&&p.letra)||'V',p_apellido:(p&&p.p_apellido)||'',s_apellido:(p&&p.s_apellido)||'',p_nombre:(p&&p.p_nombre)||'',s_nombre:(p&&p.s_nombre)||'',sexo:(p&&p.sexo)||'',fecha_nac:(p&&p.fecha_nac)||''})});
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:(p&&p.centro_votacion)||'' ,letra:(p&&p.letra)||'V',p_apellido:(p&&p.p_apellido)||'',s_apellido:(p&&p.s_apellido)||'',p_nombre:(p&&p.p_nombre)||'',s_nombre:(p&&p.s_nombre)||'',sexo:(p&&p.sexo)||'',fecha_nac:(p&&p.fecha_nac)||''})});
     const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo asignar el comité');
     if(rd.id) await guardarProblemasComite(rd.id, problemas);
     await refreshAll();
@@ -3454,6 +3457,8 @@ async function saveComiteManualFull() {
     return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
   }
 
+  const cargoEl=$('comCargo'); const cargo=cargoEl ? cargoEl.value.trim() : '';
+  if (!cargo) return toast('Seleccione el cargo que ocupará la persona', 'err');
   const ced = normC($('cmCed').value), letra = $('cmLet').value;
   const pa = $('cmPa').value.trim(), sa = $('cmSa').value.trim();
   const pn = $('cmPn').value.trim(), sn = $('cmSn').value.trim();
@@ -3483,7 +3488,7 @@ async function saveComiteManualFull() {
 
   try {
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
-    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:cvCod})});
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:cvCod})});
     const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo registrar el comité');
     if(rd.id) await guardarProblemasComite(rd.id, problemas);
     await refreshAll();
@@ -3524,11 +3529,11 @@ function openComiteEdit(id) {
     comiteProblemasHTML('comE', (CACHE.comiteProblemas || []).filter(x => Number(x.comite_id) === Number(id)).map(x => Number(x.problema_id)), reg.problematica_actual || ''),
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveComiteEdit(' + id + ')">Guardar cambios ➜</button>', 550
   );
-  setTimeout(() => { renderComiteProblemasSelected('comE'); const el = $('comETel'); if (el) el.focus(); }, 200);
+  setTimeout(() => { const ce=$('comECargo'); if(ce) ce.value=reg.cargo||'COORDINADOR'; renderComiteProblemasSelected('comE'); const el = $('comETel'); if (el) el.focus(); }, 200);
 }
 
 async function saveComiteEdit(id) {
-  const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
+  const cargo=String($('comECargo')?.value||'').trim(); const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
   const nroCalle = $('comENroCalle').value.trim(), nroCasa = $('comENroCasa').value.trim();
   const problematica = $('comEProblematica').value.trim();
   const problemas = selectedComiteProblemas('comE');
