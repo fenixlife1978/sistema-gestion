@@ -841,7 +841,8 @@ const SCHEMA = [
     FOREIGN KEY(registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_aut_dup_cedula ON autorizaciones_duplicidad_persona(cedula)`,
-  `CREATE INDEX IF NOT EXISTS idx_aut_dup_fecha ON autorizaciones_duplicidad_persona(autorizado_en DESC)`
+  `CREATE INDEX IF NOT EXISTS idx_aut_dup_fecha ON autorizaciones_duplicidad_persona(autorizado_en DESC)`,
+  `ALTER TABLE autorizaciones_duplicidad_persona ADD COLUMN destino_detalle TEXT`
 ];
 
 async function migrarActasMesaPartido() {
@@ -1945,11 +1946,8 @@ async function assignCargo(codigo, idx, cedula, tel, dir) {
   }
   try {
     const existing = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === cargo);
-    if (existing) {
-      await x('UPDATE centro_cargos SET cedula = ?, telefono = COALESCE(?, telefono), direccion = COALESCE(?, direccion), asignado_en = datetime(\'now\') WHERE id = ?', [cedula, tel || null, dir || null, existing.id]);
-    } else {
-      await x('INSERT INTO centro_cargos(centro_codigo, cargo, cedula, telefono, direccion) VALUES(?,?,?,?,?)', [codigo, cargo, cedula, tel || null, dir || null]);
-    }
+        const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'centro',centro_codigo:codigo,cargo,cedula,telefono:tel?normTel(tel):'',direccion:dir})});
+    const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
     await registrarAct('user', cargo + ' asignado en centro ' + codigo + ' ? C.I. ' + cedula, USER.id);
     await refreshAll();
     openCentro(codigo);
@@ -2665,9 +2663,8 @@ async function saveDirAuto(cedula) {
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
   try {
-    await x('DELETE FROM direccion_ejecutiva WHERE cargo = ? OR cedula = ?', [cargo, cedula]);
-    await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
-      [cargo, cedula, nomComp, tel ? normTel(tel) : null, dir || null]);
+    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',direccion:dir})});
+    const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
     await registrarAct('user', 'Asignado a Dirección Ejecutiva: ' + nomComp + ' ➔ ' + cargo, USER.id);
     await refreshAll();
     renderDireccion();
@@ -2747,9 +2744,8 @@ async function saveDirManualFull() {
     }
 
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
-    await x('DELETE FROM direccion_ejecutiva WHERE cargo = ? OR cedula = ?', [cargo, ced]);
-    await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
-      [cargo, ced, nomComp, tel ? normTel(tel) : null, dir || null]);
+    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula:ced,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',direccion:dir,padron:{cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,edad,codigo_estado:cv.cod_estado,codigo_municipio:cv.cod_municipio,codigo_parroquia:cv.cod_parroquia,estado:cv.estado,municipio:cv.municipio,parroquia:cv.parroquia,centro_votacion:cv.codigo,nombre_cv:cv.nombre}})});
+    const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
 
     await registrarAct('user', 'Alta manual Dirección Ejecutiva: ' + fC(letra, ced) + ' ➔ ' + cargo, USER.id);
     await refreshAll();
