@@ -358,35 +358,60 @@ async function execSchema() {
   const existing=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal' LIMIT 1",params:[]}])));
   if(existing.length) await migrateComiteRoles();
   const marker=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_bootstrap_meta' LIMIT 1",params:[]}]));
-  if(marker.length){
-    return;
+  // Ejecutar migraciones estructurales también en bases ya inicializadas.
+  const dirCols=rowsFrom(await turso([{q:'PRAGMA table_info(direccion_ejecutiva)',params:[]}]));
+  if(dirCols.length){
+    const dirIndexes=rowsFrom(await turso([{q:'PRAGMA index_list(direccion_ejecutiva)',params:[]}]));
+    let dirCedulaUnique=false;
+    for(const ix of dirIndexes){
+      if(!ix.unique)continue;
+      const info=rowsFrom(await turso([{q:"PRAGMA index_info('"+String(ix.name).replace(/'/g,"''")+"')",params:[]}]));
+      if(info.length===1&&info[0].name==='cedula'){dirCedulaUnique=true;break;}
+    }
+    if(dirCedulaUnique){
+      await turso([{q:`CREATE TABLE IF NOT EXISTS direccion_ejecutiva_legacy_backup (
+        backup_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        backed_up_at TEXT NOT NULL DEFAULT (datetime('now')),
+        legacy_id INTEGER,
+        cargo TEXT,
+        cedula TEXT,
+        nombre TEXT,
+        telefono TEXT,
+        estructura TEXT,
+        direccion TEXT,
+        creado TEXT
+      )`,params:[]}]);
+      await turso([{q:`INSERT INTO direccion_ejecutiva_legacy_backup(legacy_id,cargo,cedula,nombre,telefono,estructura,direccion,creado)
+        SELECT id,cargo,cedula,nombre,telefono,estructura,direccion,creado FROM direccion_ejecutiva`,params:[]}]);
+      await turso([{q:`CREATE TABLE direccion_ejecutiva_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cargo TEXT NOT NULL UNIQUE,
+        cedula TEXT NOT NULL,
+        nombre TEXT,
+        telefono TEXT,
+        estructura TEXT,
+        direccion TEXT,
+        creado TEXT DEFAULT (datetime('now'))
+      )`,params:[]}]);
+      const dirRows=rowsFrom(await turso([{q:'SELECT id,cargo,cedula,nombre,telefono,estructura,direccion,creado FROM direccion_ejecutiva ORDER BY id',params:[]}]));
+      const seenCargo=new Set();
+      for(const row of dirRows){
+        if(seenCargo.has(String(row.cargo))) throw new Error('Migración de Dirección Ejecutiva requiere revisión: cargo duplicado "'+String(row.cargo)+'". Los datos originales fueron respaldados en direccion_ejecutiva_legacy_backup.');
+        seenCargo.add(String(row.cargo));
+        await turso([{q:'INSERT INTO direccion_ejecutiva_v2(id,cargo,cedula,nombre,telefono,estructura,direccion,creado) VALUES(?,?,?,?,?,?,?,?)',params:[row.id,row.cargo,row.cedula,row.nombre,row.telefono,row.estructura,row.direccion,row.creado]}]);
+      }
+      await turso([{q:'DROP TABLE direccion_ejecutiva',params:[]}]);
+      await turso([{q:'ALTER TABLE direccion_ejecutiva_v2 RENAME TO direccion_ejecutiva',params:[]}]);
+      await turso([{q:'CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)',params:[]}]);
+    }
   }
+
   const warnings=[];
   for (const sql of SCHEMA) {
     try { await turso([{q:sql,params:[]}]); }
     catch(e) {
       if (isBenign(e)) warnings.push(String(e.message||e));
       else throw e;
-    }
-  }
-
-  // Migración de seguridad: una persona puede ocupar varios cargos distintos
-  // en Dirección Ejecutiva; el cargo, no la cédula, es la clave única.
-  const cols=rowsFrom(await turso([{q:'PRAGMA table_info(direccion_ejecutiva)',params:[]}]));
-  if (cols.length) {
-    const indexes=rowsFrom(await turso([{q:'PRAGMA index_list(direccion_ejecutiva)',params:[]}]));
-    let cedulaUnique=false;
-    for(const ix of indexes){
-      if(!ix.unique) continue;
-      const info=rowsFrom(await turso([{q:"PRAGMA index_info('"+String(ix.name).replace(/'/g,"''")+"')",params:[]}]));
-      if(info.length===1 && info[0].name==='cedula'){ cedulaUnique=true; break; }
-    }
-    if(cedulaUnique){
-      await turso([{q:"CREATE TABLE IF NOT EXISTS direccion_ejecutiva_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, cargo TEXT NOT NULL UNIQUE, cedula TEXT NOT NULL, nombre TEXT, telefono TEXT, estructura TEXT, direccion TEXT, creado TEXT DEFAULT (datetime('now')))",params:[]}]);
-      await turso([{q:'INSERT OR IGNORE INTO direccion_ejecutiva_v2(id,cargo,cedula,nombre,telefono,estructura,direccion,creado) SELECT id,cargo,cedula,nombre,telefono,estructura,direccion,creado FROM direccion_ejecutiva',params:[]}]);
-      await turso([{q:'DROP TABLE direccion_ejecutiva',params:[]}]);
-      await turso([{q:'ALTER TABLE direccion_ejecutiva_v2 RENAME TO direccion_ejecutiva',params:[]}]);
-      await turso([{q:'CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)',params:[]}]);
     }
   }
 
