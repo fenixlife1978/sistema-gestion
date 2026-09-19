@@ -2393,7 +2393,7 @@ function downloadPDFDireccion() {
 /* ═══════════ COMITÉS VECINALES ═══════════ */
 let COMITE_FILTER = { comunidad: '', txt: '' };
 
-function getComunidadesPadron() {
+function getComunidadesCatalogo() {
   // Catálogo oficial de comunidades del Municipio Independencia.
   // Fuente: COMUNIDAD INDEPENDENCIA.xlsx (118 comunidades).
   // IMPORTANTE: Comité Vecinales NO obtiene comunidades del Padrón CNE.
@@ -2524,7 +2524,7 @@ function filterComiteCards() {
   const el = $('comTxt');
   if (el) COMITE_FILTER.txt = el.value;
   const comList = CACHE.comite || [];
-  const comunidades = getComunidadesPadron();
+  const comunidades = getComunidadesCatalogo();
   const fCom = COMITE_FILTER.comunidad;
   const fTxt = (COMITE_FILTER.txt || '').trim().toLowerCase();
 
@@ -2593,7 +2593,7 @@ function renderComite() {
   const selEnd = isComTxt ? activeEl.selectionEnd : null;
 
   const comList = CACHE.comite || [];
-  const comunidades = getComunidadesPadron();
+  const comunidades = getComunidadesCatalogo();
   const fCom = COMITE_FILTER.comunidad;
 
   const asignadosCount = comList.length;
@@ -2686,7 +2686,7 @@ function openComiteView(id) {
 }
 
 function openComiteManual(preComunidad) {
-  const comunidades = getComunidadesPadron();
+  const comunidades = getComunidadesCatalogo();
   win('Asignar Comité Vecinal por Comunidad',
     '<label class="fl">Comunidad (catálogo oficial)</label>' +
     '<select class="inp" id="comComunidad"><option value="">Seleccionar comunidad...</option>' +
