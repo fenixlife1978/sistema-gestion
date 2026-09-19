@@ -2394,19 +2394,130 @@ function downloadPDFDireccion() {
 let COMITE_FILTER = { comunidad: '', txt: '' };
 
 function getComunidadesPadron() {
-  const set = new Set();
-  (CACHE.pad || []).forEach(p => {
-    if (p.comunidad && String(p.comunidad).trim()) set.add(String(p.comunidad).trim().toUpperCase());
-    else if (p.parroquia && String(p.parroquia).trim()) set.add(String(p.parroquia).trim().toUpperCase());
-  });
-  (CACHE.centros || []).forEach(c => {
-    if (c.comunidad && String(c.comunidad).trim()) set.add(String(c.comunidad).trim().toUpperCase());
-    else if (c.parroquia && String(c.parroquia).trim()) set.add(String(c.parroquia).trim().toUpperCase());
-  });
-  (CACHE.comite || []).forEach(x => {
-    if (x.comunidad && String(x.comunidad).trim()) set.add(String(x.comunidad).trim().toUpperCase());
-  });
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
+  // Catálogo oficial de comunidades del Municipio Independencia.
+  // Fuente: COMUNIDAD INDEPENDENCIA.xlsx (118 comunidades).
+  // IMPORTANTE: Comité Vecinales NO obtiene comunidades del Padrón CNE.
+  const comunidades = [
+  "1RO DE MARZO",
+  "24 DE JULIO",
+  "ALI PRIMERA",
+  "ALICIA PIETRI DE CALDERA",
+  "ALTOS DE YURUBY",
+  "ANTONIO JOSE DE SUCRE",
+  "ARAGUANEY",
+  "ARCOIRIS",
+  "BARRIO ALEGRIA",
+  "BRISAS DEL ESTADIUM",
+  "BRISAS DE LOS SAUCES",
+  "BRISAS DEL TERMINAL",
+  "CANAIMA NORTE",
+  "CANAIMA SUR",
+  "CAÑA DULCE",
+  "CAÑAVERAL",
+  "CAÑAVERAL NUEVO",
+  "CARLOS BONILLA",
+  "CASCABEL NORTE",
+  "CASCABEL SUR",
+  "CEMENTERIO",
+  "CHAGUANTRILLO",
+  "COLINAS DEL PINAL",
+  "COROCITO",
+  "COROCITO II",
+  "CULANTRILLO",
+  "CUMBRE AZUL",
+  "CUMBRE DEL PARAISO",
+  "DON JUANCHO",
+  "EL BOSQUE",
+  "EL CAMPITO",
+  "EL PARQUE",
+  "EL SAMAN",
+  "EL VALLE",
+  "FUNDESFEL I",
+  "FUNDESFEL II",
+  "FUNDO EL CARMEN",
+  "JUVENTUD",
+  "LA ARBOLEDA",
+  "LA CEIBITA",
+  "LA ESPERANZA",
+  "LA FLORESTA",
+  "LA LLOVIZNA I",
+  "LA LLOVIZNA II",
+  "LA MONTAÑA",
+  "LA NEGRITA",
+  "LA ORQUIDEA",
+  "LA RECTA DE APOLONIO",
+  "LA ROSALEDA",
+  "LA VILLA",
+  "LAS AGUITAS",
+  "LAS MADRES",
+  "LAS PALMAS",
+  "LAS PIEDRAS",
+  "LAS TRINITARIAS",
+  "LOS ABOGADOS",
+  "LOS CEDROS",
+  "LOS HERMANOS",
+  "LOS MOCHUELOS",
+  "LOS NARANJOS",
+  "LOS PINOS",
+  "LOS PROFESIONALES",
+  "LOS SAUCES I",
+  "LOS SAUCES II",
+  "LOS SINGER",
+  "LUISA CACERES DE ARISMENDI",
+  "MADRID",
+  "MANGOS I",
+  "MANGOS II",
+  "MANPOSTAL",
+  "MANUEL CEDEÑO",
+  "NAZARENO",
+  "NELSON SUAREZ MONTIEL",
+  "OCHO DE ENERO",
+  "PALOTAL",
+  "PARADERO",
+  "PARAISO DE BELEN",
+  "PLAZA SUCRE",
+  "PRADOS DEL NORTE I",
+  "PRADOS DEL NORTE II (ALTO PRADO)",
+  "PRADOS DEL NORTE III (COLINAS)",
+  "RAFAEL CALDERA",
+  "RAUL LEONI",
+  "RENACER",
+  "RUIZ PINEDA NORTE",
+  "RUIZ PINEDA SUR",
+  "SABANETA",
+  "SABAYITO",
+  "SAN JOSE I",
+  "SAN JOSE II",
+  "SAN JUAN",
+  "SAN MIGUEL 2006",
+  "SAN MIGUEL NORTE",
+  "SAN RAFAEL",
+  "SANTA CATALINA",
+  "SANTA EDUVIGES RAVELL",
+  "SANTA ELENA",
+  "SANTA LUCIA",
+  "SAVAYO I",
+  "SAVAYO II",
+  "SIMON BOLIVAR",
+  "SUN - SUN",
+  "TAMANAVARE",
+  "TERRAZAS DEL NORTE",
+  "TRINIDAD",
+  "URB LA HACIENDA CAÑAVERAL",
+  "VALLE FRESCO",
+  "VIJAGUAL",
+  "VILLA DE ORO",
+  "VILLA ESTHER I",
+  "VILLA ESTHER II",
+  "VILLA HERMOSA",
+  "VILLA NUEVA",
+  "VIRGEN DEL SOCORRO",
+  "VIRGEN DEL VALLE",
+  "VISTA ALEGRE I",
+  "VISTA ALEGRE II",
+  "VISTA ALEGRE SOCIALISTA"
+];
+  return comunidades.slice();
 }
 
 function filterComiteCards() {
@@ -2492,13 +2603,13 @@ function renderComite() {
   $('sec-comite').innerHTML = panel(
     'Comités Vecinales <span class="chip chip-b">' + asignadosCount + ' / ' + totalComunidades + ' comunidades asignadas (' + pctCobertura + '%)</span>',
     '<div class="grid g3" style="gap:10px;margin-bottom:14px">' +
-      kc('Comunidades Totales CNE', totalComunidades, 'extraídas del padrón') +
+      kc('Comunidades Totales', totalComunidades, 'del catálogo oficial') +
       kc('Comités Vecinales Asignados', asignadosCount, 'líderes registrados', (asignadosCount/Math.max(1,totalComunidades))*100) +
       kc('Cobertura Territorial', pctCobertura + '%', 'de comunidades cubiertas', pctCobertura, true) +
     '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--bg2);padding:10px;border-radius:8px;border:1px solid var(--line2)">' +
       '<div style="flex:1;min-width:200px">' +
-        '<label class="fl">Filtrar por Comunidad CNE</label>' +
+        '<label class="fl">Filtrar por Comunidad</label>' +
         '<select class="inp" id="comSelCom" onchange="COMITE_FILTER.comunidad=this.value;renderComite()">' +
           '<option value="">Todas las comunidades (' + totalComunidades + ')...</option>' +
           comunidades.map(c => '<option value="' + esc(c) + '" ' + (fCom === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
@@ -2577,7 +2688,7 @@ function openComiteView(id) {
 function openComiteManual(preComunidad) {
   const comunidades = getComunidadesPadron();
   win('Asignar Comité Vecinal por Comunidad',
-    '<label class="fl">Comunidad (extraída del Padrón CNE)</label>' +
+    '<label class="fl">Comunidad (catálogo oficial)</label>' +
     '<select class="inp" id="comComunidad"><option value="">Seleccionar comunidad...</option>' +
       comunidades.map(c => '<option value="' + esc(c) + '" ' + (preComunidad === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
     '</select>' +
@@ -2834,7 +2945,7 @@ function printComite() {
       '@page{size:landscape;margin:12mm}' +
     '</style></head><body>' +
       '<h2>Estructura de Comités Vecinales por Comunidad</h2>' +
-      '<p>Sistema de Gestión Electoral • Reporte Oficial con Padrón CNE • Total: ' + comList.length + ' asignados</p>' +
+      '<p>Sistema de Gestión Electoral • Catálogo oficial de comunidades • Datos del responsable según Padrón CNE • Total: ' + comList.length + ' asignados</p>' +
       '<table><thead><tr>' +
         '<th>#</th><th>Comunidad</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
         '<th>Primer Nombre</th><th>Segundo Nombre</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th>' +
@@ -2887,7 +2998,7 @@ function downloadPDFComite() {
 
   const content = '<div style="font-family:Arial,sans-serif;font-size:10px;color:#111">' +
     '<h2 style="margin:0 0 4px 0;font-size:15px;color:#1e293b;text-transform:uppercase">Estructura de Comités Vecinales por Comunidad</h2>' +
-    '<p style="margin:0 0 12px 0;color:#64748b;font-size:10px">Sistema de Gestión Electoral • Reporte Oficial con Padrón CNE • Total: ' + comList.length + ' asignados</p>' +
+    '<p style="margin:0 0 12px 0;color:#64748b;font-size:10px">Sistema de Gestión Electoral • Catálogo oficial de comunidades • Datos del responsable según Padrón CNE • Total: ' + comList.length + ' asignados</p>' +
     '<table style="width:100%;border-collapse:collapse;font-size:9px"><thead style="background:#f1f5f9"><tr>' +
       '<th style="border:1px solid #cbd5e1;padding:4px">#</th>' +
       '<th style="border:1px solid #cbd5e1;padding:4px">Comunidad</th>' +
