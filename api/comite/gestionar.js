@@ -1,5 +1,6 @@
 const {parseBody,turso,rowsFrom,verify,getCookie}=require('../../lib/auth');
 const CED=/^\d{5,9}$/, TEL=/^0\d{3}-\d{7}$/;
+const CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 const s=v=>v==null?'':String(v).trim();
 const ci=v=>s(v).replace(/\D/g,'');
 const normTel=v=>{const x=ci(v);return x?x.slice(0,4)+'-'+x.slice(4):''};
@@ -17,8 +18,8 @@ module.exports=async function(req,res){
  const b=parseBody(req), action=s(b.action);
  try{
   if(action==='guardar'){
-   const comunidad=s(b.comunidad),ced=ci(b.cedula),letra=s(b.letra)||'V',pa=s(b.p_apellido),sa=s(b.s_apellido),pn=s(b.p_nombre),sn=s(b.s_nombre),sexo=s(b.sexo),fecha=s(b.fecha_nac),tel=s(b.telefono),dir=s(b.direccion),calle=s(b.numero_calle),casa=s(b.numero_casa),prob=s(b.problematica),cv=s(b.centro_codigo);
-   if(!comunidad||!CED.test(ced)||!pa||!pn||!['V','E'].includes(letra)||!['M','F'].includes(sexo))return res.status(400).json({error:'Datos de comité inválidos'});
+   const comunidad=s(b.comunidad),cargo=s(b.cargo).toUpperCase(),ced=ci(b.cedula),letra=s(b.letra)||'V',pa=s(b.p_apellido),sa=s(b.s_apellido),pn=s(b.p_nombre),sn=s(b.s_nombre),sexo=s(b.sexo),fecha=s(b.fecha_nac),tel=s(b.telefono),dir=s(b.direccion),calle=s(b.numero_calle),casa=s(b.numero_casa),prob=s(b.problematica),cv=s(b.centro_codigo);
+   if(!comunidad||!CARGOS.includes(cargo)||!CED.test(ced)||!pa||!pn||!['V','E'].includes(letra)||!['M','F'].includes(sexo))return res.status(400).json({error:'Datos de comité inválidos'});
    if(tel&&!TEL.test(tel.replace(/\D/g,'')))return res.status(400).json({error:'Teléfono inválido'});
    const cen=rowsFrom(await turso([{q:'SELECT * FROM centros WHERE codigo=? LIMIT 1',params:[cv]}]))[0];if(!cen)return res.status(400).json({error:'Centro electoral no existe'});
    const p=rowsFrom(await turso([{q:'SELECT * FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
@@ -28,16 +29,20 @@ module.exports=async function(req,res){
     if(cs.length){const auth=rowsFrom(await turso([{q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? ORDER BY id DESC LIMIT 1',params:[ced,'COMITÉ VECINAL']}]))[0];if(!auth)return res.status(409).json({error:'La persona ya figura en '+cs.join(', ')+' y requiere autorización J/A para Comité Vecinal'});}
     await turso([{q:'INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',params:[ced,letra,pa,sa,pn,sn,sexo,fecha,edad(fecha),cen.cod_estado,cen.estado,cen.cod_municipio,cen.municipio,cen.cod_parroquia,cen.parroquia,cen.codigo,cen.nombre]}]);
    }
-   await turso([{q:'DELETE FROM comite_vecinal WHERE comunidad=? OR cedula=?',params:[comunidad,ced]},{q:'INSERT INTO comite_vecinal(comunidad,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual) VALUES(?,?,?,?,?,?,?,?)',params:[comunidad,ced,pa+(sa?' '+sa:'')+', '+pn+(sn?' '+sn:''),tel?normTel(tel):null,dir||null,calle||null,casa||null,prob||null]}]);
-   const row=rowsFrom(await turso([{q:'SELECT id FROM comite_vecinal WHERE comunidad=? AND cedula=? ORDER BY id DESC LIMIT 1',params:[comunidad,ced]}]))[0];
+   const ocup=rowsFrom(await turso([{q:'SELECT id FROM comite_vecinal WHERE comunidad=? AND cargo=? LIMIT 1',params:[comunidad,cargo]}]))[0];
+  if(ocup) return res.status(409).json({error:'El cargo '+cargo+' ya está asignado en esta comunidad'});
+  const persona=rowsFrom(await turso([{q:'SELECT id,comunidad,cargo FROM comite_vecinal WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
+  if(persona) return res.status(409).json({error:'La persona ya está asignada al Comité Vecinal de '+persona.comunidad+' como '+persona.cargo});
+  await turso([{q:'INSERT INTO comite_vecinal(comunidad,cargo,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual) VALUES(?,?,?,?,?,?,?,?,?)',params:[comunidad,cargo,ced,pa+(sa?' '+sa:'')+', '+pn+(sn?' '+sn:''),tel?normTel(tel):null,dir||null,calle||null,casa||null,prob||null]}]);
+   const row=rowsFrom(await turso([{q:'SELECT id FROM comite_vecinal WHERE comunidad=? AND cargo=? AND cedula=? ORDER BY id DESC LIMIT 1',params:[comunidad,cargo,ced]}]))[0];
    await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Alta Comité Vecinal: C.I. '+ced+' → '+comunidad,a.id]}]);
    return res.json({ok:true,id:row?.id||null});
   }
   if(action==='editar'){
-   const id=Number(b.id),tel=s(b.telefono),dir=s(b.direccion),calle=s(b.numero_calle),casa=s(b.numero_casa),prob=s(b.problematica);
-   if(!id)return res.status(400).json({error:'Registro inválido'});if(tel&&!TEL.test(tel.replace(/\D/g,'')))return res.status(400).json({error:'Teléfono inválido'});
+   const id=Number(b.id),cargo=s(b.cargo).toUpperCase(),tel=s(b.telefono),dir=s(b.direccion),calle=s(b.numero_calle),casa=s(b.numero_casa),prob=s(b.problematica);
+   if(!id||!CARGOS.includes(cargo))return res.status(400).json({error:'Registro o cargo inválido'});if(tel&&!TEL.test(tel.replace(/\D/g,'')))return res.status(400).json({error:'Teléfono inválido'});
    const hit=rowsFrom(await turso([{q:'SELECT id FROM comite_vecinal WHERE id=? LIMIT 1',params:[id]}]))[0];if(!hit)return res.status(404).json({error:'Registro no encontrado'});
-   await turso([{q:'UPDATE comite_vecinal SET telefono=?,direccion=?,numero_calle=?,numero_casa=?,problematica_actual=? WHERE id=?',params:[tel?normTel(tel):null,dir||null,calle||null,casa||null,prob||null,id]},{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Comité Vecinal actualizado #'+id,a.id]}]);
+   await turso([{q:'UPDATE comite_vecinal SET cargo=?,telefono=?,direccion=?,numero_calle=?,numero_casa=?,problematica_actual=? WHERE id=?',params:[cargo,tel?normTel(tel):null,dir||null,calle||null,casa||null,prob||null,id]},{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Comité Vecinal actualizado #'+id,a.id]}]);
    return res.json({ok:true});
   }
   if(action==='eliminar'){
