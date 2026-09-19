@@ -1,6 +1,10 @@
 const {parseBody,turso,rowsFrom,verify,getCookie}=require('../lib/auth');
 
 const st=(v,n)=>String(v??'').trim().slice(0,n);
+// Hora oficial de Venezuela (UTC-04:00), persistida con zona para que el corte
+// conserve la hora exacta aunque el servidor de Vercel opere en UTC.
+const ahoraVenezuela=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date()).reduce((o,p)=>(o[p.type]=p.value,o),{});
+const timestampVenezuela=()=>{const p=ahoraVenezuela();return p.year+'-'+p.month+'-'+p.day+'T'+p.hour+':'+p.minute+':'+p.second+'-04:00';};
 const fail=(res,c,e)=>res.status(c).json({error:e});
 
 async function calcularCorte(centro_codigo){
@@ -106,9 +110,9 @@ module.exports=async function(req,res){
         (centro_codigo,etiqueta,tomado_en,tomado_por,personas_universo,verificados,pendientes,
          porcentaje_verificado,masculinos_universo,femeninos_universo,masculinos_verificados,
          femeninos_verificados,mesas_total,mesas_con_acta,votos_partido_acta,diferencia_acta,detalle_json)
-        VALUES(?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       params:[
-        centro,etiqueta||null,session.uid,met.personas_universo,met.verificados,met.pendientes,
+        centro,etiqueta||null,timestampVenezuela(),session.uid,met.personas_universo,met.verificados,met.pendientes,
         met.porcentaje_verificado,met.masculinos_universo,met.femeninos_universo,
         met.masculinos_verificados,met.femeninos_verificados,met.mesas_total,
         met.mesas_con_acta,met.votos_partido_acta,met.diferencia_acta,met.detalle_json
