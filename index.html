@@ -963,20 +963,17 @@ async function doLogin() {
   const u = $('lgU').value.trim(), p = $('lgP').value, selR = $('lgR').value;
   if (!u || !p) return toast('Ingrese usuario y clave', 'err');
   try {
-    const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [u]);
-    if (!row.length) return toast('Usuario no encontrado o inactivo', 'err');
-    const h = await hash(p);
-    if (row[0].clave_hash !== h) return toast('Clave incorrecta', 'err');
-    const userRole = row[0].rol;
-    if (selR === 'J' && userRole !== 'J') return toast('Este usuario no tiene rol de Jefe de Comando', 'err');
-    if (selR === 'A' && !['J', 'A'].includes(userRole)) return toast('Este usuario no tiene rol de Administrador', 'err');
-    if (selR === 'O' && userRole !== 'O') return toast('Este usuario no tiene rol de Operador', 'err');
-    USER = { ...row[0] };
-    delete USER.clave_hash;
-    localStorage.setItem('session', JSON.stringify({ user: {
-      id: USER.id, usuario: USER.usuario, nombre: USER.nombre, rol: USER.rol,
-      cargo: USER.cargo, telefono: USER.telefono, activo: USER.activo
-    }, cur: 'dash' }));
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: u, clave: p, rol: selR })
+    });
+    let data = {};
+    try { data = await r.json(); } catch (e) {}
+    if (!r.ok) return toast(data.error || 'No fue posible iniciar sesión', 'err', 7000);
+    USER = data.user;
+    localStorage.setItem('curTab', 'dash');
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
     await refreshAll();
     enterApp('dash');
@@ -1036,8 +1033,9 @@ function go(id) {
   ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion, comite: renderComite, control: renderControlElectoral })[id]();
   window.scrollTo({ top: 0 });
 }
-function logout() {
-  localStorage.removeItem('session');
+async function logout() {
+  try { await fetch('/api/auth/logout', { method:'POST', credentials:'include' }); } catch(e) {}
+  localStorage.removeItem('curTab');
   USER = null;
   location.reload();
 }
@@ -2418,30 +2416,36 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
     setLoad('Conectando con Turso...');
     await q('SELECT 1');
     await inicializarTurso();
-    const saved = (() => { try { return JSON.parse(localStorage.getItem('session')); } catch(e) { return null; } })();
-    if (saved && saved.user && saved.user.usuario) {
-      setLoad('Restaurando sesión...');
-      const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [saved.user.usuario]);
-      if (row.length) {
-        USER = row[0];
-        await refreshAll();
-        setLoad('Verificando datos...');
-        const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
-        if (badEdad > 0) {
-          setLoad('Reparando edades...', badEdad + ' registros');
-          const all = await q('SELECT cedula, fecha_nac FROM padron');
-          const CHUNK = 200;
-          for (let i = 0; i < all.length; i += CHUNK) {
-            const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
-            await turso(batch);
-          }
+    let authenticated = false;
+    try {
+      const sr = await fetch('/api/auth/session', { credentials:'include', cache:'no-store' });
+      if (sr.ok) {
+        const sd = await sr.json();
+        if (sd.authenticated && sd.user) {
+          USER = sd.user;
+          authenticated = true;
+          setLoad('Restaurando sesión...');
           await refreshAll();
+          setLoad('Verificando datos...');
+          const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
+          if (badEdad > 0) {
+            setLoad('Reparando edades...', badEdad + ' registros');
+            const all = await q('SELECT cedula, fecha_nac FROM padron');
+            const CHUNK = 200;
+            for (let i = 0; i < all.length; i += CHUNK) {
+              const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
+              await turso(batch);
+            }
+            await refreshAll();
+          }
+          clearTimeout(progressTimer);
+          $('loading').style.display = 'none';
+          enterApp(localStorage.getItem('curTab') || 'dash');
+          return;
         }
-        clearTimeout(progressTimer);
-        $('loading').style.display = 'none';
-        enterApp(saved.cur || 'dash');
-        return;
       }
+    } catch (e) {
+      console.warn('No se pudo verificar la sesión:', e);
     }
     const count = await q('SELECT COUNT(*) AS n FROM padron');
     clearTimeout(progressTimer);
