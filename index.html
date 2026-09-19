@@ -613,7 +613,7 @@ function problemasTextoComite(comiteId) {
 function setLoad(msg, sub) { $('loadMsg').textContent = msg; if (sub !== undefined) $('loadSub').textContent = sub; }
 
 async function registrarAct(tipo, texto, uid) {
-  try { await x('INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)', [tipo, texto, uid]); } catch (e) {}
+  try { await fetch('/api/auditar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,texto})}); } catch (e) {}
 }
 
 /* ----------- RECARGA DE CACHE DESDE TURSO ----------- */
