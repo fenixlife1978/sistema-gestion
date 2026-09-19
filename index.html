@@ -599,12 +599,8 @@ function filtrarComiteProblemas(prefix) {
 }
 
 async function guardarProblemasComite(comiteId, problemaIds) {
-  await x('DELETE FROM comite_problemas WHERE comite_id = ?', [comiteId]);
-  for (const problemaId of (problemaIds || [])) {
-    if (Number.isFinite(Number(problemaId)) && Number(problemaId) > 0) {
-      await x('INSERT OR IGNORE INTO comite_problemas(comite_id, problema_id) VALUES(?,?)', [comiteId, Number(problemaId)]);
-    }
-  }
+  const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'problemas',comite_id:comiteId,problema_ids:problemaIds||[]})});
+  const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron guardar las problemáticas');
 }
 
 function problemasTextoComite(comiteId) {
@@ -3586,13 +3582,9 @@ async function saveComiteManualFull() {
 
   try {
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
-    await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, ced]);
-    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
-      [comunidad, ced, nomComp, tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null]);
-
-    const comRow = await q('SELECT id FROM comite_vecinal WHERE comunidad = ? AND cedula = ? ORDER BY id DESC LIMIT 1', [comunidad, ced]);
-    if (comRow.length) await guardarProblemasComite(comRow[0].id, problemas);
-    await registrarAct('user', 'Alta manual Comité Vecinal: ' + fC(letra, ced) + ' ➔ ' + comunidad, USER.id);
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:cvCod})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo registrar el comité');
+    if(rd.id) await guardarProblemasComite(rd.id, problemas);
     await refreshAll();
     renderComite();
     closeModal();
@@ -3608,7 +3600,7 @@ async function delComite(id) {
   const nom = reg ? (reg.nombre || reg.comunidad) : 'registro';
   askDo('Remover de Comité Vecinal', '¿Desea remover a <b>' + esc(nom) + '</b> de la comunidad <b>' + esc(reg.comunidad) + '</b>?', 'Remover', async () => {
     try {
-      await x('DELETE FROM comite_vecinal WHERE id = ?', [id]);
+      const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar',id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo eliminar el registro');
       await refreshAll(); renderComite(); toast('Registro removido', 'ok');
     } catch (e) { toast('Error: ' + e.message, 'err'); }
   });
@@ -3642,8 +3634,7 @@ async function saveComiteEdit(id) {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'COMITÉ VECINAL', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('UPDATE comite_vecinal SET telefono = ?, direccion = ?, numero_calle = ?, numero_casa = ?, problematica_actual = ? WHERE id = ?',
-      [tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null, id]);
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'editar',id,telefono:tel,direccion:dir,numero_calle:nroCalle,numero_casa:nroCasa,problematica})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar el comité');
     await guardarProblemasComite(id, problemas);
     await refreshAll(); renderComite(); closeModal(); toast('Actualizado con éxito', 'ok');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
