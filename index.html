@@ -486,6 +486,118 @@ let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { mu
 let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [], comite: [] };
 
 /* ----------- ESQUEMA TURSO (AUTO-MIGRACIÓN) ----------- */
+const COMITE_PROBLEMAS_BASE = [
+  ['Servicios públicos','Agua potable'],
+  ['Servicios públicos','Aguas servidas / cloacas'],
+  ['Servicios públicos','Recolección de basura'],
+  ['Servicios públicos','Alumbrado público'],
+  ['Servicios públicos','Electricidad'],
+  ['Servicios públicos','Gas doméstico'],
+  ['Servicios públicos','Transporte público'],
+  ['Infraestructura','Vialidad / calles'],
+  ['Infraestructura','Aceras / brocales'],
+  ['Infraestructura','Drenajes / aguas de lluvia'],
+  ['Infraestructura','Puentes / accesos'],
+  ['Infraestructura','Espacios públicos'],
+  ['Vivienda','Déficit o deterioro de vivienda'],
+  ['Vivienda','Techo / filtraciones'],
+  ['Vivienda','Hacinamiento'],
+  ['Salud','Atención médica'],
+  ['Salud','Medicamentos'],
+  ['Salud','Ambulatorio / centro de salud'],
+  ['Educación','Infraestructura educativa'],
+  ['Educación','Acceso a educación'],
+  ['Educación','Materiales escolares'],
+  ['Seguridad','Seguridad ciudadana'],
+  ['Seguridad','Iluminación de zonas de riesgo'],
+  ['Ambiente','Contaminación'],
+  ['Ambiente','Áreas verdes'],
+  ['Ambiente','Animales en situación de calle'],
+  ['Conectividad','Telefonía / señal móvil'],
+  ['Conectividad','Internet'],
+  ['Cultura y deporte','Canchas deportivas'],
+  ['Cultura y deporte','Actividades culturales / comunitarias'],
+  ['Social','Adultos mayores'],
+  ['Social','Personas con discapacidad'],
+  ['Social','Alimentación'],
+  ['Social','Empleo / emprendimiento'],
+  ['Otros','Otro problema comunitario']
+];
+
+function comiteProblemasHTML(prefix, selected = [], legacy = '') {
+  const sel = new Set((selected || []).map(Number));
+  const groups = {};
+  (CACHE.catalogoProblemas || []).forEach(p => {
+    const cat = p.categoria || 'Otros';
+    (groups[cat] ||= []).push(p);
+  });
+  const fallback = groups && Object.keys(groups).length ? '' : COMITE_PROBLEMAS_BASE.map((x,i)=>({id:-(i+1),categoria:x[0],nombre:x[1],orden:i+1}));
+  if (fallback.length) {
+    groups['Catálogo básico'] = fallback;
+  }
+  const cats = Object.keys(groups);
+  return '<div class="panel" style="margin-top:12px">' +
+    '<div class="panel-h">' + ic('list', 15) + ' Problemáticas comunitarias</div>' +
+    '<div class="panel-b">' +
+      '<input class="inp" id="' + prefix + 'ProblemasSearch" placeholder="Buscar problemática..." oninput="filtrarComiteProblemas(\'' + prefix + '\')">' +
+      '<div id="' + prefix + 'ProblemasList" style="max-height:230px;overflow:auto;margin-top:9px">' +
+        cats.map(cat => '<div class="com-prob-cat" data-cat="' + esc(cat) + '">' +
+          '<div style="font-weight:700;color:var(--navy);padding:6px 2px">' + esc(cat) + '</div>' +
+          groups[cat].map(p => '<label class="com-prob-item" data-text="' + esc((cat+' '+p.nombre).toLowerCase()) + '" style="display:flex;gap:8px;align-items:flex-start;padding:6px 7px;border:1px solid var(--line2);border-radius:4px;margin-bottom:5px;background:#fff;cursor:pointer">' +
+            '<input type="checkbox" class="com-prob-check" data-prefix="' + prefix + '" value="' + p.id + '" ' + (sel.has(Number(p.id)) ? 'checked' : '') + ' onchange="renderComiteProblemasSelected(\'' + prefix + '\')">' +
+            '<span><b>' + esc(p.nombre) + '</b></span>' +
+          '</label>').join('') +
+        '</div>').join('') +
+      '</div>' +
+      '<div id="' + prefix + 'ProblemasSelected" style="margin-top:9px"></div>' +
+      '<label class="fl" style="margin-top:10px">Observación adicional (opcional)</label>' +
+      '<textarea class="inp" id="' + prefix + 'Problematica" maxlength="2000" rows="3" placeholder="Detalle adicional no contemplado en el catálogo...">' + esc(legacy || '') + '</textarea>' +
+    '</div>' +
+  '</div>';
+}
+
+function selectedComiteProblemas(prefix) {
+  return Array.from(document.querySelectorAll('.com-prob-check[data-prefix="' + prefix + '"]:checked')).map(el => Number(el.value)).filter(Number.isFinite);
+}
+
+function renderComiteProblemasSelected(prefix) {
+  const box = $(prefix + 'ProblemasSelected');
+  if (!box) return;
+  const ids = new Set(selectedComiteProblemas(prefix));
+  const rows = (CACHE.catalogoProblemas || []).filter(p => ids.has(Number(p.id)));
+  box.innerHTML = rows.length
+    ? '<div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:5px">Seleccionadas:</div>' +
+      rows.map(p => '<span class="chip chip-b" style="margin:2px">' + esc(p.nombre) + '</span>').join('')
+    : '<span style="font-size:11px;color:var(--mut)">Ninguna problemática seleccionada.</span>';
+}
+
+function filtrarComiteProblemas(prefix) {
+  const qv = String($(prefix + 'ProblemasSearch')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#' + prefix + 'ProblemasList .com-prob-item').forEach(el => {
+    el.style.display = !qv || String(el.dataset.text || '').includes(qv) ? 'flex' : 'none';
+  });
+  document.querySelectorAll('#' + prefix + 'ProblemasList .com-prob-cat').forEach(cat => {
+    const visible = Array.from(cat.querySelectorAll('.com-prob-item')).some(el => el.style.display !== 'none');
+    cat.style.display = visible ? 'block' : 'none';
+  });
+}
+
+async function guardarProblemasComite(comiteId, problemaIds) {
+  await x('DELETE FROM comite_problemas WHERE comite_id = ?', [comiteId]);
+  for (const problemaId of (problemaIds || [])) {
+    if (Number.isFinite(Number(problemaId)) && Number(problemaId) > 0) {
+      await x('INSERT OR IGNORE INTO comite_problemas(comite_id, problema_id) VALUES(?,?)', [comiteId, Number(problemaId)]);
+    }
+  }
+}
+
+function problemasTextoComite(comiteId) {
+  return (CACHE.comiteProblemas || [])
+    .filter(x => Number(x.comite_id) === Number(comiteId))
+    .map(x => x.problema_nombre)
+    .join(', ');
+}
+
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
