@@ -2896,63 +2896,114 @@ function renderControlElectoral() {
     return;
   }
   if (!CONTROL_ELECTORAL.centro) CONTROL_ELECTORAL.centro = centro.codigo;
+
   const personas = controlPersonasCentro(centro.codigo);
   const verificados = personas.filter(x => !!controlVerif(x.l.cedula));
   const pendientes = Math.max(0, personas.length - verificados.length);
-  const pct = personas.length ? ((verificados.length / personas.length) * 100).toFixed(1) : '0.0';
-  const m = { M:0, F:0 };
-  personas.forEach(x => { const s = x.p.sexo; if (s === 'M') m.M++; else if (s === 'F') m.F++; });
-  const vm = { M:0, F:0 };
-  verificados.forEach(x => { const s = x.p.sexo; if (s === 'M') vm.M++; else if (s === 'F') vm.F++; });
+  const pct = personas.length ? (verificados.length / personas.length * 100) : 0;
+
+  const mM = personas.filter(x => x.p.sexo === 'M').length;
+  const mF = personas.filter(x => x.p.sexo === 'F').length;
+  const vM = verificados.filter(x => x.p.sexo === 'M').length;
+  const vF = verificados.filter(x => x.p.sexo === 'F').length;
+
   const mesas = Math.max(1, Number(centro.mesas || 1));
   const mesaRows = [];
-  for (let i=1;i<=mesas;i++) {
+  for (let i = 1; i <= mesas; i++) {
     const mesa = String(i);
-    const total = personas.filter(x => controlVerif(x.l.cedula) || mesa === String((x.p.mesa || '')).trim()).length;
     const vv = verificados.filter(x => controlMesaTexto(controlVerif(x.l.cedula)) === mesa).length;
     const acta = (CACHE.actasMesa || []).find(a => a.centro_codigo === centro.codigo && String(a.mesa) === mesa);
     const diff = acta ? vv - Number(acta.cantidad_acta || 0) : null;
     mesaRows.push({ mesa, vv, acta, diff });
   }
-  const actasCargadas = mesaRows.filter(x => x.acta).length;
-  const totalActa = mesaRows.reduce((s,x)=>s+(x.acta?Number(x.acta.cantidad_acta||0):0),0);
+
+  const actasCargadas = mesaRows.filter(x => !!x.acta).length;
+  const totalActa = mesaRows.reduce((sum, x) => sum + (x.acta ? Number(x.acta.cantidad_acta || 0) : 0), 0);
   const diffTotal = actasCargadas ? verificados.length - totalActa : null;
 
-  $('sec-control').innerHTML = panel(
-    'Control Electoral • Verificación de asistencia',
-    '<div class="grid g4" style="margin-bottom:14px">' +
-      kc('Personas en listas 1×10', personas.length, 'asociadas a este centro') +
-      kc('Votaron / verificados', verificados.length, 'registro individual confirmado', personas.length ? (verificados.length/personas.length*100) : 0, verificados.length===personas.length && personas.length>0) +
-      kc('Pendientes', pendientes, 'sin verificación individual') +
-      kc('Avance', pct + '%', 'del universo del centro', Number(pct), Number(pct)===100)
-    +'</div>' +
-    '<div class="panel" style="margin-top:0"><div class="panel-h">'+ic('search',15)+' Verificar asistencia individual</div><div class="panel-b">' +
-      '<div class="grid g2" style="gap:10px;align-items:end">' +
-        '<div><label class="fl">Centro de votación</label><select class="inp" id="ctlCentro" onchange="cambiarCentroControl(this.value)">' +
-          CACHE.centros.map(x=>'<option value="'+esc(x.codigo)+'" '+(x.codigo===centro.codigo?'selected':'')+'>'+esc(x.nombre)+'</option>').join('') +
-        '</select></div>' +
-        '<div><label class="fl">Buscar persona</label><input class="inp" id="ctlSearch" value="'+esc(CONTROL_ELECTORAL.search)+'" placeholder="Nombre, palabra clave del nombre o cédula..." oninput="filtrarControlElectoral()" autocomplete="off"></div>' +
+  const centroOptions = CACHE.centros.map(x =>
+    '<option value="' + esc(x.codigo) + '" ' + (x.codigo === centro.codigo ? 'selected' : '') + '>' + esc(x.nombre) + '</option>'
+  ).join('');
+
+  const mesaHtml = mesaRows.map(x => {
+    let estado = '<span class="chip chip-y">PENDIENTE ACTA</span>';
+    if (x.diff !== null) estado = x.diff === 0
+      ? '<span class="chip chip-g">CONCILIADO</span>'
+      : '<span class="chip chip-r">REVISAR</span>';
+    return '<tr>' +
+      '<td><b>Mesa ' + esc(x.mesa) + '</b></td>' +
+      '<td>' + x.vv + '</td>' +
+      '<td>' + (x.acta ? x.acta.cantidad_acta : '—') + '</td>' +
+      '<td>' + (x.diff === null ? '—' : x.diff) + '</td>' +
+      '<td>' + estado + '</td>' +
+      '<td><button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
+    '</tr>';
+  }).join('');
+
+  const ultimas = verificados.slice().sort((a,b) => String(b.verificado_en).localeCompare(String(a.verificado_en))).slice(0, 30).map(x => {
+    const p = padBy(x.cedula) || {};
+    const as = asignDe(x.cedula);
+    const rr = as && as.r ? as.r : null;
+    const rp = rr ? (padBy(rr.cedula) || rr) : null;
+    return '<tr>' +
+      '<td class="mono">' + esc(x.verificado_en || '') + '</td>' +
+      '<td>' + esc(((p.p_apellido || '') + ' ' + (p.p_nombre || '')).trim()) + '</td>' +
+      '<td class="mono">' + esc(fC(p.letra || 'V', x.cedula)) + '</td>' +
+      '<td><b>' + esc(x.mesa) + '</b></td>' +
+      '<td>' + esc(rp ? nomP(rp) : '') + '</td>' +
+      '<td>' + esc(as && as.pos ? as.pos : '') + '</td>' +
+      '<td>' + esc(((CACHE.users || []).find(u => Number(u.id) === Number(x.verificado_por)) || {}).nombre || '') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  $('sec-control').innerHTML =
+    panel(
+      'Control Electoral • Verificación de asistencia',
+      '<div class="grid g4" style="margin-bottom:14px">' +
+        kc('Personas en listas 1×10', personas.length, 'asociadas a este centro') +
+        kc('VOTARON / verificados', verificados.length, 'registro individual confirmado', pct, verificados.length === personas.length && personas.length > 0) +
+        kc('Pendientes', pendientes, 'sin verificación individual') +
+        kc('Avance', pct.toFixed(1) + '%', 'del universo del centro', pct, pct === 100) +
       '</div>' +
-      '<div id="ctlResults" style="margin-top:12px"></div>' +
-    '</div></div>' +
-    '<div class="grid g2">' +
-      panel('Métricas por sexo',
-        '<div class="ck"><div class="ck-it"><b>'+m.M+'</b><span>Masculino en listas</span></div><div class="ck-it"><b>'+m.F+'</b><span>Femenino en listas</span></div><div class="ck-it"><b>'+vm.M+'</b><span>Masculino verificado</span></div><div class="ck-it"><b>'+vm.F+'</b><span>Femenino verificado</span></div></div>') +
-      panel('Conciliación general con actas',
-        '<div class="ck"><div class="ck-it"><b>'+actasCargadas+'/'+mesas+'</b><span>Mesas con acta cargada</span></div><div class="ck-it"><b>'+totalActa+'</b><span>Total acta</span></div><div class="ck-it"><b>'+(diffTotal===null?'—':(diffTotal===0?'0':diffTotal))+'</b><span>Diferencia asistencia vs acta</span></div></div>')
-    +'</div>' +
-    '<div class="panel"><div class="panel-h">'+ic('chart',15)+' Control por mesa</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Mesa</th><th>Verificados</th><th>Acta física</th><th>Diferencia</th><th>Estado</th><th>Acción</th></tr></thead><tbody>' +
-      mesaRows.map(x=>'<tr><td><b>Mesa '+esc(x.mesa)+'</b></td><td>'+x.vv+'</td><td>'+(x.acta?x.acta.cantidad_acta:'—')+'</td><td>'+(x.diff===null?'—':x.diff)+'</td><td>'+(x.diff===null?'<span class="chip chip-y">PENDIENTE ACTA</span>':x.diff===0?'<span class="chip chip-g">CONCILIADO</span>':'<span class="chip chip-r">REVISAR</span>')+'</td><td><button class="btn btn-w btn-xs" onclick="editarActaMesa(\''+esc(centro.codigo)+'\',\''+esc(x.mesa)+'\')">Acta</button></td></tr>').join('') +
-    '</tbody></table></div></div></div>' +
-    '<div class="panel"><div class="panel-h">'+ic('users',15)+' Últimas verificaciones</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Hora</th><th>Persona</th><th>C.I.</th><th>Mesa</th><th>Movilizador</th><th>Pos.</th><th>Operador</th></tr></thead><tbody>' +
-      verificados.slice().sort((a,b)=>String(b.verificado_en).localeCompare(String(a.verificado_en))).slice(0,30).map(x=>{
-        const p=padBy(x.cedula)||{}, as=asignDe(x.cedula), rr=as&&as.r?as.r:null;
-        return '<tr><td class="mono">'+esc(x.verificado_en||'')+'</td><td>'+esc((p.p_apellido||'')+' '+(p.p_nombre||''))+'</td><td class="mono">'+esc(fC(p.letra||'V',x.cedula))+'</td><td><b>'+esc(x.mesa)+'</b></td><td>'+esc(rr?(nomP(padBy(rr.cedula)||rr):'') )+'</td><td>'+esc(as&&as.pos||'')+'</td><td>'+esc((CACHE.users||[]).find(u=>Number(u.id)===Number(x.verificado_por))?.nombre||'')+'</td></tr>';
-      }).join('') || '<tr><td colspan="7" class="empty">Todavía no hay verificaciones.</td></tr>' +
-    '</tbody></table></div></div></div>'
-  );
+
+      '<div class="panel" style="margin-top:0"><div class="panel-h">' + ic('search',15) + ' Verificar asistencia individual</div><div class="panel-b">' +
+        '<div class="grid g2" style="gap:10px;align-items:end">' +
+          '<div><label class="fl">Centro de votación</label><select class="inp" id="ctlCentro" onchange="cambiarCentroControl(this.value)">' + centroOptions + '</select></div>' +
+          '<div><label class="fl">Buscar persona</label><input class="inp" id="ctlSearch" value="' + esc(CONTROL_ELECTORAL.search) + '" placeholder="Nombre, palabra clave del nombre o cédula..." oninput="filtrarControlElectoral()" autocomplete="off"></div>' +
+        '</div>' +
+        '<div id="ctlResults" style="margin-top:12px"></div>' +
+      '</div></div>' +
+
+      '<div class="grid g2">' +
+        panel('Métricas por sexo',
+          '<div class="ck">' +
+            '<div class="ck-it"><b>' + mM + '</b><span>Masculino en listas</span></div>' +
+            '<div class="ck-it"><b>' + mF + '</b><span>Femenino en listas</span></div>' +
+            '<div class="ck-it"><b>' + vM + '</b><span>Masculino verificado</span></div>' +
+            '<div class="ck-it"><b>' + vF + '</b><span>Femenino verificado</span></div>' +
+          '</div>') +
+        panel('Conciliación general con actas',
+          '<div class="ck">' +
+            '<div class="ck-it"><b>' + actasCargadas + '/' + mesas + '</b><span>Mesas con acta cargada</span></div>' +
+            '<div class="ck-it"><b>' + totalActa + '</b><span>Total acta</span></div>' +
+            '<div class="ck-it"><b>' + (diffTotal === null ? '—' : diffTotal) + '</b><span>Diferencia asistencia vs acta</span></div>' +
+          '</div>')
+      + '</div>' +
+
+      '<div class="panel"><div class="panel-h">' + ic('chart',15) + ' Control por mesa</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
+        '<thead><tr><th>Mesa</th><th>Verificados</th><th>Acta física</th><th>Diferencia</th><th>Estado</th><th>Acción</th></tr></thead>' +
+        '<tbody>' + mesaHtml + '</tbody></table></div></div></div>' +
+
+      '<div class="panel"><div class="panel-h">' + ic('users',15) + ' Últimas verificaciones</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
+        '<thead><tr><th>Hora</th><th>Persona</th><th>C.I.</th><th>Mesa</th><th>Movilizador</th><th>Pos.</th><th>Operador</th></tr></thead>' +
+        '<tbody>' + (ultimas || '<tr><td colspan="7" class="empty">Todavía no hay verificaciones.</td></tr>') + '</tbody>' +
+      '</table></div></div></div>',
+      900
+    );
+
   filtrarControlElectoral();
 }
+
 function cambiarCentroControl(codigo) {
   CONTROL_ELECTORAL.centro = codigo;
   CONTROL_ELECTORAL.search = '';
