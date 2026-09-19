@@ -2857,7 +2857,7 @@ function comiteBuscarCedula() {
         '<div><label class="fl">Número de casa</label><input class="inp" id="comNroCasa" placeholder="Ej. 12"></div>' +
         '<div style="grid-column:1/-1"><label class="fl">Dirección (opcional)</label><input class="inp" id="comDir" placeholder="Urbanización, sector, referencia..."></div>' +
       '</div>' +
-      '<div style="margin-top:10px"><label class="fl">Problemática Actual</label><textarea class="inp" id="comProblematica" rows="4" maxlength="2000" placeholder="Describa la problemática actual que presenta la comunidad..."></textarea></div>' +
+      comiteProblemasHTML('com', [], '') +
       '<div style="margin-top:14px;text-align:right">' +
         '<button class="btn btn-navy" onclick="saveComiteAuto(\'' + p.cedula + '\')">Guardar y Asignar Comité Vecinal ➜</button>' +
       '</div>';
@@ -2887,6 +2887,7 @@ async function saveComiteAuto(cedula) {
   const nroCalle = ($('comNroCalle') ? $('comNroCalle').value : '').trim();
   const nroCasa = ($('comNroCasa') ? $('comNroCasa').value : '').trim();
   const problematica = ($('comProblematica') ? $('comProblematica').value : '').trim();
+  const problemas = selectedComiteProblemas('com');
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
@@ -2900,6 +2901,8 @@ async function saveComiteAuto(cedula) {
     await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, cedula]);
     await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
       [comunidad, cedula, nomComp, tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null]);
+    const comRow = await q('SELECT id FROM comite_vecinal WHERE comunidad = ? AND cedula = ? ORDER BY id DESC LIMIT 1', [comunidad, cedula]);
+    if (comRow.length) await guardarProblemasComite(comRow[0].id, problemas);
     await registrarAct('user', 'Asignado a Comité Vecinal: ' + nomComp + ' ➔ ' + comunidad, USER.id);
     await refreshAll();
     renderComite();
@@ -2938,7 +2941,7 @@ function openComiteManualForm(ced) {
       '<div><label class="fl">NÚMERO DE CASA</label><input class="inp" id="cmNroCasa" placeholder="Ej. 12"></div>' +
       '<div style="grid-column:1/-1"><label class="fl">DIRECCIÓN</label><input class="inp" id="cmDir" placeholder="Urbanización, sector, referencia..."></div>' +
     '</div>' +
-    '<div style="margin-top:10px"><label class="fl">PROBLEMÁTICA ACTUAL</label><textarea class="inp" id="cmProblematica" rows="4" maxlength="2000" placeholder="Describa la problemática actual que presenta la comunidad..."></textarea></div>' +
+    comiteProblemasHTML('cm', [], '') +
     '<div style="margin-top:14px;text-align:right">' +
       '<button class="btn btn-navy" onclick="saveComiteManualFull()">' + ic('check', 14) + ' Guardar y Registrar ➜</button>' +
     '</div>';
@@ -2962,6 +2965,7 @@ async function saveComiteManualFull() {
   const nroCalle = ($('cmNroCalle') ? $('cmNroCalle').value : '').trim();
   const nroCasa = ($('cmNroCasa') ? $('cmNroCasa').value : '').trim();
   const problematica = ($('cmProblematica') ? $('cmProblematica').value : '').trim();
+  const problemas = selectedComiteProblemas('cm');
 
   if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
@@ -2989,6 +2993,8 @@ async function saveComiteManualFull() {
     await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
       [comunidad, ced, nomComp, tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null]);
 
+    const comRow = await q('SELECT id FROM comite_vecinal WHERE comunidad = ? AND cedula = ? ORDER BY id DESC LIMIT 1', [comunidad, ced]);
+    if (comRow.length) await guardarProblemasComite(comRow[0].id, problemas);
     await registrarAct('user', 'Alta manual Comité Vecinal: ' + fC(letra, ced) + ' ➔ ' + comunidad, USER.id);
     await refreshAll();
     renderComite();
@@ -3025,7 +3031,7 @@ function openComiteEdit(id) {
       '<div><label class="fl">Número de casa</label><input class="inp" id="comENroCasa" value="' + esc(reg.numero_casa || '') + '" placeholder="Ej. 12"></div>' +
       '<div><label class="fl">Dirección</label><input class="inp" id="comEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, sector, referencia..."></div>' +
     '</div>' +
-    '<div style="margin-top:10px"><label class="fl">Problemática Actual</label><textarea class="inp" id="comEProblematica" rows="5" maxlength="2000" placeholder="Describa la problemática actual...">' + esc(reg.problematica_actual || '') + '</textarea></div>',
+    comiteProblemasHTML('comE', (CACHE.comiteProblemas || []).filter(x => Number(x.comite_id) === Number(id)).map(x => Number(x.problema_id)), reg.problematica_actual || ''),
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveComiteEdit(' + id + ')">Guardar cambios ➜</button>', 550
   );
   setTimeout(() => { const el = $('comETel'); if (el) el.focus(); }, 200);
@@ -3035,11 +3041,13 @@ async function saveComiteEdit(id) {
   const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
   const nroCalle = $('comENroCalle').value.trim(), nroCasa = $('comENroCasa').value.trim();
   const problematica = $('comEProblematica').value.trim();
+  const problemas = selectedComiteProblemas('comE');
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'COMITÉ VECINAL', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('UPDATE comite_vecinal SET telefono = ?, direccion = ?, numero_calle = ?, numero_casa = ?, problematica_actual = ? WHERE id = ?',
       [tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null, id]);
+    await guardarProblemasComite(id, problemas);
     await refreshAll(); renderComite(); closeModal(); toast('Actualizado con éxito', 'ok');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
