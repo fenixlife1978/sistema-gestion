@@ -32,6 +32,8 @@ module.exports = async function handler(req, res) {
 
   const statements = [
     { name:'integrity', q:'PRAGMA integrity_check' },
+    { name:'foreign_keys_enabled', q:'PRAGMA foreign_keys' },
+    { name:'foreign_key_violations', q:'PRAGMA foreign_key_check' },
     { name:'duplicados_reclutadores', q:'SELECT cedula, COUNT(*) n FROM reclutadores GROUP BY cedula HAVING COUNT(*) > 1' },
     { name:'duplicados_asignaciones', q:'SELECT cedula, COUNT(*) n FROM asignaciones GROUP BY cedula HAVING COUNT(*) > 1' },
     { name:'duplicados_direccion', q:'SELECT cedula, COUNT(*) n FROM direccion_ejecutiva GROUP BY cedula HAVING COUNT(*) > 1' },
