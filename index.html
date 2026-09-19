@@ -980,7 +980,7 @@ function renderRegistro(focus) {
   if (focus && inp) inp.focus();
   if (prevFocus) _refocus(prevFocus);
 }
-async async function verificarDuplicidadPersona(cedula, contexto = '') {
+async function verificarDuplicidadPersona(cedula, contexto = '') {
   const ced = normC(cedula);
   if (!ced) return null;
 
