@@ -2121,12 +2121,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
           const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
           if (badEdad > 0) {
             setLoad('Reparando edades...', badEdad + ' registros');
-            const all = await q('SELECT cedula, fecha_nac FROM padron');
-            const CHUNK = 200;
-            for (let i = 0; i < all.length; i += CHUNK) {
-              const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
-              await turso(batch);
-            }
+            const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reparar_edades'})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron reparar las edades');
             await refreshAll();
           }
           clearTimeout(progressTimer);
