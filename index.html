@@ -2912,16 +2912,76 @@ function controlCentroActual() {
 }
 function controlPersonasCentro(codigo) {
   const rows = [];
+  const seen = new Set();
+  const centro = cenBy(codigo) || {};
+  const coincideCentro = p => {
+    if (!codigo) return true;
+    const pc = String(p?.centro_votacion || '');
+    const pn = String(p?.nombre_cv || '');
+    return pc === String(codigo) || pn === String(centro.nombre || '');
+  };
+  const agregar = (cedula, p, meta) => {
+    const ced = normC(cedula);
+    if (!ced || seen.has(ced) || !coincideCentro(p)) return;
+    seen.add(ced);
+    rows.push({
+      l: { cedula: ced },
+      p: p || { cedula: ced },
+      reclutador: meta.reclutador || null,
+      posicion: meta.posicion || null,
+      origen: meta.origen || 'CARGO',
+      cargo: meta.cargo || ''
+    });
+  };
+
+  // 1×10: movilizadores y sus comprometidos.
   for (const r of CACHE.recl || []) {
+    const pr = padBy(r.cedula) || r;
+    agregar(r.cedula, pr, {
+      origen: 'MOVILIZADOR',
+      cargo: 'Movilizador',
+      reclutador: r
+    });
     for (let i = 0; i < (r.lista || []).length; i++) {
       const l = r.lista[i];
       const p = padBy(l.cedula) || l;
-      const pc = p.centro_votacion || '';
-      const pn = p.nombre_cv || '';
-      if (codigo && pc !== codigo && pn !== (cenBy(codigo) || {}).nombre) continue;
-      rows.push({ l, p, reclutador:r, posicion:i + 1 });
+      agregar(l.cedula, p, {
+        origen: '1×10',
+        cargo: 'Comprometido',
+        reclutador: r,
+        posicion: i + 1
+      });
     }
   }
+
+  // Dirección Ejecutiva.
+  for (const d of CACHE.direccion || []) {
+    const p = padBy(d.cedula) || d;
+    agregar(d.cedula, p, {
+      origen: 'DIRECCIÓN EJECUTIVA',
+      cargo: d.cargo || 'Cargo'
+    });
+  }
+
+  // Comités Vecinales.
+  for (const cv of CACHE.comite || []) {
+    const p = padBy(cv.cedula) || cv;
+    agregar(cv.cedula, p, {
+      origen: 'COMITÉ VECINAL',
+      cargo: 'Responsable • ' + (cv.comunidad || 'Comité Vecinal')
+    });
+  }
+
+  // Cargos asignados directamente a un centro.
+  for (const cc of CACHE.cargos || []) {
+    if (String(cc.centro_codigo) !== String(codigo)) continue;
+    const p = padBy(cc.cedula) || cc;
+    agregar(cc.cedula, p, {
+      origen: 'CARGO DE CENTRO',
+      cargo: cc.cargo || 'Cargo de centro'
+    });
+  }
+
   return rows;
 }
 function controlVerif(cedula) {
