@@ -284,31 +284,74 @@ async function migrateComiteRoles(){
     const info=rowsFrom(await turso([{q:"PRAGMA index_info('"+String(ix.name).replace(/'/g,"''")+"')",params:[]}]));
     if(info.length===1&&info[0].name==='cedula'){cedulaUnique=true;break;}
   }
-  if(cedulaUnique){
-    const v2=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal_v2' LIMIT 1",params:[]}]));
-    if(!v2.length) await turso([{q:`CREATE TABLE comite_vecinal_v2 (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      comunidad TEXT NOT NULL,
-      cargo TEXT NOT NULL DEFAULT 'COORDINADOR',
-      cedula TEXT NOT NULL,
-      nombre TEXT,
-      telefono TEXT,
-      direccion TEXT,
-      numero_calle TEXT,
-      numero_casa TEXT,
-      problematica_actual TEXT,
-      creado TEXT DEFAULT (datetime('now')),
-      UNIQUE(comunidad,cargo)
-    )`,params:[]}]);
-    await turso([{q:`INSERT OR IGNORE INTO comite_vecinal_v2(id,comunidad,cargo,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado)
-      SELECT id,comunidad,COALESCE(NULLIF(cargo,''),'COORDINADOR'),cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado FROM comite_vecinal`,params:[]}]);
-    await turso([{q:'DROP TABLE comite_vecinal',params:[]}]);
-    await turso([{q:'ALTER TABLE comite_vecinal_v2 RENAME TO comite_vecinal',params:[]}]);
+  if(!cedulaUnique){
+    await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)',params:[]}]);
+    await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_cargo ON comite_vecinal(cargo)',params:[]}]);
+    await turso([{q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_comite_comunidad_cargo ON comite_vecinal(comunidad,cargo)',params:[]}]);
+    return;
   }
+
+  // Nunca descartar silenciosamente registros durante la migración.
+  await turso([{q:`CREATE TABLE IF NOT EXISTS comite_vecinal_legacy_backup (
+    backup_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    backed_up_at TEXT NOT NULL DEFAULT (datetime('now')),
+    legacy_id INTEGER,
+    comunidad TEXT,
+    cargo TEXT,
+    cedula TEXT,
+    nombre TEXT,
+    telefono TEXT,
+    direccion TEXT,
+    numero_calle TEXT,
+    numero_casa TEXT,
+    problematica_actual TEXT,
+    creado TEXT
+  )`,params:[]}]);
+  await turso([{q:`INSERT INTO comite_vecinal_legacy_backup(legacy_id,comunidad,cargo,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado)
+    SELECT id,comunidad,COALESCE(NULLIF(cargo,''),'COORDINADOR'),cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado FROM comite_vecinal`,params:[]}]);
+
+  const legacy=rowsFrom(await turso([{q:`SELECT id,comunidad,COALESCE(NULLIF(cargo,''),'') AS cargo,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado
+    FROM comite_vecinal ORDER BY comunidad,id`,params:[]}])));
+  const allowed=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
+  const grouped=new Map();
+  for(const row of legacy){ const key=String(row.comunidad||'').trim(); if(!grouped.has(key))grouped.set(key,[]); grouped.get(key).push(row); }
+  for(const [comunidad,rows] of grouped){
+    const used=new Set();
+    for(const row of rows){ if(allowed.includes(row.cargo)&&!used.has(row.cargo))used.add(row.cargo); }
+    const assignments=[];
+    for(const row of rows){
+      let cargo=allowed.includes(row.cargo)&&!assignments.some(x=>x.cargo===row.cargo) ? row.cargo : allowed.find(x=>!used.has(x));
+      if(!cargo) throw new Error('Migración de Comité Vecinal requiere revisión: la comunidad "'+comunidad+'" tiene más de cinco registros. Los datos originales fueron respaldados en comite_vecinal_legacy_backup.');
+      used.add(cargo); assignments.push({...row,cargo});
+    }
+    rowAssignments.push(...assignments);
+  }
+
+  await turso([{q:`CREATE TABLE comite_vecinal_v2 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    comunidad TEXT NOT NULL,
+    cargo TEXT NOT NULL,
+    cedula TEXT NOT NULL,
+    nombre TEXT,
+    telefono TEXT,
+    direccion TEXT,
+    numero_calle TEXT,
+    numero_casa TEXT,
+    problematica_actual TEXT,
+    creado TEXT DEFAULT (datetime('now')),
+    UNIQUE(comunidad,cargo)
+  )`,params:[]}]);
+  for(const row of rowAssignments){
+    await turso([{q:`INSERT INTO comite_vecinal_v2(id,comunidad,cargo,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`,params:[row.id,row.comunidad,row.cargo,row.cedula,row.nombre,row.telefono,row.direccion,row.numero_calle,row.numero_casa,row.problematica_actual,row.creado]}]);
+  }
+  await turso([{q:'DROP TABLE comite_vecinal',params:[]}]);
+  await turso([{q:'ALTER TABLE comite_vecinal_v2 RENAME TO comite_vecinal',params:[]}]);
   await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)',params:[]}]);
   await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_cargo ON comite_vecinal(cargo)',params:[]}]);
   await turso([{q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_comite_comunidad_cargo ON comite_vecinal(comunidad,cargo)',params:[]}]);
 }
+let rowAssignments=[];
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
 async function execSchema() {
