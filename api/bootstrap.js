@@ -111,6 +111,7 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS comite_vecinal (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     comunidad TEXT NOT NULL,
+    cargo TEXT NOT NULL DEFAULT 'COORDINADOR',
     cedula TEXT NOT NULL UNIQUE,
     nombre TEXT,
     telefono TEXT,
@@ -272,7 +273,39 @@ const PROBLEMAS = [
 
 const isBenign = e => /duplicate column name|already exists|duplicate index|duplicate table|no such column/i.test(String(e?.message||e||'').toLowerCase());
 
+async function migrateComiteRoles(){
+  const cols=rowsFrom(await turso([{q:'PRAGMA table_info(comite_vecinal)',params:[]}]));
+  if(!cols.length)return;
+  const hasCargo=cols.some(x=>x.name==='cargo');
+  if(!hasCargo){
+    await turso([{q:`CREATE TABLE IF NOT EXISTS comite_vecinal_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      comunidad TEXT NOT NULL,
+      cargo TEXT NOT NULL,
+      cedula TEXT NOT NULL UNIQUE,
+      nombre TEXT,
+      telefono TEXT,
+      direccion TEXT,
+      numero_calle TEXT,
+      numero_casa TEXT,
+      problematica_actual TEXT,
+      creado TEXT DEFAULT (datetime('now')),
+      UNIQUE(comunidad,cargo)
+    )`,params:[]}]);
+    await turso([{q:`INSERT OR IGNORE INTO comite_vecinal_v2(id,comunidad,cargo,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado)
+      SELECT id,comunidad,'COORDINADOR',cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado FROM comite_vecinal`,params:[]}]);
+    await turso([{q:'DROP TABLE comite_vecinal',params:[]}]);
+    await turso([{q:'ALTER TABLE comite_vecinal_v2 RENAME TO comite_vecinal',params:[]}]);
+    await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)',params:[]}]);
+    await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_cargo ON comite_vecinal(cargo)',params:[]}]);
+  } else {
+    try{await turso([{q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_comite_comunidad_cargo ON comite_vecinal(comunidad,cargo)',params:[]}]);}catch(e){if(!isBenign(e))throw e;}
+  }
+}
+const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
+
 async function execSchema() {
+  await migrateComiteRoles();
   const marker=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_bootstrap_meta' LIMIT 1",params:[]}]));
   if(marker.length){
     return;
