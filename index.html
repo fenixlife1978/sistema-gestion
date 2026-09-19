@@ -1621,15 +1621,13 @@ async function saveCargoManual(codigo, idx) {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-      [ced, letra, pa, $('cmSa').value.trim(), pn, $('cmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
-    await assignCargo(codigo, idx, ced, normTel(tel), dir);
+    await assignCargo(codigo, idx, ced, normTel(tel), dir, {cedula:ced,letra,p_apellido:pa,s_apellido:$('cmSa').value.trim(),p_nombre:pn,s_nombre:$('cmSn').value.trim(),sexo,fecha_nac:fn,edad,codigo_estado:cv.cod_estado,estado:cv.estado,codigo_municipio:cv.cod_municipio,municipio:cv.municipio,codigo_parroquia:cv.cod_parroquia,parroquia:cv.parroquia,centro_votacion:cv.codigo,nombre_cv:cv.nombre});
     await registrarAct('user', 'Alta manual para cargo: ' + fC(letra, ced) + ' ➔ ' + CARGOS_CENTRO[idx], USER.id);
     toast('Elector registrado y asignado al cargo', 'ok');
   } catch (e) { toast(e.message, 'err') }
 }
 
-async function assignCargo(codigo, idx, cedula, tel, dir) {
+async function assignCargo(codigo, idx, cedula, tel, dir, padron) {
   const cargo = CARGOS_CENTRO[idx];
   tel = tel ? String(tel).trim() : '';
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
@@ -1643,7 +1641,7 @@ async function assignCargo(codigo, idx, cedula, tel, dir) {
   }
   try {
     const existing = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === cargo);
-        const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'centro',centro_codigo:codigo,cargo,cedula,telefono:tel?normTel(tel):'',direccion:dir})});
+        const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'centro',centro_codigo:codigo,cargo,cedula,telefono:tel?normTel(tel):'',direccion:dir,padron:padron||undefined})});
     const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
     await registrarAct('user', cargo + ' asignado en centro ' + codigo + ' ? C.I. ' + cedula, USER.id);
     await refreshAll();
@@ -2451,7 +2449,7 @@ async function delDir(id) {
   const nom = reg ? (reg.nombre || reg.cargo) : 'registro';
   askDo('Remover de Dirección Ejecutiva', '¿Desea remover el registro de <b>' + esc(nom) + '</b> de la Dirección Ejecutiva?', 'Remover', async () => {
     try {
-      await x('DELETE FROM direccion_ejecutiva WHERE id = ?', [id]);
+      const rr=await fetch('/api/direccion/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar',id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo eliminar');
       await refreshAll(); renderDireccion(); toast('Registro removido', 'ok');
     } catch (e) { toast('Error: ' + e.message, 'err'); }
   });
@@ -2477,8 +2475,7 @@ async function saveDirEdit(id) {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'DIRECCIÓN EJECUTIVA', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('UPDATE direccion_ejecutiva SET telefono = ?, direccion = ? WHERE id = ?',
-      [tel ? normTel(tel) : null, dir || null, id]);
+    const rr=await fetch('/api/direccion/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'editar',id,telefono:tel,direccion:dir})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar');
     await refreshAll(); renderDireccion(); closeModal(); toast('Actualizado con éxito', 'ok');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
