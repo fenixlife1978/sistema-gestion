@@ -1463,10 +1463,13 @@ async function doReg() {
   const p = padBy(c);
   if (!p) { window._manC = c; return R('<div class="alert warn"><div class="a-ic">' + ic('db', 18) + '</div><div><b>No aparece en el padrón CNE</b>La C.I. <b class="mono">' + fC('V', c) + '</b> no existe.<br><button class="btn btn-navy btn-xs" style="margin-top:8px" onclick="openManual()">' + ic('up', 12) + ' Registrar manualmente</button></div></div>') }
   try {
-    const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
-    const pos = (max[0].m || 0) + 1;
-    await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)', [r.id, c, pos, tel ? normTel(tel) : null, calle || null, casa || null, direccion || null]);
-    await registrarAct('user', 'C.I. ' + fC(p.letra, p.cedula) + ' registrada en lista de movilizador #' + r.id + ' (posición ' + pos + ')', USER.id);
+    const apiRes = await fetch('/api/personas/registrar', {
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reclutador_id:r.id, cedula:c, telefono:tel ? normTel(tel) : '', numero_calle:calle, numero_casa:casa, direccion})
+    });
+    let apiData={}; try{apiData=await apiRes.json()}catch(e){}
+    if(!apiRes.ok) throw new Error(apiData.error || 'No se pudo registrar la persona');
+    const pos = Number(apiData.posicion);
     await refreshAll(); renderRegistro(true);
     R('<div class="alert ok"><div class="a-ic">' + ic('check', 18) + '</div><div><b>✔ Registro exitoso • posición #' + pos + '</b>' + esc(apeP(p) + ', ' + nomP(p)) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + ' años  ' + p.sexo + (tel ? '  📱 ' + esc(tel) : '') + '<br>Centro: ' + esc(p.nombre_cv) + ' (' + esc(p.municipio) + ')<br>Lista: <b class="mono">' + CACHE.recl.find(x => x.id === r.id).lista.length + '/10</b></div></div>');
     toast('C.I. ' + fC(p.letra, p.cedula) + ' registrada (Turso)', 'ok');
