@@ -1350,7 +1350,8 @@ async function nrSave() {
   const dupGlobal = await verificarDuplicidadPersona(p.cedula, 'movilizador');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula, dupGlobal), 'err', 8000);
   const tel = $('nrTel').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('INSERT INTO reclutadores(cedula,telefono,estructura,direccion) VALUES(?,?,?,?)', [p.cedula, normTel(tel), $('nrEst').value, $('nrDir').value]);
     await registrarAct('user', 'Nuevo movilizador creado: ' + fC(p.letra, p.cedula), USER.id);
@@ -1384,7 +1385,8 @@ async function saveNrManual() {
   const fn = $('nrmFn').value; const edad = edadDe(fn);
   const letra = $('nrmLet').value, sexo = $('nrmSex').value;
   const tel = $('nrmTel').value.trim(), est = $('nrmEst').value, dir = $('nrmDir').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
       [ced, letra, pa, $('nrmSa').value.trim(), pn, $('nrmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
@@ -1526,7 +1528,8 @@ async function saveCargoManual(codigo, idx) {
   const fn = $('cmFn').value; const edad = edadDe(fn);
   const letra = $('cmLet').value, sexo = $('cmSex').value;
   const tel = ($('cmTel') ? $('cmTel').value : '').trim(), dir = ($('cmDir') ? $('cmDir').value : '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
       [ced, letra, pa, $('cmSa').value.trim(), pn, $('cmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
@@ -1538,6 +1541,9 @@ async function saveCargoManual(codigo, idx) {
 
 async function assignCargo(codigo, idx, cedula, tel, dir) {
   const cargo = CARGOS_CENTRO[idx];
+  tel = tel ? String(tel).trim() : '';
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   const dupGlobal = await verificarDuplicidadPersona(cedula, 'cargo');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(cedula, dupGlobal), 'err', 8000);
   const p = padBy(cedula);
@@ -1736,6 +1742,7 @@ async function saveUser(id) {
   if (!u || !n) return toast('Usuario y nombre son obligatorios', 'err');
   if (t && !valTel(t)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   const telFmt = normTel(t);
+  if (t) { const dupTel = await verificarDuplicidadTelefono(t, id ? {origen:'USUARIO', id} : {}); if (dupTel) return toast(mensajeDuplicidadTelefono(t, dupTel), 'err', 8000); }
   try {
     if (id) {
       if (p) { const h = await hash(p); await x('UPDATE usuarios SET nombre=?,rol=?,cargo=?,telefono=?,clave_hash=? WHERE id=?', [n, r, c, telFmt, h, id]) }
@@ -2229,7 +2236,8 @@ async function saveDirAuto(cedula) {
   }
   const tel = ($('dirTel') ? $('dirTel').value : '').trim();
   const dir = ($('dirDir') ? $('dirDir').value : '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
   const p = padBy(cedula);
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
@@ -2297,7 +2305,8 @@ async function saveDirManualFull() {
 
   if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
   const dupGlobal = await verificarDuplicidadPersona(ced, 'direccion');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
@@ -2359,7 +2368,8 @@ function openDirEdit(id) {
 
 async function saveDirEdit(id) {
   const tel = $('dirETel').value.trim(), dir = $('dirEDir').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'DIRECCIÓN EJECUTIVA', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'DIRECCIÓN EJECUTIVA', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('UPDATE direccion_ejecutiva SET telefono = ?, direccion = ? WHERE id = ?',
       [tel ? normTel(tel) : null, dir || null, id]);
@@ -2860,7 +2870,8 @@ async function saveComiteAuto(cedula) {
   }
   const tel = ($('comTel') ? $('comTel').value : '').trim();
   const dir = ($('comDir') ? $('comDir').value : '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
   const dupGlobal = await verificarDuplicidadPersona(cedula, 'comite');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(cedula, dupGlobal), 'err', 8000);
@@ -2931,7 +2942,8 @@ async function saveComiteManualFull() {
 
   if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
   const dupGlobal = await verificarDuplicidadPersona(ced, 'comite');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
@@ -2993,7 +3005,8 @@ function openComiteEdit(id) {
 
 async function saveComiteEdit(id) {
   const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');\n  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'COMITÉ VECINAL', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'COMITÉ VECINAL', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
     await x('UPDATE comite_vecinal SET telefono = ?, direccion = ? WHERE id = ?',
       [tel ? normTel(tel) : null, dir || null, id]);
