@@ -868,7 +868,7 @@ async function migrarDireccionEjecutiva() {
       if (info.length === 1 && info[0].name === 'cedula') { cedulaUnique = true; break; }
     }
     if (!cedulaUnique) return;
-    await x('CREATE TABLE IF NOT EXISTS direccion_ejecutiva_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, cargo TEXT NOT NULL UNIQUE, cedula TEXT NOT NULL, nombre TEXT, telefono TEXT, estructura TEXT, direccion TEXT, creado TEXT DEFAULT (datetime(\\'now\\')))');
+    await x('CREATE TABLE IF NOT EXISTS direccion_ejecutiva_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, cargo TEXT NOT NULL UNIQUE, cedula TEXT NOT NULL, nombre TEXT, telefono TEXT, estructura TEXT, direccion TEXT, creado TEXT DEFAULT (datetime(\'now\')))');
     await x('INSERT OR IGNORE INTO direccion_ejecutiva_v2(id,cargo,cedula,nombre,telefono,estructura,direccion,creado) SELECT id,cargo,cedula,nombre,telefono,estructura,direccion,creado FROM direccion_ejecutiva');
     await x('DROP TABLE direccion_ejecutiva');
     await x('ALTER TABLE direccion_ejecutiva_v2 RENAME TO direccion_ejecutiva');
