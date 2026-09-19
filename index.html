@@ -2122,15 +2122,31 @@ async function repairEdades() {
   });
 }
 async function resetCNE() {
-  askDo('Reiniciar padrón', 'Se vaciará el padrón electoral. Las asignaciones y movilizadores se conservarán.', 'Reiniciar', async () => {
-    await x('DELETE FROM padron');
-    await registrarAct('sys', 'Padrón CNE reiniciado por ' + USER.nombre, USER.id);
-    await refreshAll(); go('dash'); toast('Padrón reiniciado • suba el archivo CNE desde Configuración', 'ok');
+  askDo('Reiniciar padrón', 'Se reemplazará el padrón electoral. Se conservarán movilizadores y asignaciones, pero se limpiarán las verificaciones de jornada y las actas de mesa para evitar métricas históricas mezcladas.', 'Reiniciar', async () => {
+    try {
+      await x('DELETE FROM verificaciones_votacion');
+      await x('DELETE FROM actas_mesa');
+      await x('DELETE FROM padron');
+      await registrarAct('sys', 'Padrón CNE reiniciado y control electoral limpiado por ' + USER.nombre, USER.id);
+      await refreshAll(); go('dash'); toast('Padrón reiniciado • verificaciones y actas limpiadas', 'ok');
+    } catch (e) { toast('Error al reiniciar padrón: ' + e.message, 'err', 8000); }
   });
 }
 async function wipeTurso() {
-  askDo('Vaciar todas las tablas', 'Se eliminar TODO: padrón, centros, reclutadores, asignaciones, actividad y todos los usuarios excepto el administrador principal. El sistema quedar como recin instalado.', 'Vaciar todo', async () => {
-    await x('DELETE FROM asignaciones'); await x('DELETE FROM reclutadores'); await x('DELETE FROM actividad'); await x('DELETE FROM padron'); await x('DELETE FROM centros'); await x('DELETE FROM usuarios WHERE usuario != ?', ['admin@comando.com']);
+  askDo('Vaciar todas las tablas', 'Se eliminarán los datos operativos del sistema: control electoral, actas, comités, dirección, cargos, padrón, movilizadores, actividad y usuarios excepto el administrador principal. El catálogo de problemas se conservará como catálogo maestro.', 'Vaciar todo', async () => {
+    try {
+      await x('DELETE FROM comite_problemas');
+      await x('DELETE FROM verificaciones_votacion');
+      await x('DELETE FROM actas_mesa');
+      await x('DELETE FROM comite_vecinal');
+      await x('DELETE FROM direccion_ejecutiva');
+      await x('DELETE FROM centro_cargos');
+      await x('DELETE FROM asignaciones');
+      await x('DELETE FROM reclutadores');
+      await x('DELETE FROM actividad');
+      await x('DELETE FROM padron');
+      await x('DELETE FROM centros');
+      await x('DELETE FROM usuarios WHERE usuario != ?', ['admin@comando.com']);
     const adminCheck = await q('SELECT COUNT(*) AS n FROM usuarios WHERE usuario = ?', ['admin@comando.com']);
     if (adminCheck[0].n === 0) {
       const h = await hash('admin123');
@@ -2145,8 +2161,11 @@ async function wipeTurso() {
       const h2 = await hash(p);
       await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', [u, h2, n, r, c]);
     }
-    await registrarAct('sys', 'Sistema reiniciado por ' + USER.nombre, USER.id);
-    await refreshAll(); go('dash'); toast('Sistema reiniciado • solo queda admin@comando.com y usuarios semilla', 'ok');
+      await registrarAct('sys', 'Sistema reiniciado por ' + USER.nombre, USER.id);
+      await refreshAll(); go('dash'); toast('Sistema reiniciado • solo queda admin@comando.com y usuarios semilla', 'ok');
+    } catch (e) {
+      toast('Error al vaciar el sistema: ' + e.message, 'err', 8000);
+    }
   });
 }
 
