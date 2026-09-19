@@ -9,7 +9,7 @@ module.exports = async function handler(req, res) {
     'http://127.0.0.1:3000',
     'http://127.0.0.1:5173'
   ]);
-  const allowed = !origin || allowedOrigins.has(origin);
+  const allowed = allowedOrigins.has(origin);
   if (origin && allowed) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
