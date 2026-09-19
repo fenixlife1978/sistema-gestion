@@ -1467,7 +1467,7 @@ function openNewRecl() {
   win(ic('users', 18) + ' Nuevo movilizador',
     '<label class="fl">Paso 1 • Ubicar en el padrón CNE (Turso)</label><div style="display:flex;gap:8px"><input class="inp" id="nrQ" placeholder="Cédula o nombre" onkeydown="if(event.key===\'Enter\')nrSearch()"><button class="btn btn-navy" onclick="nrSearch()">Buscar</button></div><div id="nrRes" style="margin-top:10px;display:grid;gap:7px"></div>' +
     '<div id="nrForm" style="display:none;margin-top:14px;border-top:1px solid var(--line2);padding-top:14px"><label class="fl">Paso 2 • Datos del responsable</label><div id="nrCard" style="margin-bottom:10px"></div><div class="grid g2" style="gap:12px"><div><label class="fl">Teléfono</label><input class="inp mono" id="nrTel" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)"></div><div><label class="fl">Estructura</label><input class="inp" id="nrEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div></div><div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="nrDir" placeholder="Urbanizacin, calle, casa..."></div></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" id="nrSave" disabled onclick="nrSave()">Crear ?</button>', 620);
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" id="btnNrSave" disabled onclick="nrSave()">Crear</button>', 620);
 }
 function nrSearch() {
   const q = $('nrQ').value.trim(); if (!q) return;
@@ -1483,7 +1483,7 @@ function nrSearch() {
     return '<button class="rec-sel" ' + (a ? 'disabled' : '') + ' onclick="nrPick(\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p)) + '</span><span style="flex:1"><b style="font-size:12.5px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:11px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + esc(p.nombre_cv) + '</div></span>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<span class="chip chip-r">YA ASIGNADO</span>') : '<span class="chip chip-g">DISPONIBLE</span>') + '</button>';
   }).join('');
 }
-function nrPick(c) { const pp = padBy(c); window._nrSel = c; $('nrForm').style.display = 'block'; $('nrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC(pp ? pp.letra : 'V', c) + '</b> seleccionada</div></div>' }
+function nrPick(c) { const pp = padBy(c); window._nrSel = c; $('nrForm').style.display = 'block'; $('btnNrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC(pp ? pp.letra : 'V', c) + '</b> seleccionada</div></div>' }
 async function nrSave() {
   const p = padBy(window._nrSel); if (!p) return;
   const dupGlobal = await verificarDuplicidadPersona(p.cedula, 'movilizador');
