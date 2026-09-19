@@ -2899,146 +2899,166 @@ async function saveComiteEdit(id) {
   } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
 
+function getComiteListadoCompleto() {
+  const asignados = CACHE.comite || [];
+  const porComunidad = new Map();
+  asignados.forEach(r => {
+    if (r && r.comunidad) porComunidad.set(String(r.comunidad).trim().toUpperCase(), r);
+  });
+
+  return getComunidadesCatalogo().map((comunidad, i) => {
+    const asignado = porComunidad.get(String(comunidad).trim().toUpperCase()) || null;
+    const p = asignado ? (padBy(asignado.cedula) || asignado) : {};
+    return {
+      nro: i + 1,
+      comunidad,
+      asignado,
+      p,
+      estado: asignado ? 'ASIGNADO' : 'SIN ASIGNAR'
+    };
+  });
+}
+
+function datosComiteFila(item) {
+  const x = item.asignado;
+  const p = item.p || {};
+  const ci = x ? fC(p.letra || x.letra || 'V', x.cedula) : '';
+  const pa = p.p_apellido || '';
+  const sa = p.s_apellido || '';
+  const pn = p.p_nombre || '';
+  const sn = p.s_nombre || '';
+  const nombre = x ? (x.nombre || ((pa || sa) ? (apeP(p) + ', ' + nomP(p)) : x.cedula)) : '';
+  const edad = x ? ((edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '') : '';
+  const sexo = x ? (p.sexo || '') : '';
+  const fn = x ? fmtFn(p.fecha_nac) : '';
+  const cv = x ? (p.nombre_cv || p.centro_votacion || '') : '';
+  const munPar = x ? ((p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '')) : '';
+  const tel = x ? (x.telefono || p.telefono || '') : '';
+  const dir = x ? (x.direccion || p.direccion || '') : '';
+  return { ci, pa, sa, pn, sn, nombre, edad, sexo, fn, cv, munPar, tel, dir };
+}
+
 function printComite() {
-  const comList = CACHE.comite || [];
-  if (!comList.length) return toast('No hay registros de Comités Vecinales para imprimir', 'err');
+  const listado = getComiteListadoCompleto();
+  if (!listado.length) return toast('No hay comunidades en el catálogo oficial para imprimir', 'err');
 
-  const rows = comList.map((x, i) => {
-    const p = padBy(x.cedula) || x;
-    const ci = fC(p.letra || 'V', x.cedula);
-    const pa = p.p_apellido || '';
-    const sa = p.s_apellido || '';
-    const pn = p.p_nombre || '';
-    const sn = p.s_nombre || '';
-    const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
-    const sexo = p.sexo || '';
-    const fn = fmtFn(p.fecha_nac);
-    const cv = p.nombre_cv || p.centro_votacion || '';
-    const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
-    const tel = x.telefono || '';
-    const dir = x.direccion || '';
-
-    return '<tr>' +
-      '<td>' + (i + 1) + '</td>' +
-      '<td style="font-weight:700">' + esc(x.comunidad) + '</td>' +
-      '<td class="mono">' + ci + '</td>' +
-      '<td>' + esc(pa) + '</td>' +
-      '<td>' + esc(sa) + '</td>' +
-      '<td>' + esc(pn) + '</td>' +
-      '<td>' + esc(sn) + '</td>' +
-      '<td>' + edad + '</td>' +
-      '<td>' + sexo + '</td>' +
-      '<td class="mono">' + esc(fn) + '</td>' +
-      '<td>' + esc(cv) + '</td>' +
-      '<td>' + esc(munPar) + '</td>' +
-      '<td class="mono">' + esc(tel) + '</td>' +
-      '<td>' + esc(dir) + '</td>' +
+  const rows = listado.map(item => {
+    const d = datosComiteFila(item);
+    const muted = item.asignado ? '' : ' style="color:#64748b;font-style:italic"';
+    return '<tr' + muted + '>' +
+      '<td>' + item.nro + '</td>' +
+      '<td style="font-weight:700">' + esc(item.comunidad) + '</td>' +
+      '<td style="font-weight:700">' + esc(item.estado) + '</td>' +
+      '<td class="mono">' + esc(d.ci) + '</td>' +
+      '<td>' + esc(d.pa) + '</td>' +
+      '<td>' + esc(d.sa) + '</td>' +
+      '<td>' + esc(d.pn) + '</td>' +
+      '<td>' + esc(d.sn) + '</td>' +
+      '<td>' + esc(d.edad) + '</td>' +
+      '<td>' + esc(d.sexo) + '</td>' +
+      '<td class="mono">' + esc(d.fn) + '</td>' +
+      '<td>' + esc(d.cv) + '</td>' +
+      '<td>' + esc(d.munPar) + '</td>' +
+      '<td class="mono">' + esc(d.tel) + '</td>' +
+      '<td>' + esc(d.dir) + '</td>' +
     '</tr>';
   }).join('');
 
-  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comités Vecinales — Padrón CNE Completo</title>' +
+  const asignados = listado.filter(x => x.asignado).length;
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comités Vecinales — Listado Completo</title>' +
     '<style>' +
-      'body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}' +
-      'h2{margin:0 0 4px 0;font-size:16px;color:#1e293b;text-transform:uppercase}' +
-      'p{margin:0 0 14px 0;color:#64748b;font-size:11px}' +
-      'table{width:100%;border-collapse:collapse;margin-top:10px}' +
-      'th,td{border:1px solid #cbd5e1;padding:5px 7px;text-align:left;font-size:10px}' +
-      'th{background:#f1f5f9;font-weight:700;color:#334155;text-transform:uppercase;font-size:9px}' +
+      'body{font-family:Arial,sans-serif;font-size:10px;margin:16px;color:#111}' +
+      'h2{margin:0 0 4px;font-size:16px;color:#1e293b;text-transform:uppercase}' +
+      'p{margin:0 0 12px;color:#64748b;font-size:10px}' +
+      'table{width:100%;border-collapse:collapse;margin-top:8px}' +
+      'th,td{border:1px solid #cbd5e1;padding:4px 5px;text-align:left;font-size:8.5px;vertical-align:top}' +
+      'th{background:#f1f5f9;font-weight:700;color:#334155;text-transform:uppercase;font-size:8px}' +
       '.mono{font-family:monospace}' +
-      '@page{size:landscape;margin:12mm}' +
+      '@page{size:landscape;margin:10mm}' +
     '</style></head><body>' +
-      '<h2>Estructura de Comités Vecinales por Comunidad</h2>' +
-      '<p>Sistema de Gestión Electoral • Catálogo oficial de comunidades • Datos del responsable según Padrón CNE • Total: ' + comList.length + ' asignados</p>' +
-      '<table><thead><tr>' +
-        '<th>#</th><th>Comunidad</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
-        '<th>Primer Nombre</th><th>Segundo Nombre</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th>' +
-        '<th>Centro Votación</th><th>Municipio / Parroquia</th><th>Teléfono</th><th>Dirección</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table>' +
-    '</body></html>';
+    '<h2>Estructura de Comités Vecinales por Comunidad</h2>' +
+    '<p>Sistema de Gestión Electoral • Catálogo oficial de 118 comunidades • Asignados: ' + asignados + ' • Sin asignar: ' + (listado.length - asignados) + ' • Total: ' + listado.length + '</p>' +
+    '<table><thead><tr>' +
+      '<th>#</th><th>Comunidad</th><th>Estado</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
+      '<th>Primer Nombre</th><th>Segundo Nombre</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th>' +
+      '<th>Centro Votación</th><th>Municipio / Parroquia</th><th>Teléfono</th><th>Dirección</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
 
   const w = window.open('', '_blank');
+  if (!w) return toast('El navegador bloqueó la ventana de impresión. Permita ventanas emergentes para este sistema.', 'err');
   w.document.write(html);
   w.document.close();
-  setTimeout(() => w.print(), 500);
+  setTimeout(() => { w.focus(); w.print(); }, 500);
 }
 
 function downloadPDFComite() {
-  const comList = CACHE.comite || [];
-  if (!comList.length) return toast('No hay registros de Comités Vecinales para descargar', 'err');
+  const listado = getComiteListadoCompleto();
+  if (!listado.length) return toast('No hay comunidades en el catálogo oficial para generar el PDF', 'err');
 
-  const rows = comList.map((x, i) => {
-    const p = padBy(x.cedula) || x;
-    const ci = fC(p.letra || 'V', x.cedula);
-    const pa = p.p_apellido || '';
-    const sa = p.s_apellido || '';
-    const pn = p.p_nombre || '';
-    const sn = p.s_nombre || '';
-    const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
-    const sexo = p.sexo || '';
-    const fn = fmtFn(p.fecha_nac);
-    const cv = p.nombre_cv || p.centro_votacion || '';
-    const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
-    const tel = x.telefono || '';
-    const dir = x.direccion || '';
-
-    return '<tr>' +
-      '<td>' + (i + 1) + '</td>' +
-      '<td style="font-weight:700">' + esc(x.comunidad) + '</td>' +
-      '<td class="mono">' + ci + '</td>' +
-      '<td>' + esc(pa) + '</td>' +
-      '<td>' + esc(sa) + '</td>' +
-      '<td>' + esc(pn) + '</td>' +
-      '<td>' + esc(sn) + '</td>' +
-      '<td>' + edad + '</td>' +
-      '<td>' + sexo + '</td>' +
-      '<td class="mono">' + esc(fn) + '</td>' +
-      '<td>' + esc(cv) + '</td>' +
-      '<td>' + esc(munPar) + '</td>' +
-      '<td class="mono">' + esc(tel) + '</td>' +
-      '<td>' + esc(dir) + '</td>' +
+  const rows = listado.map(item => {
+    const d = datosComiteFila(item);
+    const muted = item.asignado ? '' : 'color:#64748b;font-style:italic;';
+    return '<tr style="' + muted + '">' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + item.nro + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px;font-weight:700">' + esc(item.comunidad) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px;font-weight:700">' + esc(item.estado) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px;font-family:monospace">' + esc(d.ci) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.pa) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.sa) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.pn) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.sn) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.edad) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.sexo) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px;font-family:monospace">' + esc(d.fn) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.cv) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.munPar) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px;font-family:monospace">' + esc(d.tel) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.dir) + '</td>' +
     '</tr>';
   }).join('');
 
-  const content = '<div style="font-family:Arial,sans-serif;font-size:10px;color:#111">' +
-    '<h2 style="margin:0 0 4px 0;font-size:15px;color:#1e293b;text-transform:uppercase">Estructura de Comités Vecinales por Comunidad</h2>' +
-    '<p style="margin:0 0 12px 0;color:#64748b;font-size:10px">Sistema de Gestión Electoral • Catálogo oficial de comunidades • Datos del responsable según Padrón CNE • Total: ' + comList.length + ' asignados</p>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:9px"><thead style="background:#f1f5f9"><tr>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">#</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Comunidad</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Cédula</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Primer Apellido</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Segundo Apellido</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Primer Nombre</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Segundo Nombre</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Edad</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Sexo</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">F. Nacimiento</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Centro Votación</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Municipio / Parroquia</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Teléfono</th>' +
+  const asignados = listado.filter(x => x.asignado).length;
+  const content = '<div style="font-family:Arial,sans-serif;font-size:9px;color:#111">' +
+    '<h2 style="margin:0 0 4px;font-size:15px;color:#1e293b;text-transform:uppercase">Estructura de Comités Vecinales por Comunidad</h2>' +
+    '<p style="margin:0 0 12px;color:#64748b;font-size:9px">Sistema de Gestión Electoral • Catálogo oficial de 118 comunidades • Asignados: ' + asignados + ' • Sin asignar: ' + (listado.length - asignados) + ' • Total: ' + listado.length + '</p>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:8px"><thead style="background:#f1f5f9"><tr>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">#</th><th style="border:1px solid #cbd5e1;padding:4px">Comunidad</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Estado</th><th style="border:1px solid #cbd5e1;padding:4px">Cédula</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Primer Apellido</th><th style="border:1px solid #cbd5e1;padding:4px">Segundo Apellido</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Primer Nombre</th><th style="border:1px solid #cbd5e1;padding:4px">Segundo Nombre</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Edad</th><th style="border:1px solid #cbd5e1;padding:4px">Sexo</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">F. Nacimiento</th><th style="border:1px solid #cbd5e1;padding:4px">Centro Votación</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Municipio / Parroquia</th><th style="border:1px solid #cbd5e1;padding:4px">Teléfono</th>' +
       '<th style="border:1px solid #cbd5e1;padding:4px">Dirección</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 
   const container = document.createElement('div');
   container.innerHTML = content;
+  container.style.background = '#fff';
   document.body.appendChild(container);
 
-  const title = 'comites_vecinales_padron_completo_' + Date.now();
+  const title = 'comites_vecinales_listado_completo_' + Date.now();
+  if (typeof html2pdf !== 'function') {
+    document.body.removeChild(container);
+    return toast('No está disponible el generador PDF. Verifique la conexión y vuelva a intentarlo.', 'err');
+  }
   html2pdf().set({
     margin: 8,
     filename: title + '.pdf',
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+    pagebreak: { mode: ['css', 'legacy'] }
   }).from(container).save().then(() => {
     document.body.removeChild(container);
-    toast('PDF de Comités Vecinales generado exitosamente', 'ok');
+    toast('PDF completo de Comités Vecinales generado exitosamente', 'ok');
   }).catch(err => {
     if (container.parentNode) document.body.removeChild(container);
     console.error('Error generando PDF:', err);
     toast('Error al descargar PDF', 'err');
   });
 }
+
 </script>
 </body>
 </html>
