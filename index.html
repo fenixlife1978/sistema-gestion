@@ -670,7 +670,7 @@ async function refreshAll() {
     try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
   }
   try {
-    CACHE.comite = await q('SELECT cv.id, cv.comunidad, cv.cedula, cv.nombre, cv.telefono, cv.direccion, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC');
+    CACHE.comite = await q('SELECT cv.id, cv.comunidad, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC');
   } catch (e) {
     console.warn('Fallback CACHE.comite:', e);
     try { CACHE.comite = await q('SELECT * FROM comite_vecinal ORDER BY id DESC'); } catch (err) { CACHE.comite = []; }
@@ -2836,27 +2836,36 @@ function openComiteManual(preComunidad) {
       '<label class="fl">Número de Cédula de Identidad del Responsable</label>' +
       '<div style="display:flex;gap:6px">' +
         '<input class="inp mono" id="comCed" placeholder="V-12.345.678" onkeydown="if(event.key===\'Enter\')comiteBuscarCedula()">' +
-        '<button class="btn btn-navy" onclick="comiteBuscarCedula()">' + ic('search', 14) + ' Buscar CNE</button>' +
+        '<button type="button" class="btn btn-navy" id="btnComiteBuscarCne">' + ic('search', 14) + ' Buscar CNE</button>' +
       '</div>' +
     '</div>' +
     '<div id="comResultArea" style="margin-top:14px"></div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>', 640
   );
-  setTimeout(() => { const el = $('comCed'); if (el) el.focus(); }, 200);
+  setTimeout(() => {
+    const el = $('comCed');
+    if (el) el.focus();
+    const btn = $('btnComiteBuscarCne');
+    if (btn) btn.addEventListener('click', comiteBuscarCedula);
+  }, 50);
 }
 
-function comiteBuscarCedula() {
-  const raw = $('comCed').value;
-  const ced = normC(raw);
-  const comSelect = $('comComunidad');
-  const comunidad = comSelect ? comSelect.value.trim() : '';
-  if (!ced || ced.length < 5) return toast('Ingrese una cédula válida (al menos 5 dígitos)', 'err');
+async async function comiteBuscarCedula() {
+  try {
+    const input = $('comCed');
+    const resArea = $('comResultArea');
+    if (!input || !resArea) return;
+    const ced = normC(input.value);
+    if (!ced || ced.length < 5) return toast('Ingrese una cédula válida (al menos 5 dígitos)', 'err');
 
-  const p = padBy(ced);
-  const resArea = $('comResultArea');
-  if (!resArea) return;
+    // Primero usa la caché; si no está cargada, consulta Turso directamente.
+    let p = padBy(ced);
+    if (!p) {
+      const rows = await q('SELECT * FROM padron WHERE cedula = ? LIMIT 1', [ced]);
+      p = rows[0] || null;
+    }
 
-  if (p) {
+    if (p) {
     resArea.innerHTML =
       '<div class="alert ok" style="margin-bottom:12px;display:flex;gap:10px;align-items:flex-start">' +
         '<div class="a-ic">' + ic('check', 20) + '</div>' +
@@ -2892,6 +2901,10 @@ function comiteBuscarCedula() {
         '</div>' +
         '<button class="btn btn-navy btn-xs" onclick="openComiteManualForm(\'' + ced + '\')">' + ic('up', 12) + ' Registrar manualmente</button>' +
       '</div>';
+    }
+  } catch (e) {
+    console.error('Error buscando CNE para Comité Vecinal:', e);
+    toast('No se pudo realizar la búsqueda en CNE: ' + (e.message || 'Error desconocido'), 'err', 8000);
   }
 }
 
