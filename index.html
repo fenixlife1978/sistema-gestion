@@ -758,9 +758,21 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_actas_centro ON actas_mesa(centro_codigo)`
 ];
 
+async function migrarActasMesaPartido() {
+  try {
+    const cols = await q('PRAGMA table_info(actas_mesa)');
+    if (!cols.some(c => c.name === 'votos_partido')) {
+      await x('ALTER TABLE actas_mesa ADD COLUMN votos_partido INTEGER NOT NULL DEFAULT 0');
+    }
+  } catch (e) {
+    console.warn('Migración actas_mesa.votos_partido:', e.message);
+  }
+}
+
 async function inicializarTurso() {
   setLoad('Creando tablas en Turso...', 'Preparando estructura de datos...');
   let schemaWarn = 0;
+  await migrarActasMesaPartido();
   for (let i = 0; i < SCHEMA.length; i++) {
     setLoad('Creando tablas en Turso...', 'Paso ' + (i + 1) + ' de ' + SCHEMA.length);
     try { await x(SCHEMA[i]); } catch (e) { schemaWarn++; console.warn('Schema warn:', e.message); }
@@ -2913,12 +2925,13 @@ function renderControlElectoral() {
     const mesa = String(i);
     const vv = verificados.filter(x => controlMesaTexto(controlVerif(x.l.cedula)) === mesa).length;
     const acta = (CACHE.actasMesa || []).find(a => a.centro_codigo === centro.codigo && String(a.mesa) === mesa);
-    const diff = acta ? vv - Number(acta.cantidad_acta || 0) : null;
+    const votosPartido = acta ? Number(acta.votos_partido || 0) : null;
+    const diff = acta ? vv - votosPartido : null;
     mesaRows.push({ mesa, vv, acta, diff });
   }
 
   const actasCargadas = mesaRows.filter(x => !!x.acta).length;
-  const totalActa = mesaRows.reduce((sum, x) => sum + (x.acta ? Number(x.acta.cantidad_acta || 0) : 0), 0);
+  const totalActa = mesaRows.reduce((sum, x) => sum + (x.acta ? Number(x.acta.votos_partido || 0) : 0), 0);
   const diffTotal = actasCargadas ? verificados.length - totalActa : null;
 
   const centroOptions = CACHE.centros.map(x =>
@@ -2933,7 +2946,7 @@ function renderControlElectoral() {
     return '<tr>' +
       '<td><b>Mesa ' + esc(x.mesa) + '</b></td>' +
       '<td>' + x.vv + '</td>' +
-      '<td>' + (x.acta ? x.acta.cantidad_acta : '—') + '</td>' +
+      '<td>' + (x.acta ? x.acta.votos_partido : '—') + '</td>' +
       '<td>' + (x.diff === null ? '—' : x.diff) + '</td>' +
       '<td>' + estado + '</td>' +
       '<td><button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
@@ -2991,7 +3004,7 @@ function renderControlElectoral() {
       + '</div>' +
 
       '<div class="panel"><div class="panel-h">' + ic('chart',15) + ' Control por mesa</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
-        '<thead><tr><th>Mesa</th><th>Verificados</th><th>Acta física</th><th>Diferencia</th><th>Estado</th><th>Acción</th></tr></thead>' +
+        '<thead><tr><th>Mesa</th><th>Verificados</th><th>Votos del partido (acta CNE)</th><th>Diferencia</th><th>Estado</th><th>Acción</th></tr></thead>' +
         '<tbody>' + mesaHtml + '</tbody></table></div></div></div>' +
 
       '<div class="panel"><div class="panel-h">' + ic('users',15) + ' Últimas verificaciones</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
@@ -3068,18 +3081,18 @@ async function guardarVerificacion(cedula) {
 function editarActaMesa(codigo, mesa) {
   const a=(CACHE.actasMesa||[]).find(x=>x.centro_codigo===codigo && String(x.mesa)===String(mesa));
   win(ic('file',18)+' Acta física • Mesa '+esc(mesa),
-    '<label class="fl">Cantidad registrada en el acta</label><input class="inp mono" id="actaCantidadInput" type="number" min="0" step="1" value="'+esc(a?a.cantidad_acta:'')+'" placeholder="Ej. 120">' +
-    '<div style="font-size:12px;color:var(--mut);margin-top:8px">Este dato se utiliza únicamente para la conciliación de totales de la mesa.</div>',
+    '<label class="fl">Votos obtenidos por nuestro partido según acta CNE • Mesa '+esc(mesa)+'</label><input class="inp mono" id="actaPartidoInput" type="number" min="0" step="1" value="'+esc(a?a.votos_partido:'')+'" placeholder="Ej. 120">' +
+    '<div style="font-size:12px;color:var(--mut);margin-top:8px">Introduzca exactamente la cantidad de votos del partido que aparece en el acta física del CNE para esta mesa.</div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="guardarActaMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">Guardar acta</button>',420);
 }
 async function guardarActaMesa(codigo, mesa) {
-  const val=Number($('actaCantidadInput')?.value);
-  if(!Number.isInteger(val)||val<0) return toast('Ingrese una cantidad válida','err');
+  const val=Number($('actaPartidoInput')?.value);
+  if(!Number.isInteger(val)||val<0) return toast('Ingrese una cantidad válida de votos del partido','err');
   try {
     const existe=await q('SELECT id FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',[codigo,String(mesa)]);
-    if(existe.length) await x('UPDATE actas_mesa SET cantidad_acta=?, actualizado_en=datetime("now"), actualizado_por=? WHERE id=?',[val,USER.id,existe[0].id]);
-    else await x('INSERT INTO actas_mesa(centro_codigo,mesa,cantidad_acta,actualizado_por) VALUES(?,?,?,?)',[codigo,String(mesa),val,USER.id]);
-    await registrarAct('acta','Actualización acta física: Centro '+codigo+' • Mesa '+mesa+' • '+val,USER.id);
+    if(existe.length) await x('UPDATE actas_mesa SET votos_partido=?, cantidad_acta=?, actualizado_en=datetime("now"), actualizado_por=? WHERE id=?',[val,val,USER.id,existe[0].id]);
+    else await x('INSERT INTO actas_mesa(centro_codigo,mesa,cantidad_acta,votos_partido,actualizado_por) VALUES(?,?,?,?,?)',[codigo,String(mesa),val,val,USER.id]);
+    await registrarAct('acta','Acta CNE: votos del partido • Centro '+codigo+' • Mesa '+mesa+' • '+val,USER.id);
     await refreshAll(); closeModal(); renderControlElectoral(); toast('Acta guardada','ok');
   } catch(e){toast('Error guardando acta: '+e.message,'err');}
 }
