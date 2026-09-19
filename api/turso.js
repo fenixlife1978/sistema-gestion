@@ -1,3 +1,5 @@
+const {turso:db,rowsFrom,verify,getCookie}=require('../lib/auth');
+
 module.exports = async function handler(req, res) {
   // Este endpoint solo debe ser consumido por la aplicación web del sistema.
   // No se usa '*' porque el endpoint es un proxy con capacidad de ejecutar SQL.
@@ -22,6 +24,12 @@ module.exports = async function handler(req, res) {
   if (!allowed) return res.status(403).json({ error: 'Origen no autorizado' });
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const session=verify(getCookie(req,'erp_session'));
+  if(!session) return res.status(401).json({error:'Sesión requerida'});
+  const active=rowsFrom(await db([{q:'SELECT id,usuario,rol,activo FROM usuarios WHERE id=? AND activo=1 LIMIT 1',params:[session.uid]}]));
+  if(!active.length || active[0].usuario!==session.usuario || active[0].rol!==session.rol) {
+    return res.status(401).json({error:'Sesión no válida o usuario inactivo'});
+  }
 
   let rawUrl = process.env.TURSO_URL;
   const token = process.env.TURSO_TOKEN;
