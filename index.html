@@ -545,6 +545,8 @@ const SCHEMA = [
     posicion INTEGER,
     telefono TEXT,
     registrado_en TEXT DEFAULT (datetime('now')),
+    numero_calle TEXT,
+    numero_casa TEXT,
     FOREIGN KEY (reclutador_id) REFERENCES reclutadores(id) ON DELETE CASCADE
   )`,
   `CREATE TABLE IF NOT EXISTS actividad (
@@ -569,6 +571,8 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_asig_recl ON asignaciones(reclutador_id)`,
   `CREATE INDEX IF NOT EXISTS idx_cargo_centro ON centro_cargos(centro_codigo)`,
   `ALTER TABLE asignaciones ADD COLUMN telefono TEXT`,
+  `ALTER TABLE asignaciones ADD COLUMN numero_calle TEXT`,
+  `ALTER TABLE asignaciones ADD COLUMN numero_casa TEXT`,
   `ALTER TABLE reclutadores ADD COLUMN direccion TEXT`,
   `ALTER TABLE centro_cargos ADD COLUMN telefono TEXT`,
   `ALTER TABLE centro_cargos ADD COLUMN direccion TEXT`,
@@ -983,11 +987,11 @@ function renderRegistro(focus) {
       : '<div class="panel"><div class="panel-b empty">' + ic('users', 30) + '<p>Seleccione un movilizador.</p></div></div>') + '</div>' +
     '<div><div class="panel"><div class="panel-h">Punto de Registro <span class="chip chip-g" style="margin-left:auto">? TURSO • BLOQUEO ÚNICO</span></div><div class="panel-b" id="regBox">' +
     '<div class="grid g2" style="gap:8px"><div style="flex:2"><label class="fl">Cédula (LETRA + CEDULA_IDENTIDAD)</label><input class="inp mono" id="cedIn" style="font-size:19px;font-weight:700" placeholder="V-12.345.678" ' + (r ? '' : 'disabled') + '></div>' +
-    '<div style="flex:1"><label class="fl">Teléfono</label><input class="inp mono" id="telIn" style="font-size:15px" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)" ' + (r ? '' : 'disabled') + '></div>' +
+    '<div style="flex:1"><label class="fl">Teléfono</label><input class="inp mono" id="telIn" style="font-size:15px" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)" ' + (r ? '' : 'disabled') + '></div>' + '<div><label class="fl">Calle</label><input class="inp" id="calleIn" placeholder="Nro. calle" ' + (r ? '' : 'disabled') + '></div>' + '<div><label class="fl">Casa</label><input class="inp" id="casaIn" placeholder="Nro. casa" ' + (r ? '' : 'disabled') + '></div>' +
     '<div style="align-self:end"><button class="btn btn-navy btn-big" style="width:100%;justify-content:center" ' + (r ? '' : 'disabled') + ' onclick="doReg()">Registrar ?</button></div></div><div id="regResult"></div></div></div>' +
     '<div class="panel"><div class="panel-h">Lista de Comprometidos ' + (r ? ' ' + r.lista.length + '/10' : '') + (r ? '<button class="btn btn-w btn-xs" style="margin-left:auto" onclick="expLista(' + r.id + ')">' + ic('dl', 13) + ' CSV</button>' : '') + '</div><div class="panel-b">' +
-    (r ? (r.lista.length ? '<table class="tbl"><thead><tr><th>#</th><th>C.I.</th><th>Apellidos y nombres</th><th>Edad</th><th>Sexo</th><th>Teléfono</th><th>Centro</th><th>Municipio</th><th>Hora</th><th>Acciones</th></tr></thead><tbody>' +
-      r.lista.map((l, i) => { const p = padBy(l.cedula); return '<tr><td><span class="pos">' + (i + 1) + '</span></td><td class="mono" style="font-weight:700">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td>' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<span class="chip chip-r">SIN PADRÓN</span>') + '</td><td>' + (p ? (edadDe(p.fecha_nac) || p.edad || '-') : '') + '</td><td>' + (p ? p.sexo : '') + '</td><td>' + (l.telefono ? '<a href="https://wa.me/58' + esc(l.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none;cursor:pointer">' + ic('chat', 12) + ' ' + esc(l.telefono) + '</a>' : '<span style="color:var(--mut);font-style:italic">Sin telf.</span>') + ' <button class="btn btn-w btn-xs" style="padding:2px 5px;margin-left:4px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button></td><td>' + esc(p ? p.nombre_cv : '') + '</td><td>' + esc(p ? p.municipio : '') + '</td><td class="mono" style="font-size:11px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</td><td style="white-space:nowrap"><button class="btn btn-w btn-xs" style="margin-right:2px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button><button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')" title="Eliminar de lista">' + ic('x', 12) + '</button></td></tr>' }).join('') + '</tbody></table>'
+    (r ? (r.lista.length ? '<table class="tbl"><thead><tr><th>#</th><th>C.I.</th><th>Apellidos y nombres</th><th>Edad</th><th>Sexo</th><th>Teléfono</th><th>Calle</th><th>Casa</th><th>Centro</th><th>Municipio</th><th>Hora</th><th>Acciones</th></tr></thead><tbody>' +
+      r.lista.map((l, i) => { const p = padBy(l.cedula); return '<tr><td><span class="pos">' + (i + 1) + '</span></td><td class="mono" style="font-weight:700">' + (p ? fC(p.letra, p.cedula) : fC('V', l.cedula)) + '</td><td>' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<span class="chip chip-r">SIN PADRÓN</span>') + '</td><td>' + (p ? (edadDe(p.fecha_nac) || p.edad || '-') : '') + '</td><td>' + (p ? p.sexo : '') + '</td><td>' + (l.telefono ? '<a href="https://wa.me/58' + esc(l.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none;cursor:pointer">' + ic('chat', 12) + ' ' + esc(l.telefono) + '</a>' : '<span style="color:var(--mut);font-style:italic">Sin telf.</span>') + ' <button class="btn btn-w btn-xs" style="padding:2px 5px;margin-left:4px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button></td><td>' + esc(l.numero_calle || '') + '</td><td>' + esc(l.numero_casa || '') + '</td><td>' + esc(p ? p.nombre_cv : '') + '</td><td>' + esc(p ? p.municipio : '') + '</td><td class="mono" style="font-size:11px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</td><td style="white-space:nowrap"><button class="btn btn-w btn-xs" style="margin-right:2px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button><button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')" title="Eliminar de lista">' + ic('x', 12) + '</button></td></tr>' }).join('') + '</tbody></table>'
       : '<div class="empty">' + ic('target', 28) + '<p>Lista vacía.</p></div>')
       : '<div class="empty">' + ic('lock', 28) + '<p>Sin movilizador seleccionado.</p></div>') + '</div></div></div></div>';
   const inp = $('cedIn');
@@ -1085,8 +1089,8 @@ function mensajeDuplicidadPersona(cedula, dup) {
 
 async function doReg() {
   const r = CACHE.recl.find(x => x.id === REG.rec); if (!r) return;
-  const c = normC($('cedIn').value); const tel = ($('telIn').value || '').trim(); const box = $('regBox');
-  const R = h => { $('regResult').innerHTML = h; $('cedIn').value = ''; $('telIn').value = ''; $('cedIn').focus() };
+  const c = normC($('cedIn').value); const tel = ($('telIn').value || '').trim(); const calle = ($('calleIn')?.value || '').trim(); const casa = ($('casaIn')?.value || '').trim(); const box = $('regBox');
+  const R = h => { $('regResult').innerHTML = h; $('cedIn').value = ''; $('telIn').value = ''; $('calleIn').value = ''; $('casaIn').value = ''; $('cedIn').focus() };
   if (!/^\d{5,9}$/.test(c)) { box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake'); return R('<div class="alert warn"><div class="a-ic">' + ic('warn', 18) + '</div><div><b>Cédula inválida</b>Solo dígitos (5 a 9).</div></div>') }
   if (r.lista.length >= 10) return R('<div class="alert err"><div class="a-ic">' + ic('x', 18) + '</div><div><b>Lista completa (10/10)</b></div></div>');
   if (r.cedula === c) return R('<div class="alert err"><div class="a-ic">' + ic('warn', 18) + '</div><div><b>Bloqueado</b>La cédula corresponde al propio RECLUTADOR.</div></div>');
@@ -1111,7 +1115,7 @@ async function doReg() {
   try {
     const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
     const pos = (max[0].m || 0) + 1;
-    await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono) VALUES(?,?,?,?)', [r.id, c, pos, tel ? normTel(tel) : null]);
+    await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa) VALUES(?,?,?,?,?,?)', [r.id, c, pos, tel ? normTel(tel) : null, calle || null, casa || null]);
     await registrarAct('user', 'C.I. ' + fC(p.letra, p.cedula) + ' registrada en lista de movilizador #' + r.id + ' (posición ' + pos + ')', USER.id);
     await refreshAll(); renderRegistro(true);
     R('<div class="alert ok"><div class="a-ic">' + ic('check', 18) + '</div><div><b>✔ Registro exitoso • posición #' + pos + '</b>' + esc(apeP(p) + ', ' + nomP(p)) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + ' años  ' + p.sexo + (tel ? '  📱 ' + esc(tel) : '') + '<br>Centro: ' + esc(p.nombre_cv) + ' (' + esc(p.municipio) + ')<br>Lista: <b class="mono">' + CACHE.recl.find(x => x.id === r.id).lista.length + '/10</b></div></div>');
@@ -1195,7 +1199,7 @@ async function saveManual() {
     const r = CACHE.recl.find(x => x.id === REG.rec);
     if (r && r.lista.length < 10) {
       const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
-      await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion) VALUES(?,?,?)', [r.id, ced, (max[0].m || 0) + 1]);
+      await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,numero_calle,numero_casa) VALUES(?,?,?,?,?)', [r.id, ced, (max[0].m || 0) + 1, null, null]);
     }
     await refreshAll(); closeModal(); renderRegistro(true); toast('Elector incorporado a Turso', 'ok');
   } catch (e) { toast(e.message, 'err') }
@@ -1232,7 +1236,7 @@ function openRec(id) {
     const l = r.lista[i];
     if (!l) return '<div class="row10 empty"><span class="pos" style="background:#cfd8dc;color:#607080">' + (i + 1) + '</span>Cupo disponible</div>';
     const p = padBy(l.cedula);
-    return '<div class="row10"><span class="pos">' + (i + 1) + '</span><div style="flex:1;min-width:0"><b style="font-size:13px">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</b> ' + (p ? '' : '<span class="chip chip-r">S/P</span>') + '<div class="mono" style="font-size:11px;color:var(--mut)">' + (p ? fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + p.sexo : fC('V', l.cedula)) + '  ' + esc(p ? p.nombre_cv : '') + '</div></div><span class="mono" style="font-size:10.5px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</span><button class="btn btn-w btn-xs" style="margin-right:2px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')" title="Eliminar de lista">' + ic('x', 12) + '</button></div>';
+    return '<div class="row10"><span class="pos">' + (i + 1) + '</span><div style="flex:1;min-width:0"><b style="font-size:13px">' + (p ? esc(apeP(p) + ', ' + nomP(p)) : '<i>Sin padrón</i>') + '</b> ' + (p ? '' : '<span class="chip chip-r">S/P</span>') + '<div class="mono" style="font-size:11px;color:var(--mut)">' + (p ? fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + p.sexo : fC('V', l.cedula)) + '  ' + esc(p ? p.nombre_cv : '') + ' • Calle: ' + esc(l.numero_calle || '-') + ' • Casa: ' + esc(l.numero_casa || '-') + '</div></div><span class="mono" style="font-size:10.5px;color:var(--mut)">' + esc(l.registrado_en || '').slice(11, 16) + '</span><button class="btn btn-w btn-xs" style="margin-right:2px" onclick="editTelComprometido(' + r.id + ',\'' + l.cedula + '\')" title="Editar teléfono">' + ic('edit', 12) + '</button><button class="btn btn-w btn-xs" onclick="delMem(' + r.id + ',\'' + l.cedula + '\')" title="Eliminar de lista">' + ic('x', 12) + '</button></div>';
   }).join('');
   win(ic('users', 18) + ' ' + esc(nm) + '  Lista ' + r.id,
     '<div id="recContent">' +
