@@ -64,10 +64,15 @@ module.exports = async function handler(req, res) {
     // La inicialización, migraciones y cambios de esquema ya no pasan por este proxy.
     // Se bloquean operaciones administrativas de SQLite para impedir que una sesión
     // autenticada pueda convertir este endpoint en un administrador de la base.
-    const ddlBlocked = /(^|\\s)(CREATE|ALTER|DROP|PRAGMA|VACUUM|ATTACH|DETACH|REINDEX|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)(\\s|$)/i;
-    if (stmts.some(s => ddlBlocked.test(String(s.q).replace(/--[^\\n]*|\\/\\*[\\s\\S]*?\\*\\//g,' ')))) {
-      return res.status(403).json({ error: 'Operación SQL administrativa bloqueada; use los endpoints del servidor' });
+      // Fase de transición: este endpoint deja de aceptar escrituras.
+    // Las mutaciones ya protegidas por endpoints específicos no deben poder
+    // modificarse mediante el proxy SQL genérico.
+    const normalized = stmts.map(s => String(s.q).replace(/--[^\\n]*|\\/\\*[\\s\\S]*?\\*\\//g,' ').trim());
+    const writeBlocked = /^(INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|PRAGMA|VACUUM|ATTACH|DETACH|REINDEX|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)\\b/i;
+    if (normalized.some(sql => writeBlocked.test(sql))) {
+      return res.status(403).json({ error: 'Escritura SQL genérica bloqueada; use los endpoints controlados del servidor' });
     }
+
 
     const r = await fetch(url, {
       method: 'POST',
