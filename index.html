@@ -749,6 +749,7 @@ const SCHEMA = [
     centro_codigo TEXT NOT NULL,
     mesa TEXT NOT NULL,
     cantidad_acta INTEGER NOT NULL DEFAULT 0 CHECK(cantidad_acta >= 0),
+    votos_partido INTEGER NOT NULL DEFAULT 0 CHECK(votos_partido >= 0),
     actualizado_en TEXT NOT NULL DEFAULT (datetime('now')),
     actualizado_por INTEGER,
     UNIQUE(centro_codigo, mesa),
@@ -2998,7 +2999,7 @@ function renderControlElectoral() {
         panel('Conciliación general con actas',
           '<div class="ck">' +
             '<div class="ck-it"><b>' + actasCargadas + '/' + mesas + '</b><span>Mesas con acta cargada</span></div>' +
-            '<div class="ck-it"><b>' + totalActa + '</b><span>Total acta</span></div>' +
+            '<div class="ck-it"><b>' + totalActa + '</b><span>Total votos del partido según actas</span></div>' +
             '<div class="ck-it"><b>' + (diffTotal === null ? '—' : diffTotal) + '</b><span>Diferencia asistencia vs acta</span></div>' +
           '</div>')
       + '</div>' +
