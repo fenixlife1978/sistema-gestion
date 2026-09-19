@@ -1326,14 +1326,14 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
       '<label class="fl" style="margin-top:12px">Usuario autorizante (Jefe o Administrador)</label><input class="inp" id="authUser" autocomplete="username" placeholder="Usuario">' +
       '<label class="fl" style="margin-top:10px">Clave de autorización</label><input class="inp" id="authPass" type="password" autocomplete="current-password" placeholder="Clave">' +
       '<label class="fl" style="margin-top:10px">Motivo</label><textarea class="inp" id="authMotivo" rows="2" placeholder="Indique el motivo de la excepción"></textarea>',
-      '<button class="btn btn-w" onclick="closeModal();window.__authResolve&&window.__authResolve(false)">Cancelar</button><button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad(\'' + esc(cedula) + '\',\'' + esc(destino) + '\')">Autorizar y continuar</button>',600
+      '<button class="btn btn-w" onclick="window.__dupAuthEncontrados=null;closeModal();window.__authResolve&&window.__authResolve(false)">Cancelar</button><button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad(\'' + esc(cedula) + '\',\'' + esc(destino) + '\')">Autorizar y continuar</button>',600
     );
     window.__authResolve=resolve;
   });
   return !!auth;
 }
 
-async async async function confirmarAutorizacionDuplicidad(cedula, destino) {
+async function confirmarAutorizacionDuplicidad(cedula, destino) {
   const encontrados = window.__dupAuthEncontrados || [];
   const u=String($('authUser')?.value||'').trim(), p=$('authPass')?.value||'';
   const motivo=String($('authMotivo')?.value||'').trim();
@@ -3495,9 +3495,8 @@ function prepararVistaPreviaActaInicializacion(codigo,mesa,formato) {
   vistaPreviaDocumento('Vista previa • Acta de Inicialización • Mesa '+esc(mesa),html,acciones);
 }
 function confirmarImpresionActaInicializacion(codigo,mesa,formato) {
-  const html=actaInicializacionHTML(codigo,mesa,formato),w=window.open('','_blank');
-  if(!w)return toast('El navegador bloqueó la ventana de impresión','err');
-  w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();},400);
+  const html=actaInicializacionHTML(codigo,mesa,formato);
+  imprimirHTMLPrevisualizado(html);
 }
 function confirmarPDFActaInicializacion(codigo,mesa,formato) {
   const mo=mesaOperativa(codigo,mesa);if(!mo)return toast('Guarde primero la constitución de la Mesa','err');
