@@ -1661,8 +1661,7 @@ async function removeCargoCentro(codigo, idx) {
   const existing = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === cargo);
   if (!existing) return;
   try {
-    await x('DELETE FROM centro_cargos WHERE id = ?', [existing.id]);
-    await registrarAct('user', cargo + ' removido del centro ' + codigo, USER.id);
+    const rr=await fetch('/api/centros/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar_cargo',id:existing.id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo remover el cargo');
     await refreshAll();
     openCentro(codigo);
     toast('Cargo removido', 'ok');
@@ -1701,7 +1700,7 @@ function openCentro(cod) {
 async function updateMesas(cod) {
   const v = Number($('cMes')?.value);
   if (!Number.isInteger(v) || v < 1 || v > 999) return toast('La cantidad de mesas debe ser un entero entre 1 y 999', 'err');
-  await x('UPDATE centros SET mesas = ? WHERE codigo = ?', [v, cod]);
+  const rr=await fetch('/api/centros/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'actualizar_mesas',codigo:cod,mesas:v})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron actualizar las mesas');
   await refreshAll(); closeModal(); renderCentros(); toast('Mesas actualizadas', 'ok');
 }
 
