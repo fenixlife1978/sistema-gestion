@@ -3414,18 +3414,33 @@ async function guardarVerificacion(cedula) {
   const centro=controlCentroActual(), mesa=String($('ctlMesaInput')?.value||'').trim();
   if(!centro) return toast('Seleccione un centro', 'err');
   if(!mesa) return toast('Ingrese el número de Mesa', 'err');
+
   const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
   if(!persona) return toast('La persona no tiene un cargo o función registrada en este centro', 'err');
+
   try {
-    const existe=await q('SELECT id FROM verificaciones_votacion WHERE cedula = ? LIMIT 1',[normC(cedula)]);
-    if(existe.length) await x('UPDATE verificaciones_votacion SET centro_codigo=?, mesa=?, estado=?, verificado_en=datetime("now"), verificado_por=? WHERE cedula=?',[centro.codigo,mesa,'VOTO_VERIFICADO',USER.id,normC(cedula)]);
-    else await x('INSERT INTO verificaciones_votacion(cedula,centro_codigo,mesa,estado,verificado_por) VALUES(?,?,?,?,?)',[normC(cedula),centro.codigo,mesa,'VOTO_VERIFICADO',USER.id]);
-    await registrarAct('voto', 'Verificación individual registrada: '+fC(persona.p.letra||'V',cedula)+' • Centro '+centro.codigo+' • Mesa '+mesa, USER.id);
+    const r=await fetch('/api/verificaciones', {
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        cedula:normC(cedula),
+        centro_codigo:centro.codigo,
+        mesa
+      })
+    });
+    let data={};
+    try{data=await r.json()}catch(e){}
+    if(!r.ok) return toast(data.error||'No se pudo guardar la verificación','err',8000);
+
     await refreshAll();
     closeModal();
     renderControlElectoral();
     toast('Asistencia verificada • VOTÓ • Mesa '+mesa,'ok',6000);
-  } catch(e) { console.error(e); toast('No se pudo guardar la verificación: '+e.message,'err',8000); }
+  } catch(e) {
+    console.error(e);
+    toast('No se pudo guardar la verificación: '+e.message,'err',8000);
+  }
 }
 
 function mesaOperativa(codigo, mesa) {
