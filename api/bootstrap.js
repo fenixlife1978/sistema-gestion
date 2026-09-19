@@ -276,20 +276,44 @@ const isBenign = e => /duplicate column name|already exists|duplicate index|dupl
 async function migrateComiteRoles(){
   const cols=rowsFrom(await turso([{q:'PRAGMA table_info(comite_vecinal)',params:[]}]));
   if(!cols.length)return;
-  if(!cols.some(x=>x.name==='cargo')){
-    await turso([{q:"ALTER TABLE comite_vecinal ADD COLUMN cargo TEXT NOT NULL DEFAULT 'COORDINADOR'",params:[]}]);
+  if(!cols.some(x=>x.name==='cargo')) await turso([{q:"ALTER TABLE comite_vecinal ADD COLUMN cargo TEXT NOT NULL DEFAULT 'COORDINADOR'",params:[]}]);
+  const indexes=rowsFrom(await turso([{q:'PRAGMA index_list(comite_vecinal)',params:[]}]));
+  let cedulaUnique=false;
+  for(const ix of indexes){
+    if(!ix.unique)continue;
+    const info=rowsFrom(await turso([{q:"PRAGMA index_info('"+String(ix.name).replace(/'/g,"''")+"')",params:[]}]));
+    if(info.length===1&&info[0].name==='cedula'){cedulaUnique=true;break;}
   }
-  try{
-    await turso([{q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_comite_comunidad_cargo ON comite_vecinal(comunidad,cargo)',params:[]}]);
-  }catch(e){
-    if(!isBenign(e))throw e;
+  if(cedulaUnique){
+    const v2=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal_v2' LIMIT 1",params:[]}]));
+    if(!v2.length) await turso([{q:`CREATE TABLE comite_vecinal_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      comunidad TEXT NOT NULL,
+      cargo TEXT NOT NULL DEFAULT 'COORDINADOR',
+      cedula TEXT NOT NULL,
+      nombre TEXT,
+      telefono TEXT,
+      direccion TEXT,
+      numero_calle TEXT,
+      numero_casa TEXT,
+      problematica_actual TEXT,
+      creado TEXT DEFAULT (datetime('now')),
+      UNIQUE(comunidad,cargo)
+    )`,params:[]}]);
+    await turso([{q:`INSERT OR IGNORE INTO comite_vecinal_v2(id,comunidad,cargo,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado)
+      SELECT id,comunidad,COALESCE(NULLIF(cargo,''),'COORDINADOR'),cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado FROM comite_vecinal`,params:[]}]);
+    await turso([{q:'DROP TABLE comite_vecinal',params:[]}]);
+    await turso([{q:'ALTER TABLE comite_vecinal_v2 RENAME TO comite_vecinal',params:[]}]);
   }
+  await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)',params:[]}]);
+  await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_cargo ON comite_vecinal(cargo)',params:[]}]);
+  await turso([{q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_comite_comunidad_cargo ON comite_vecinal(comunidad,cargo)',params:[]}]);
 }
-
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
 async function execSchema() {
-  await migrateComiteRoles();
+  const existing=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal' LIMIT 1",params:[]}])));
+  if(existing.length) await migrateComiteRoles();
   const marker=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_bootstrap_meta' LIMIT 1",params:[]}]));
   if(marker.length){
     return;
