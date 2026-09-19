@@ -20,7 +20,7 @@ module.exports=async function handler(req,res){
     const origenes=Array.isArray(body.origenes)?body.origenes.map(x=>clean(x,60)).filter(Boolean).slice(0,10):[];
     const detalles=Array.isArray(body.detalles)?body.detalles.map(x=>clean(x,500)).filter(Boolean).slice(0,10):[];
     if(!cedula||!destino||!motivo||!authUsuario||!authClave) return res.status(400).json({error:'Datos de autorización incompletos'});
-    if(!['J','A'].includes(session.rol)) return res.status(403).json({error:'El usuario de la sesión no puede autorizar duplicidades'});
+    if(!['J','A','O'].includes(session.rol)) return res.status(403).json({error:'Rol de sesión no permitido'});
     if(authClave.length>512) return res.status(400).json({error:'Clave inválida'});
 
     const rows=rowsFrom(await turso([{q:'SELECT id,usuario,rol,clave_hash,activo FROM usuarios WHERE usuario=? AND activo=1 LIMIT 1',params:[authUsuario]}]));
