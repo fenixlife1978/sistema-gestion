@@ -317,9 +317,6 @@ async function execSchema() {
     if(!isBenign(e)) throw e;
   }
 
-  await turso([{q:"CREATE TABLE IF NOT EXISTS erp_bootstrap_meta (id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT (datetime('now')))",params:[]}]);
-  await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:["2026-09-19-h1"]}]);
-
   for(let i=0;i<PROBLEMAS.length;i++){
     const [categoria,nombre]=PROBLEMAS[i];
     await turso([{q:'INSERT OR IGNORE INTO catalogo_problemas(categoria,nombre,orden) VALUES(?,?,?)',params:[categoria,nombre,i+1]}]);
@@ -337,6 +334,8 @@ async function execSchema() {
       await turso([{q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:[u,modernHash(p),n,r,c]}]);
     }
   }
+  await turso([{q:"CREATE TABLE IF NOT EXISTS erp_bootstrap_meta (id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT (datetime('now')))",params:[]}]);
+  await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:["2026-09-19-h1"]}]);
 }
 
 module.exports=async function handler(req,res){
