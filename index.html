@@ -605,11 +605,13 @@ const SCHEMA = [
 ];
 
 async function inicializarTurso() {
-  setLoad('Creando tablas en Turso...');
-  for (const sql of SCHEMA) {
-    try { await x(sql); } catch (e) { console.warn('Schema warn:', e.message); }
+  setLoad('Creando tablas en Turso...', 'Preparando estructura de datos...');
+  let schemaWarn = 0;
+  for (let i = 0; i < SCHEMA.length; i++) {
+    setLoad('Creando tablas en Turso...', 'Paso ' + (i + 1) + ' de ' + SCHEMA.length);
+    try { await x(SCHEMA[i]); } catch (e) { schemaWarn++; console.warn('Schema warn:', e.message); }
   }
-  setLoad('Verificando usuarios iniciales...');
+  setLoad('Verificando usuarios iniciales...', schemaWarn ? ('Estructura lista con ' + schemaWarn + ' avisos de migración') : 'Estructura creada correctamente');
   const users = await q('SELECT COUNT(*) AS n FROM usuarios');
   if (users[0].n === 0) {
     const seeds = [
@@ -2007,16 +2009,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 
 /* ----------- ARRANQUE ----------- */
 (async function main() {
-  const safetyTimer = setTimeout(() => {
-    console.warn('Safety timeout: dismissing loading');
-    const loading = $('loading');
-    const vLogin = $('vLogin');
-    const lgInfo = $('lgInfo');
-    const loadMsg = $('loadMsg');
-    if (loading) loading.style.display = 'none';
-    if (vLogin) vLogin.style.display = 'flex';
-    if (lgInfo) lgInfo.textContent = 'Tiempo de espera agotado - Intente recargar';
-    if (loadMsg) loadMsg.textContent = 'Carga lenta detectada';
+  const progressTimer = setTimeout(() => {
+    setLoad('La conexión está tardando más de lo esperado...', 'Turso sigue procesando. No cierre ni recargue la página.');
   }, 10000);
   try {
     setLoad('Conectando con Turso...');
@@ -2041,17 +2035,20 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
           }
           await refreshAll();
         }
+        clearTimeout(progressTimer);
         $('loading').style.display = 'none';
         enterApp(saved.cur || 'dash');
         return;
       }
     }
     const count = await q('SELECT COUNT(*) AS n FROM padron');
+    clearTimeout(progressTimer);
     $('lgInfo').textContent = count[0].n + ' electores • Turso OK';
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
   } catch (e) {
-    setLoad('Error al conectar', e.message);
+    clearTimeout(progressTimer);
+    setLoad('Error al conectar con Turso', e.message || 'Revise la configuración del backend');
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
     $('lgInfo').textContent = 'Error de conexión';
