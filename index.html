@@ -1354,6 +1354,7 @@ async async async function confirmarAutorizacionDuplicidad(cedula, destino) {
     const resolve=window.__authResolve; window.__authResolve=null; closeModal();
     if(resolve) resolve(true); window.__dupAuthEncontrados=null;
   } catch(e){ toast('No se pudo registrar la autorización: '+e.message,'err'); }
+}
 async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   const tel = String(telefono || '').replace(/\D/g, '');
   if (!tel) return null;
