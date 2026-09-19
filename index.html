@@ -1314,6 +1314,7 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
 }
 
 async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
+  window.__dupAuthEncontrados = encontrados || [];
   const nombres = (encontrados || []).map(x => x.tipo + ': ' + x.detalle).join('<br>');
   const motivo = 'Duplicidad controlada de persona: ' + (encontrados || []).map(x => x.tipo).join(', ') + ' → ' + destino;
   const auth = await new Promise(resolve => {
@@ -1332,7 +1333,8 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
   return !!auth;
 }
 
-async async async function confirmarAutorizacionDuplicidad(cedula, destino, encontrados) {
+async async async function confirmarAutorizacionDuplicidad(cedula, destino) {
+  const encontrados = window.__dupAuthEncontrados || [];
   const u=String($('authUser')?.value||'').trim(), p=$('authPass')?.value||'';
   const motivo=String($('authMotivo')?.value||'').trim();
   if(!u||!p) return toast('Ingrese usuario y clave de autorización','err');
@@ -1350,9 +1352,8 @@ async async async function confirmarAutorizacionDuplicidad(cedula, destino, enco
     ]);
     await registrarAct('autorizacion','Duplicidad autorizada: '+fC('V',cedula)+' → '+destino+' • autorizó '+user.usuario+' • '+motivo,USER?.id||null);
     const resolve=window.__authResolve; window.__authResolve=null; closeModal();
-    if(resolve) resolve(true);
+    if(resolve) resolve(true); window.__dupAuthEncontrados=null;
   } catch(e){ toast('No se pudo registrar la autorización: '+e.message,'err'); }
-}
 async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   const tel = String(telefono || '').replace(/\D/g, '');
   if (!tel) return null;
