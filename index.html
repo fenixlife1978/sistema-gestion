@@ -1192,8 +1192,7 @@ function delMem(rid, c) {
   const r = CACHE.recl.find(x => x.id === rid); const p = padBy(c); const lt = p ? p.letra : 'V';
   askDo('Retirar integrante', 'Se retirará la C.I. <b>' + fC(lt, c) + '</b>' + (p ? ' (' + esc(nomP(p)) + ')' : '') + ' de la lista.', 'Retirar', async () => {
     try {
-      await x('DELETE FROM asignaciones WHERE reclutador_id = ? AND cedula = ?', [rid, c]);
-      await registrarAct('user', 'C.I. ' + fC(lt, c) + ' retirada de lista #' + rid, USER.id);
+      const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar_asignacion',reclutador_id:rid,cedula:c})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo retirar la asignación');
       await refreshAll(); toast('Integrante retirado', 'ok');
       if (CUR === 'registro') renderRegistro(); if (CUR === 'recl') renderRecl();
       if ($('mOv').classList.contains('on')) openRec(rid);
@@ -1227,7 +1226,7 @@ async function saveTelComprometido(reclId, ced) {
     if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000);
   }
   try {
-    await x('UPDATE asignaciones SET telefono = ?, numero_calle = ?, numero_casa = ?, direccion = ? WHERE reclutador_id = ? AND cedula = ?', [tel || null, calle || null, casa || null, direccion || null, reclId, ced]);
+    const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'actualizar_asignacion',reclutador_id:reclId,cedula:ced,telefono:tel,numero_calle:calle,numero_casa:casa,direccion})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar la asignación');
     await refreshAll();
     closeModal();
     if (CUR === 'registro') renderRegistro();
@@ -1264,14 +1263,9 @@ async function saveManual() {
   if (p) return toast('La cédula ya existe en Turso con el mismo centro electoral', 'err');
   const fn = $('mFn').value; const edad = edadDe(fn);
   try {
-    await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-      [ced, $('mLet').value, pa, $('mSa').value, pn, $('mSn').value, $('mSex').value, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
-    await registrarAct('user', 'Alta manual CNE: ' + fC($('mLet').value, ced), USER.id);
     const r = CACHE.recl.find(x => x.id === REG.rec);
-    if (r && r.lista.length < 10) {
-      const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
-      await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)', [r.id, ced, (max[0].m || 0) + 1, tel ? normTel(tel) : null, calle || null, casa || null, direccion || null]);
-    }
+    const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_comprometido_manual',cedula:ced,letra:$('mLet').value,p_apellido:pa,s_apellido:$('mSa').value,p_nombre:pn,s_nombre:$('mSn').value,sexo:$('mSex').value,fecha_nac:fn,telefono:normTel(tel),numero_calle:calle,numero_casa:casa,direccion,centro:{codigo:cv.codigo},reclutador_id:r?.id||0})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo registrar el comprometido');
     await refreshAll(); closeModal(); renderRegistro(true); toast('Elector incorporado a Turso', 'ok');
   } catch (e) { toast(e.message, 'err') }
 }
@@ -1422,7 +1416,7 @@ function descargarCSVPrevisualizado(csv,name){
 function delRecl(id) {
   const r = CACHE.recl.find(x => x.id === id);
   askDo('Eliminar movilizador', 'Se eliminará a <b>' + esc(nomP(padBy(r.cedula) || { p_nombre: r.cedula })) + '</b> y sus ' + r.lista.length + ' cupos quedarn libres en Turso (CASCADE).', 'Eliminar', async () => {
-    try { await x('DELETE FROM reclutadores WHERE id = ?', [id]); await registrarAct('user', 'Movilizador #' + id + ' eliminado', USER.id); await refreshAll(); closeModal(); renderRecl(); toast('Movilizador eliminado', 'ok') } catch (e) { toast(e.message, 'err') }
+    try { const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar_reclutador',id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo eliminar el movilizador'); await refreshAll(); closeModal(); renderRecl(); toast('Movilizador eliminado', 'ok') } catch (e) { toast(e.message, 'err') }
   });
 }
 function openNewRecl() {
@@ -1455,8 +1449,8 @@ async function nrSave() {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('INSERT INTO reclutadores(cedula,telefono,estructura,direccion) VALUES(?,?,?,?)', [p.cedula, normTel(tel), $('nrEst').value, $('nrDir').value]);
-    await registrarAct('user', 'Nuevo movilizador creado: ' + fC(p.letra, p.cedula), USER.id);
+    const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,telefono:normTel(tel),estructura:$('nrEst').value,direccion:$('nrDir').value})});
+    const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
     await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
     const nuevo = CACHE.recl.find(r => r.cedula === p.cedula);
     if (nuevo) { REG.rec = nuevo.id; go('registro') }
@@ -1490,10 +1484,8 @@ async function saveNrManual() {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-      [ced, letra, pa, $('nrmSa').value.trim(), pn, $('nrmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
-    await x('INSERT INTO reclutadores(cedula,telefono,estructura,direccion) VALUES(?,?,?,?)', [ced, normTel(tel), est, dir]);
-    await registrarAct('user', 'Movilizador creado manual: ' + fC(letra, ced), USER.id);
+    const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador_manual',cedula:ced,letra,pa,p_apellido:pa,s_apellido:$('nrmSa').value.trim(),p_nombre:pn,s_nombre:$('nrmSn').value.trim(),sexo,fecha_nac:fn,telefono:normTel(tel),estructura:est,direccion:dir,centro:{codigo:cv.codigo}})});
+    const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
     await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
     const nuevo = CACHE.recl.find(r => r.cedula === ced);
     if (nuevo) { REG.rec = nuevo.id; go('registro') }
