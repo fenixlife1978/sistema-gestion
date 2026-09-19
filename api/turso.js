@@ -61,6 +61,14 @@ module.exports = async function handler(req, res) {
       return res.status(413).json({ error: 'Sentencia SQL demasiado grande' });
     }
 
+    // La inicialización, migraciones y cambios de esquema ya no pasan por este proxy.
+    // Se bloquean operaciones administrativas de SQLite para impedir que una sesión
+    // autenticada pueda convertir este endpoint en un administrador de la base.
+    const ddlBlocked = /(^|\\s)(CREATE|ALTER|DROP|PRAGMA|VACUUM|ATTACH|DETACH|REINDEX|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)(\\s|$)/i;
+    if (stmts.some(s => ddlBlocked.test(String(s.q).replace(/--[^\\n]*|\\/\\*[\\s\\S]*?\\*\\//g,' ')))) {
+      return res.status(403).json({ error: 'Operación SQL administrativa bloqueada; use los endpoints del servidor' });
+    }
+
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
