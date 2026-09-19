@@ -1,10 +1,11 @@
 module.exports = async function handler(req, res) {
   // Este endpoint solo debe ser consumido por la aplicación web del sistema.
   // No se usa '*' porque el endpoint es un proxy con capacidad de ejecutar SQL.
-  const origin = String(req.headers.origin || '').replace(/\\/$/, '');
-  const requestHost = String(req.headers.host || '').replace(/\\/$/, '');
+  const origin = String(req.headers.origin || '').replace(/\/$/, '');
+  const requestHost = String(req.headers.host || '').replace(/\/$/, '');
   const sameOrigin = origin && requestHost && (() => { try { return new URL(origin).host === requestHost; } catch(e) { return false; } })();
   const allowedOrigins = new Set([
+    'https://erp-electoral.vercel.app',
     'https://gestion-erp-electoral.vercel.app',
     'http://localhost:3000',
     'http://localhost:5173',
