@@ -607,7 +607,10 @@ const SCHEMA = [
   `ALTER TABLE comite_vecinal ADD COLUMN numero_calle TEXT`,
   `ALTER TABLE comite_vecinal ADD COLUMN numero_casa TEXT`,
   `ALTER TABLE comite_vecinal ADD COLUMN problematica_actual TEXT`,
-  `CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)`
+  `CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)`,
+  `CREATE TABLE IF NOT EXISTS catalogo_problemas (id INTEGER PRIMARY KEY AUTOINCREMENT, categoria TEXT NOT NULL, nombre TEXT NOT NULL UNIQUE, activo INTEGER NOT NULL DEFAULT 1, orden INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS comite_problemas (comite_id INTEGER NOT NULL, problema_id INTEGER NOT NULL, PRIMARY KEY(comite_id, problema_id), FOREIGN KEY(comite_id) REFERENCES comite_vecinal(id) ON DELETE CASCADE, FOREIGN KEY(problema_id) REFERENCES catalogo_problemas(id) ON DELETE CASCADE)`,
+  `CREATE INDEX IF NOT EXISTS idx_cp_problema ON comite_problemas(problema_id)`
 ];
 
 async function inicializarTurso() {
@@ -630,6 +633,10 @@ async function inicializarTurso() {
       const h = await hash(p);
       await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', [u, h, n, r, c]);
     }
+  }
+  for (let i = 0; i < COMITE_PROBLEMAS_BASE.length; i++) {
+    const item = COMITE_PROBLEMAS_BASE[i];
+    await x('INSERT OR IGNORE INTO catalogo_problemas(categoria,nombre,orden) VALUES(?,?,?)', [item[0], item[1], i + 1]);
   }
   await registrarAct('sys', 'Sistema inicializado • Turso listo', null);
 }
@@ -662,6 +669,8 @@ async function refreshAll() {
     console.warn('Fallback CACHE.comite:', e);
     try { CACHE.comite = await q('SELECT * FROM comite_vecinal ORDER BY id DESC'); } catch (err) { CACHE.comite = []; }
   }
+  CACHE.catalogoProblemas = await q('SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id');
+  CACHE.comiteProblemas = await q('SELECT cp.comite_id, cp.problema_id, c.categoria, c.nombre AS problema_nombre FROM comite_problemas cp JOIN catalogo_problemas c ON c.id = cp.problema_id ORDER BY cp.comite_id, c.orden, c.id');
   // Enriquecer reclutadores con listas desde asignaciones
   for (const r of CACHE.recl) {
     r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
