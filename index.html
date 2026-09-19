@@ -1308,7 +1308,7 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
       '<label class="fl" style="margin-top:12px">Usuario autorizante (Jefe o Administrador)</label><input class="inp" id="authUser" autocomplete="username" placeholder="Usuario">' +
       '<label class="fl" style="margin-top:10px">Clave de autorización</label><input class="inp" id="authPass" type="password" autocomplete="current-password" placeholder="Clave">' +
       '<label class="fl" style="margin-top:10px">Motivo</label><textarea class="inp" id="authMotivo" rows="2" placeholder="Indique el motivo de la excepción"></textarea>',
-      '<button class="btn btn-w" onclick="closeModal();window.__authResolve&&window.__authResolve(false)">Cancelar</button><button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad('' + esc(cedula) + '','' + esc(destino) + '')">Autorizar y continuar</button>',600
+      '<button class="btn btn-w" onclick="closeModal();window.__authResolve&&window.__authResolve(false)">Cancelar</button><button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad(\'' + esc(cedula) + '\',\'' + esc(destino) + '\')">Autorizar y continuar</button>',600
     );
     window.__authResolve=resolve;
   });
@@ -1600,9 +1600,10 @@ function downloadRecPDF(id) {
       '<th style="background:#123c69;color:#fff;padding:6px 7px;text-align:left;border:1px solid #0d2f52">Hora</th></tr></thead><tbody>' +
     tblRows + emptyRows + '</tbody></table>' +
     '<div style="margin-top:14px;padding-top:8px;border-top:2px solid #123c69;font-size:8.5px;color:#888;display:flex;justify-content:space-between"><span>Comando de Campaña  GUALBERTO MARTINEZ - Alcalde Mcpio. Independencia - Estado Yaracuy</span><span>Generado: ' + now.toLocaleString('es-VE') + '</span></div></div>';
-  const tmp = document.createElement('div'); tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;background:#fff;padding:0'; tmp.innerHTML = html; document.body.appendChild(tmp);
-  toast('Generando PDF...', 'info');
-  html2pdf().set({ margin: [8, 8, 8, 8], filename: 'lista_cotejo_' + r.id + '_' + nm.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' } }).from(tmp).save().then(() => { document.body.removeChild(tmp); toast('PDF descargado', 'ok') }).catch(() => { document.body.removeChild(tmp); toast('Error al generar PDF', 'err') });
+  window.__previewDocHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista de Cotejo contra Padrón CNE #'+r.id+'</title><style>body{margin:0;background:#fff;font-family:Roboto,Arial,sans-serif}</style></head><body>'+html+'</body></html>';
+  vistaPreviaDocumento('Vista previa • Lista de Cotejo #'+r.id,window.__previewDocHtml,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'lista_cotejo_'+r.id+'\',\'CARTA\')">'+ic('file',13)+' Descargar PDF</button>');
 }
 function shareRecPDF(id) {
   const r = CACHE.recl.find(x => x.id === id); if (!r) return;
@@ -1638,7 +1639,16 @@ function shareRecPDF(id) {
     navigator.share({ title: 'Lista de Comprometidos #' + r.id, text: 'Comando de Campaña  Lista de Comprometidos de ' + nm, files: [file] }).catch(() => toast('Cancelado', 'err'));
   }).catch(() => { document.body.removeChild(tmp); toast('Error al generar PDF', 'err') });
 }
-function dlCSV(name, rows) { const b = new Blob(['\uFEFF' + rows.map(r => r.map(x => '"' + String(x ?? '').replace(/"/g, '""') + '"').join(';')).join('\n')], { type: 'text/csv;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; a.click() }
+function dlCSV(name, rows) {
+  const csv='\uFEFF'+rows.map(r=>r.map(x=>'"'+String(x ?? '').replace(/"/g,'""')+'"').join(';')).join('\\n');
+  const previewHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Vista previa • '+esc(name)+'</title><style>body{font-family:Consolas,monospace;font-size:11px;padding:18px;color:#22303e;background:#fff;white-space:pre-wrap;word-break:break-word}h3{font-family:Arial,sans-serif;color:#123c69}</style></head><body><h3>Vista previa • '+esc(name)+'</h3><pre>'+esc(csv.replace(/^\uFEFF/,''))+'</pre></body></html>';
+  window.__previewCsvText=csv;
+  vistaPreviaDocumento('Vista previa • '+name,previewHtml,
+    '<button class="btn btn-navy" onclick="descargarCSVPrevisualizado(window.__previewCsvText,\''+esc(name)+'\')">'+ic('file',13)+' Descargar CSV</button>');
+}
+function descargarCSVPrevisualizado(csv,name){
+  const b=new Blob([csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); closeModal(); toast('Archivo CSV descargado','ok');
+}
 function delRecl(id) {
   const r = CACHE.recl.find(x => x.id === id);
   askDo('Eliminar movilizador', 'Se eliminará a <b>' + esc(nomP(padBy(r.cedula) || { p_nombre: r.cedula })) + '</b> y sus ' + r.lista.length + ' cupos quedarn libres en Turso (CASCADE).', 'Eliminar', async () => {
