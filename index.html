@@ -3579,14 +3579,32 @@ function editarActaMesa(codigo, mesa) {
 async function guardarActaMesa(codigo, mesa) {
   const val=Number($('actaPartidoInput')?.value);
   if(!Number.isInteger(val)||val<0) return toast('Ingrese una cantidad válida de votos del partido','err');
+
   try {
-    const existe=await q('SELECT id FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',[codigo,String(mesa)]);
-    if(existe.length) await x('UPDATE actas_mesa SET votos_partido=?, cantidad_acta=?, actualizado_en=datetime("now"), actualizado_por=? WHERE id=?',[val,val,USER.id,existe[0].id]);
-    else await x('INSERT INTO actas_mesa(centro_codigo,mesa,cantidad_acta,votos_partido,actualizado_por) VALUES(?,?,?,?,?)',[codigo,String(mesa),val,val,USER.id]);
-    await registrarAct('acta','Acta CNE: votos del partido • Centro '+codigo+' • Mesa '+mesa+' • '+val,USER.id);
-    await refreshAll(); closeModal(); renderControlElectoral(); toast('Acta guardada','ok');
-  } catch(e){toast('Error guardando acta: '+e.message,'err');}
+    const r=await fetch('/api/actas', {
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        centro_codigo:codigo,
+        mesa:String(mesa),
+        votos_partido:val
+      })
+    });
+    let data={};
+    try{data=await r.json()}catch(e){}
+    if(!r.ok) return toast(data.error||'No se pudo guardar el acta','err',8000);
+
+    await refreshAll();
+    closeModal();
+    renderControlElectoral();
+    toast(data.accion==='actualizada'?'Acta actualizada':'Acta guardada','ok');
+  } catch(e) {
+    console.error(e);
+    toast('Error guardando acta: '+e.message,'err',8000);
+  }
 }
+
 
 function renderComite() {
   const activeEl = document.activeElement;
