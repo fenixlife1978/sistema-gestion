@@ -3407,19 +3407,36 @@ function actaInicializacionHTML(codigo,mesa,formato) {
     '<div class="sig">Firma / responsable</div><div class="sig">Observaciones</div></body></html>';
 }
 function formatoActaInicializacion(){return String($('mesaActaFormato')?.value||'A4').toUpperCase()==='CARTA'?'CARTA':'A4';}
-function imprimirActaInicializacion(codigo,mesa,formato){
-  const html=actaInicializacionHTML(codigo,mesa,formato||formatoActaInicializacion()), w=window.open('','_blank');
-  if(!w) return toast('El navegador bloqueó la ventana de impresión','err');
-  w.document.write(html); w.document.close(); setTimeout(()=>{w.focus();w.print();},400);
+function vistaPreviaDocumento(titulo, html, acciones) {
+  const id='previewDocModal';
+  const body='<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px;flex-wrap:wrap">'+
+    '<button class="btn btn-w" onclick="closeModal()">Cerrar</button>'+acciones+'</div>'+
+    '<div style="height:68vh;overflow:auto;background:#e5e7eb;padding:18px;border:1px solid #cbd5e1">'+
+    '<iframe id="previewDocFrame" style="width:100%;height:100%;border:0;background:white"></iframe></div>';
+  win(titulo,body,'',1000);
+  const f=$('previewDocFrame'); if(f){f.srcdoc=html;}
 }
-function downloadPDFActaInicializacion(codigo,mesa,formato){
-  const mo=mesaOperativa(codigo,mesa); if(!mo) return toast('Guarde primero la constitución de la Mesa','err');
+function prepararVistaPreviaActaInicializacion(codigo,mesa,formato) {
   const fmt=(formato||formatoActaInicializacion()).toUpperCase()==='CARTA'?'CARTA':'A4';
-  const center=actaInicializacionHTML(codigo,mesa,fmt).replace(/<!DOCTYPE html>[\s\S]*?<body>/,'').replace(/<\/body><\/html>$/,'');
-  const box=document.createElement('div'); box.innerHTML=center; box.style.background='#fff'; box.style.padding='12px'; document.body.appendChild(box);
+  const html=actaInicializacionHTML(codigo,mesa,fmt);
+  const acciones='<button class="btn btn-navy" onclick="confirmarImpresionActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\',\''+fmt+'\')">'+ic('print',14)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="confirmarPDFActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\',\''+fmt+'\')">'+ic('file',14)+' Descargar PDF</button>';
+  vistaPreviaDocumento('Vista previa • Acta de Inicialización • Mesa '+esc(mesa),html,acciones);
+}
+function confirmarImpresionActaInicializacion(codigo,mesa,formato) {
+  const html=actaInicializacionHTML(codigo,mesa,formato),w=window.open('','_blank');
+  if(!w)return toast('El navegador bloqueó la ventana de impresión','err');
+  w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();},400);
+}
+function confirmarPDFActaInicializacion(codigo,mesa,formato) {
+  const mo=mesaOperativa(codigo,mesa);if(!mo)return toast('Guarde primero la constitución de la Mesa','err');
+  const fmt=formato==='CARTA'?'CARTA':'A4',center=actaInicializacionHTML(codigo,mesa,fmt).replace(/<!DOCTYPE html>[\s\S]*?<body>/,'').replace(/<\/body><\/html>$/,'');
+  const box=document.createElement('div');box.innerHTML=center;box.style.background='#fff';box.style.padding='12px';document.body.appendChild(box);
   if(typeof html2pdf!=='function'){document.body.removeChild(box);return toast('Generador PDF no disponible','err');}
   html2pdf().set({margin:8,filename:'acta_inicializacion_'+String(codigo)+'_mesa_'+String(mesa)+'_'+fmt.toLowerCase()+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:fmt==='CARTA'?'letter':'a4',orientation:'portrait'}}).from(box).save().then(()=>document.body.removeChild(box)).catch(()=>document.body.removeChild(box));
 }
+function imprimirActaInicializacion(codigo,mesa,formato){ prepararVistaPreviaActaInicializacion(codigo,mesa,formato); }
+function downloadPDFActaInicializacion(codigo,mesa,formato){ prepararVistaPreviaActaInicializacion(codigo,mesa,formato); }
 function editarActaMesa(codigo, mesa) {
   const a=(CACHE.actasMesa||[]).find(x=>x.centro_codigo===codigo && String(x.mesa)===String(mesa));
   win(ic('file',18)+' Acta física • Mesa '+esc(mesa),
