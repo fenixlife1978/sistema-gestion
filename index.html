@@ -878,14 +878,7 @@ function renderDash() {
   if (CACHE.pad.length > 0 && edadesValidas.length === 0) {
     CACHE.pad.forEach(p => { p.edad = edadDe(p.fecha_nac); });
     edadesValidas = CACHE.pad.filter(p => p.edad > 0 && p.edad <= 120);
-    setTimeout(async () => {
-      const all = await q('SELECT cedula, fecha_nac FROM padron');
-      const CHUNK = 200;
-      for (let i = 0; i < all.length; i += CHUNK) {
-        const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
-        await turso(batch);
-      }
-    }, 100);
+    setTimeout(async () => { try { await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reparar_edades'})}); } catch(e) {} }, 100);
   }
   const edadProm = edadesValidas.length ? (edadesValidas.reduce((a, p) => a + p.edad, 0) / edadesValidas.length).toFixed(1) : '';
   const R = [[18, 25, '18–25'], [26, 35, '26–35'], [36, 45, '36–45'], [46, 55, '46–55'], [56, 65, '56–65'], [66, 999, '66+']];
@@ -3482,12 +3475,9 @@ async function saveComiteAuto(cedula) {
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
   try {
-    await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, cedula]);
-    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
-      [comunidad, cedula, nomComp, tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null]);
-    const comRow = await q('SELECT id FROM comite_vecinal WHERE comunidad = ? AND cedula = ? ORDER BY id DESC LIMIT 1', [comunidad, cedula]);
-    if (comRow.length) await guardarProblemasComite(comRow[0].id, problemas);
-    await registrarAct('user', 'Asignado a Comité Vecinal: ' + nomComp + ' ➔ ' + comunidad, USER.id);
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cedula,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:(p&&p.centro_votacion)||'' ,letra:(p&&p.letra)||'V',p_apellido:(p&&p.p_apellido)||'',s_apellido:(p&&p.s_apellido)||'',p_nombre:(p&&p.p_nombre)||'',s_nombre:(p&&p.s_nombre)||'',sexo:(p&&p.sexo)||'',fecha_nac:(p&&p.fecha_nac)||''})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo asignar el comité');
+    if(rd.id) await guardarProblemasComite(rd.id, problemas);
     await refreshAll();
     renderComite();
     closeModal();
