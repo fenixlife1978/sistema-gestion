@@ -2006,16 +2006,9 @@ function applyImp() {
 async function repairEdades() {
   askDo('Reparar edades del padrón', 'Recalcular la edad de TODOS los electores basndose en su fecha de nacimiento.', 'Reparar', async () => {
     try {
-      const all = await q('SELECT cedula, fecha_nac FROM padron');
-      const CHUNK = 200;
       let fixed = 0;
-      for (let i = 0; i < all.length; i += CHUNK) {
-        const batch = all.slice(i, i + CHUNK).map(p => {
-          const nuevaEdad = edadDe(p.fecha_nac);
-          return { sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [nuevaEdad, p.cedula] };
-        });
-        if (batch.length) { await turso(batch); fixed += batch.length; }
-      }
+      const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reparar_edades'})});
+      const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron recalcular las edades'); fixed=Number(rd.fixed||0);
       await refreshAll(); renderData(); toast('? ' + fixed + ' edades recalculadas', 'ok', 5000);
     } catch (e) { toast('Error: ' + e.message, 'err', 8000) }
   });
@@ -2023,9 +2016,8 @@ async function repairEdades() {
 async function resetCNE() {
   askDo('Reiniciar padrón', 'Se reemplazará el padrón electoral. Se conservarán movilizadores y asignaciones, pero se limpiarán las verificaciones de jornada y las actas de mesa para evitar métricas históricas mezcladas.', 'Reiniciar', async () => {
     try {
-      await x('DELETE FROM verificaciones_votacion');
-      await x('DELETE FROM mesa_miembros'); await x('DELETE FROM mesa_operativa'); await x('DELETE FROM actas_mesa');
-      await x('DELETE FROM padron');
+      const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset_cne'})});
+      const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo reiniciar el padrón');
       await registrarAct('sys', 'Padrón CNE reiniciado y control electoral limpiado por ' + USER.nombre, USER.id);
       await refreshAll(); go('dash'); toast('Padrón reiniciado • verificaciones y actas limpiadas', 'ok');
     } catch (e) { toast('Error al reiniciar padrón: ' + e.message, 'err', 8000); }
