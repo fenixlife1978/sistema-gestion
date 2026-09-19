@@ -2444,11 +2444,6 @@ async function saveDirManualFull() {
   const edad = edadDe(fn);
 
   try {
-    if (!padBy(ced)) {
-      await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-        [ced, letra, pa, sa, pn, sn, sexo, fn, edad, cv.cod_estado || '20', cv.estado || 'EDO. YARACUY', cv.cod_municipio || '11', cv.municipio || 'MP. INDEPENDENCIA', cv.cod_parroquia || '1', cv.parroquia || 'CM. INDEPENDENCIA', cv.codigo || '', cv.nombre || '']);
-    }
-
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
     const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula:ced,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',direccion:dir,padron:{cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,edad,codigo_estado:cv.cod_estado,codigo_municipio:cv.cod_municipio,codigo_parroquia:cv.cod_parroquia,estado:cv.estado,municipio:cv.municipio,parroquia:cv.parroquia,centro_votacion:cv.codigo,nombre_cv:cv.nombre}})});
     const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
@@ -3591,11 +3586,6 @@ async function saveComiteManualFull() {
   const edad = edadDe(fn);
 
   try {
-    if (!padBy(ced)) {
-      await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-        [ced, letra, pa, sa, pn, sn, sexo, fn, edad, cv.cod_estado || '20', cv.estado || 'EDO. YARACUY', cv.cod_municipio || '11', cv.municipio || 'MP. INDEPENDENCIA', cv.cod_parroquia || '1', cv.parroquia || 'CM. INDEPENDENCIA', cv.codigo || '', cv.nombre || '']);
-    }
-
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
     await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, ced]);
     await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
