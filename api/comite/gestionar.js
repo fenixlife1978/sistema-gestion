@@ -41,7 +41,8 @@ module.exports=async function(req,res){
   if(action==='editar'){
    const id=Number(b.id),cargo=s(b.cargo).toUpperCase(),tel=s(b.telefono),dir=s(b.direccion),calle=s(b.numero_calle),casa=s(b.numero_casa),prob=s(b.problematica);
    if(!id||!CARGOS.includes(cargo))return res.status(400).json({error:'Registro o cargo inválido'});if(tel&&!TEL.test(tel.replace(/\D/g,'')))return res.status(400).json({error:'Teléfono inválido'});
-   const hit=rowsFrom(await turso([{q:'SELECT id FROM comite_vecinal WHERE id=? LIMIT 1',params:[id]}]))[0];if(!hit)return res.status(404).json({error:'Registro no encontrado'});
+   const hit=rowsFrom(await turso([{q:'SELECT id,comunidad,cargo,cedula FROM comite_vecinal WHERE id=? LIMIT 1',params:[id]}]))[0];if(!hit)return res.status(404).json({error:'Registro no encontrado'});
+   const occupied=rowsFrom(await turso([{q:'SELECT id FROM comite_vecinal WHERE comunidad=? AND cargo=? AND id<>? LIMIT 1',params:[hit.comunidad,cargo,id]}]))[0];if(occupied)return res.status(409).json({error:'El cargo '+cargo+' ya está ocupado en esta comunidad'});
    await turso([{q:'UPDATE comite_vecinal SET cargo=?,telefono=?,direccion=?,numero_calle=?,numero_casa=?,problematica_actual=? WHERE id=?',params:[cargo,tel?normTel(tel):null,dir||null,calle||null,casa||null,prob||null,id]},{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Comité Vecinal actualizado #'+id,a.id]}]);
    return res.json({ok:true});
   }
