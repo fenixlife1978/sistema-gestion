@@ -595,12 +595,18 @@ const SCHEMA = [
     nombre TEXT,
     telefono TEXT,
     direccion TEXT,
+    numero_calle TEXT,
+    numero_casa TEXT,
+    problematica_actual TEXT,
     creado TEXT DEFAULT (datetime('now'))
   )`,
   `ALTER TABLE comite_vecinal ADD COLUMN comunidad TEXT`,
   `ALTER TABLE comite_vecinal ADD COLUMN nombre TEXT`,
   `ALTER TABLE comite_vecinal ADD COLUMN telefono TEXT`,
   `ALTER TABLE comite_vecinal ADD COLUMN direccion TEXT`,
+  `ALTER TABLE comite_vecinal ADD COLUMN numero_calle TEXT`,
+  `ALTER TABLE comite_vecinal ADD COLUMN numero_casa TEXT`,
+  `ALTER TABLE comite_vecinal ADD COLUMN problematica_actual TEXT`,
   `CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)`
 ];
 
@@ -2069,6 +2075,9 @@ function renderDireccion() {
       const ci = fC(letra, asig.cedula);
       const tel = asig.telefono ? asig.telefono : '';
       const dir = asig.direccion ? asig.direccion : '';
+      const nroCalle = asig.numero_calle ? asig.numero_calle : '';
+      const nroCasa = asig.numero_casa ? asig.numero_casa : '';
+      const problematica = asig.problematica_actual ? asig.problematica_actual : '';
       const cvNom = p.nombre_cv || p.centro_votacion || '';
       const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
 
@@ -2083,6 +2092,8 @@ function renderDireccion() {
             (cvNom ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('pin', 11) + ' <b>Centro:</b> ' + esc(cvNom) + (munPar ? ' (' + esc(munPar) + ')' : '') + '</div>' : '') +
             (tel ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('chat', 11) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + esc(tel) + '</a></div>' : '') +
             (dir ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' ' + esc(dir) + '</div>' : '') +
+            ((nroCalle || nroCasa) ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' <b>Calle:</b> ' + esc(nroCalle || '—') + ' &nbsp; <b>Casa:</b> ' + esc(nroCasa || '—') + '</div>' : '') +
+            (problematica ? '<div style="font-size:11px;color:#8d4b00;margin-top:4px"><b>Problemática Actual:</b> ' + esc(problematica) + '</div>' : '') +
           '</div>' +
           '<div style="display:flex;gap:4px;align-items:center">' +
             '<button class="btn btn-navy btn-xs" onclick="openDirView(' + asig.id + ')" title="Ver Detalle y Padrón CNE">' + ic('eye', 14) + ' Ver Datos</button>' +
@@ -2781,11 +2792,14 @@ function openComiteView(id) {
         '<div><b>Código Centro:</b> <span class="mono">' + esc(p.centro_votacion || '-') + '</span></div>' +
         '<div style="grid-column:1/-1"><b>Centro de Votación:</b> ' + esc(p.nombre_cv || '-') + '</div>' +
       '</div>' +
-      '<div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px;border-bottom:1px solid var(--line2);padding-bottom:6px">DATOS COMPLEMENTARIOS DE CONTACTO</div>' +
+      '<div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px;border-bottom:1px solid var(--line2);padding-bottom:6px">DATOS COMPLEMENTARIOS DE CONTACTO Y UBICACIÓN</div>' +
       '<div class="grid g2" style="gap:8px;font-size:12px">' +
         '<div><b>Teléfono:</b> ' + (tel ? '<a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + ic('chat', 12) + ' ' + esc(tel) + '</a>' : '<span style="color:var(--mut)">No registrado</span>') + '</div>' +
         '<div><b>Dirección:</b> ' + esc(dir || 'No registrada') + '</div>' +
+        '<div><b>Número de calle:</b> ' + esc(reg.numero_calle || 'No registrado') + '</div>' +
+        '<div><b>Número de casa:</b> ' + esc(reg.numero_casa || 'No registrado') + '</div>' +
       '</div>' +
+      '<div style="margin-top:12px;padding:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;font-size:12px"><b style="color:#8d6e00">Problemática Actual:</b><div style="margin-top:4px;white-space:pre-wrap">' + esc(reg.problematica_actual || 'No registrada') + '</div></div>' +
     '</div>',
     '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 640
   );
@@ -2837,10 +2851,13 @@ function comiteBuscarCedula() {
           '</div>' +
         '</div>' +
       '</div>' +
-      '<div class="grid g2" style="gap:10px">' +
+      '<div class="grid g3" style="gap:10px">' +
         '<div><label class="fl">Teléfono (opcional)</label><input class="inp mono" id="comTel" placeholder="0412-2232523" maxlength="12"></div>' +
-        '<div><label class="fl">Dirección (opcional)</label><input class="inp" id="comDir" placeholder="Urbanización, calle, casa..."></div>' +
+        '<div><label class="fl">Número de calle</label><input class="inp" id="comNroCalle" placeholder="Ej. 5"></div>' +
+        '<div><label class="fl">Número de casa</label><input class="inp" id="comNroCasa" placeholder="Ej. 12"></div>' +
+        '<div style="grid-column:1/-1"><label class="fl">Dirección (opcional)</label><input class="inp" id="comDir" placeholder="Urbanización, sector, referencia..."></div>' +
       '</div>' +
+      '<div style="margin-top:10px"><label class="fl">Problemática Actual</label><textarea class="inp" id="comProblematica" rows="4" maxlength="2000" placeholder="Describa la problemática actual que presenta la comunidad..."></textarea></div>' +
       '<div style="margin-top:14px;text-align:right">' +
         '<button class="btn btn-navy" onclick="saveComiteAuto(\'' + p.cedula + '\')">Guardar y Asignar Comité Vecinal ➜</button>' +
       '</div>';
@@ -2867,6 +2884,9 @@ async function saveComiteAuto(cedula) {
   }
   const tel = ($('comTel') ? $('comTel').value : '').trim();
   const dir = ($('comDir') ? $('comDir').value : '').trim();
+  const nroCalle = ($('comNroCalle') ? $('comNroCalle').value : '').trim();
+  const nroCasa = ($('comNroCasa') ? $('comNroCasa').value : '').trim();
+  const problematica = ($('comProblematica') ? $('comProblematica').value : '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
@@ -2878,8 +2898,8 @@ async function saveComiteAuto(cedula) {
 
   try {
     await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, cedula]);
-    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
-      [comunidad, cedula, nomComp, tel ? normTel(tel) : null, dir || null]);
+    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
+      [comunidad, cedula, nomComp, tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null]);
     await registrarAct('user', 'Asignado a Comité Vecinal: ' + nomComp + ' ➔ ' + comunidad, USER.id);
     await refreshAll();
     renderComite();
@@ -2912,10 +2932,13 @@ function openComiteManualForm(ced) {
         CACHE.centros.map(x => '<option value="' + x.codigo + '">' + esc(x.nombre) + '</option>').join('') +
       '</select></div>' +
     '</div>' +
-    '<div class="grid g2" style="gap:10px;margin-top:10px">' +
+    '<div class="grid g3" style="gap:10px;margin-top:10px">' +
       '<div><label class="fl">TELÉFONO</label><input class="inp mono" id="cmTel" placeholder="0412-2232523" maxlength="12"></div>' +
-      '<div><label class="fl">DIRECCIÓN</label><input class="inp" id="cmDir" placeholder="Urbanización, calle, casa..."></div>' +
+      '<div><label class="fl">NÚMERO DE CALLE</label><input class="inp" id="cmNroCalle" placeholder="Ej. 5"></div>' +
+      '<div><label class="fl">NÚMERO DE CASA</label><input class="inp" id="cmNroCasa" placeholder="Ej. 12"></div>' +
+      '<div style="grid-column:1/-1"><label class="fl">DIRECCIÓN</label><input class="inp" id="cmDir" placeholder="Urbanización, sector, referencia..."></div>' +
     '</div>' +
+    '<div style="margin-top:10px"><label class="fl">PROBLEMÁTICA ACTUAL</label><textarea class="inp" id="cmProblematica" rows="4" maxlength="2000" placeholder="Describa la problemática actual que presenta la comunidad..."></textarea></div>' +
     '<div style="margin-top:14px;text-align:right">' +
       '<button class="btn btn-navy" onclick="saveComiteManualFull()">' + ic('check', 14) + ' Guardar y Registrar ➜</button>' +
     '</div>';
@@ -2936,6 +2959,9 @@ async function saveComiteManualFull() {
   const cvCod = $('cmCv').value;
   const tel = ($('cmTel') ? $('cmTel').value : '').trim();
   const dir = ($('cmDir') ? $('cmDir').value : '').trim();
+  const nroCalle = ($('cmNroCalle') ? $('cmNroCalle').value : '').trim();
+  const nroCasa = ($('cmNroCasa') ? $('cmNroCasa').value : '').trim();
+  const problematica = ($('cmProblematica') ? $('cmProblematica').value : '').trim();
 
   if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
@@ -2960,8 +2986,8 @@ async function saveComiteManualFull() {
 
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
     await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, ced]);
-    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
-      [comunidad, ced, nomComp, tel ? normTel(tel) : null, dir || null]);
+    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
+      [comunidad, ced, nomComp, tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null]);
 
     await registrarAct('user', 'Alta manual Comité Vecinal: ' + fC(letra, ced) + ' ➔ ' + comunidad, USER.id);
     await refreshAll();
@@ -2993,8 +3019,13 @@ function openComiteEdit(id) {
     '<div style="margin-bottom:10px;font-size:12px;color:var(--navy)">' +
       '<b>Persona:</b> ' + esc(reg.nombre || (apeP(p) + ', ' + nomP(p))) + ' &nbsp;&bull;&nbsp; <b>C.I.:</b> ' + fC(p.letra || 'V', reg.cedula) +
     '</div>' +
-    '<label class="fl">Teléfono</label><input class="inp mono" id="comETel" value="' + esc(reg.telefono || '') + '" placeholder="0412-2232523" maxlength="12">' +
-    '<div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="comEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, calle..."></div>',
+    '<div class="grid g2" style="gap:10px">' +
+      '<div><label class="fl">Teléfono</label><input class="inp mono" id="comETel" value="' + esc(reg.telefono || '') + '" placeholder="0412-2232523" maxlength="12"></div>' +
+      '<div><label class="fl">Número de calle</label><input class="inp" id="comENroCalle" value="' + esc(reg.numero_calle || '') + '" placeholder="Ej. 5"></div>' +
+      '<div><label class="fl">Número de casa</label><input class="inp" id="comENroCasa" value="' + esc(reg.numero_casa || '') + '" placeholder="Ej. 12"></div>' +
+      '<div><label class="fl">Dirección</label><input class="inp" id="comEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, sector, referencia..."></div>' +
+    '</div>' +
+    '<div style="margin-top:10px"><label class="fl">Problemática Actual</label><textarea class="inp" id="comEProblematica" rows="5" maxlength="2000" placeholder="Describa la problemática actual...">' + esc(reg.problematica_actual || '') + '</textarea></div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveComiteEdit(' + id + ')">Guardar cambios ➜</button>', 550
   );
   setTimeout(() => { const el = $('comETel'); if (el) el.focus(); }, 200);
@@ -3002,11 +3033,13 @@ function openComiteEdit(id) {
 
 async function saveComiteEdit(id) {
   const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
+  const nroCalle = $('comENroCalle').value.trim(), nroCasa = $('comENroCasa').value.trim();
+  const problematica = $('comEProblematica').value.trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'COMITÉ VECINAL', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('UPDATE comite_vecinal SET telefono = ?, direccion = ? WHERE id = ?',
-      [tel ? normTel(tel) : null, dir || null, id]);
+    await x('UPDATE comite_vecinal SET telefono = ?, direccion = ?, numero_calle = ?, numero_casa = ?, problematica_actual = ? WHERE id = ?',
+      [tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null, id]);
     await refreshAll(); renderComite(); closeModal(); toast('Actualizado con éxito', 'ok');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -3047,7 +3080,10 @@ function datosComiteFila(item) {
   const munPar = x ? ((p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '')) : '';
   const tel = x ? (x.telefono || p.telefono || '') : '';
   const dir = x ? (x.direccion || p.direccion || '') : '';
-  return { ci, pa, sa, pn, sn, nombre, edad, sexo, fn, cv, munPar, tel, dir };
+  const nroCalle = x ? (x.numero_calle || '') : '';
+  const nroCasa = x ? (x.numero_casa || '') : '';
+  const problematica = x ? (x.problematica_actual || '') : '';
+  return { ci, pa, sa, pn, sn, nombre, edad, sexo, fn, cv, munPar, tel, dir, nroCalle, nroCasa, problematica };
 }
 
 function printComite() {
@@ -3072,7 +3108,7 @@ function printComite() {
       '<td>' + esc(d.cv) + '</td>' +
       '<td>' + esc(d.munPar) + '</td>' +
       '<td class="mono">' + esc(d.tel) + '</td>' +
-      '<td>' + esc(d.dir) + '</td>' +
+      '<td>' + esc(d.dir) + '</td><td>' + esc(d.nroCalle) + '</td><td>' + esc(d.nroCasa) + '</td><td>' + esc(d.problematica) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -3093,7 +3129,7 @@ function printComite() {
     '<table><thead><tr>' +
       '<th>#</th><th>Comunidad</th><th>Estado</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
       '<th>Primer Nombre</th><th>Segundo Nombre</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th>' +
-      '<th>Centro Votación</th><th>Municipio / Parroquia</th><th>Teléfono</th><th>Dirección</th>' +
+      '<th>Centro Votación</th><th>Municipio / Parroquia</th><th>Teléfono</th><th>Dirección</th><th>Nro. Calle</th><th>Nro. Casa</th><th>Problemática Actual</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
 
   const w = window.open('', '_blank');
@@ -3125,7 +3161,7 @@ function downloadPDFComite() {
       '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.cv) + '</td>' +
       '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.munPar) + '</td>' +
       '<td style="border:1px solid #cbd5e1;padding:4px;font-family:monospace">' + esc(d.tel) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.dir) + '</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.dir) + '</td><td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.nroCalle) + '</td><td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.nroCasa) + '</td><td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.problematica) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -3141,7 +3177,7 @@ function downloadPDFComite() {
       '<th style="border:1px solid #cbd5e1;padding:4px">Edad</th><th style="border:1px solid #cbd5e1;padding:4px">Sexo</th>' +
       '<th style="border:1px solid #cbd5e1;padding:4px">F. Nacimiento</th><th style="border:1px solid #cbd5e1;padding:4px">Centro Votación</th>' +
       '<th style="border:1px solid #cbd5e1;padding:4px">Municipio / Parroquia</th><th style="border:1px solid #cbd5e1;padding:4px">Teléfono</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Dirección</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px">Dirección</th><th style="border:1px solid #cbd5e1;padding:4px">Nro. Calle</th><th style="border:1px solid #cbd5e1;padding:4px">Nro. Casa</th><th style="border:1px solid #cbd5e1;padding:4px">Problemática Actual</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 
   const container = document.createElement('div');
