@@ -419,32 +419,33 @@ function _pdfTable(headers, rows) {
 function printSection(elId, title) {
   const el = document.getElementById(elId);
   if (!el) return;
-  const w = window.open('', '_blank');
-  w.document.write('<!DOCTYPE html><html><head><title>' + esc(title) + '</title>' +
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(title)+'</title>' +
     '<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">' +
-    '<style>body{font:12px/1.5 Roboto,Arial,sans-serif;color:#22303e;padding:20px}' +
-    '.tbl{width:100%;border-collapse:collapse;font-size:10.5px}.tbl th{background:#123c69;color:#fff;padding:6px 8px;text-align:left;border:1px solid #0d2f52}' +
-    '.tbl td{padding:5px 7px;border:1px solid #ddd}.tbl tr:nth-child(even){background:#f4f6f9}' +
-    '.chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:600}' +
-    '.chip-b{background:#e3f2fd;color:#1565c0}.chip-g{background:#e8f5e9;color:#2e7d32}.chip-gr{background:#f1f3f4;color:#5c6b7a}.chip-r{background:#ffebee;color:#c62828}.chip-y{background:#fff8e1;color:#f57f17}' +
-    '.mono{font-family:Consolas,monospace}' +
-    '@media print{body{padding:0}}' +
-    '</style></head><body>' + el.innerHTML + '</body></html>');
-  w.document.close();
-  setTimeout(() => { w.print(); w.close(); }, 400);
+    '<style>body{font:12px/1.5 Roboto,Arial,sans-serif;color:#22303e;padding:20px}.tbl{width:100%;border-collapse:collapse;font-size:10.5px}.tbl th{background:#123c69;color:#fff;padding:6px 8px;text-align:left;border:1px solid #0d2f52}.tbl td{padding:5px 7px;border:1px solid #ddd}.tbl tr:nth-child(even){background:#f4f6f9}.chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:600}.chip-b{background:#e3f2fd;color:#1565c0}.chip-g{background:#e8f5e9;color:#2e7d32}.chip-gr{background:#f1f3f4;color:#5c6b7a}.chip-r{background:#ffebee;color:#c62828}.chip-y{background:#fff8e1;color:#f57f17}.mono{font-family:Consolas,monospace}@media print{body{padding:0}}</style></head><body>'+el.innerHTML+'</body></html>';
+  vistaPreviaDocumento('Vista previa • '+title,html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\''+esc(title)+'\')">'+ic('file',13)+' Descargar PDF</button>');
+  window.__previewDocHtml=html;
 }
 function downloadPDF(elId, title) {
   const el = document.getElementById(elId);
   if (!el) return;
-  const tmp = document.createElement('div');
-  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;font-family:Roboto,Arial,sans-serif;color:#22303e;background:#fff;padding:24px';
-  tmp.innerHTML = _pdfHeader(title) + el.innerHTML + _pdfFooter();
-  document.body.appendChild(tmp);
-  toast('Generando PDF...', 'info');
-  html2pdf().set(_pdfOpts(title)).from(tmp).save().then(() => {
-    document.body.removeChild(tmp);
-    toast('PDF descargado', 'ok');
-  }).catch(() => { document.body.removeChild(tmp); toast('Error al generar PDF', 'err') });
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(title)+'</title><style>body{font-family:Roboto,Arial,sans-serif;color:#22303e;background:#fff;padding:24px}.tbl{width:100%;border-collapse:collapse}</style></head><body>'+_pdfHeader(title)+el.innerHTML+_pdfFooter()+'</body></html>';
+  window.__previewDocHtml=html;
+  vistaPreviaDocumento('Vista previa • '+title,html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\''+esc(title)+'\')">'+ic('file',13)+' Descargar PDF</button>');
+}
+function imprimirHTMLPrevisualizado(html) {
+  const w=window.open('','_blank');
+  if(!w) return toast('El navegador bloqueó la ventana de impresión. Permita ventanas emergentes para este sistema.','err');
+  w.document.write(html); w.document.close(); setTimeout(()=>{w.focus();w.print();},400);
+}
+function descargarPDFPrevisualizado(html, title, formato='A4') {
+  if(typeof html2pdf!=='function') return toast('Generador PDF no disponible. Verifique la conexión y vuelva a intentarlo.','err');
+  const center=html.replace(/<!DOCTYPE html>[\s\S]*?<body>/,'').replace(/<\/body><\/html>$/,'');
+  const box=document.createElement('div'); box.innerHTML=center; box.style.background='#fff'; box.style.padding='12px'; document.body.appendChild(box);
+  html2pdf().set({margin:8,filename:String(title||'reporte').replace(/[^a-z0-9áéíóúñ_-]+/gi,'_')+'_'+Date.now()+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:formato==='CARTA'?'letter':'a4',orientation:'landscape'}}).from(box).save().then(()=>{box.remove();toast('PDF descargado','ok')}).catch(()=>{box.remove();toast('Error al generar PDF','err')});
 }
 function sharePDF(elId, title) {
   const el = document.getElementById(elId);
@@ -813,7 +814,22 @@ const SCHEMA = [
     FOREIGN KEY(tomado_por) REFERENCES usuarios(id) ON DELETE SET NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_cortes_centro_fecha ON cortes_electorales(centro_codigo, tomado_en DESC)`,
-  `CREATE INDEX IF NOT EXISTS idx_cortes_fecha ON cortes_electorales(tomado_en DESC)`
+  `CREATE INDEX IF NOT EXISTS idx_cortes_fecha ON cortes_electorales(tomado_en DESC)`,
+  `CREATE TABLE IF NOT EXISTS autorizaciones_duplicidad_persona (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cedula TEXT NOT NULL,
+    contexto_origen TEXT NOT NULL,
+    contexto_destino TEXT NOT NULL,
+    detalle_duplicidad TEXT,
+    motivo TEXT NOT NULL,
+    autorizado_por INTEGER NOT NULL,
+    autorizado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    registrado_por INTEGER,
+    FOREIGN KEY(autorizado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
+    FOREIGN KEY(registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_aut_dup_cedula ON autorizaciones_duplicidad_persona(cedula)`,
+  `CREATE INDEX IF NOT EXISTS idx_aut_dup_fecha ON autorizaciones_duplicidad_persona(autorizado_en DESC)`
 ];
 
 async function migrarActasMesaPartido() {
@@ -1230,34 +1246,94 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
     q('SELECT id, centro_codigo, cargo, cedula FROM centro_cargos WHERE cedula = ?', [ced])
   ]);
 
-  if (consultas[0].length) return { tipo: 'MOVILIZADOR', detalle: 'ya está registrado como movilizador.' };
+  const encontrados = [];
+  if (consultas[0].length) encontrados.push({ tipo: 'MOVILIZADOR', detalle: 'ya está registrado como movilizador.' });
   if (consultas[1].length) {
     const a = consultas[1][0];
     const pRecl = padBy(a.reclutador_cedula);
     const nombreRecl = pRecl ? (nomP(pRecl) + ' ' + apeP(pRecl)).trim() : ('C.I. ' + fC('V', a.reclutador_cedula || ''));
-    return {
+    encontrados.push({
       tipo: 'COMPROMETIDO',
       detalle: 'ya pertenece a la lista de Comprometidos del movilizador ' + nombreRecl + '.',
       reclutador_id: a.reclutador_id,
       reclutador_nombre: nombreRecl,
       posicion: a.posicion
-    };
+    });
   }
   if (consultas[2].length) {
     const d = consultas[2][0];
-    return { tipo: 'DIRECCIÓN EJECUTIVA', detalle: 'ya ocupa el cargo "' + (d.cargo || '') + '" en Dirección Ejecutiva.' };
+    encontrados.push({ tipo: 'DIRECCIÓN EJECUTIVA', detalle: 'ya ocupa el cargo "' + (d.cargo || '') + '" en Dirección Ejecutiva.' });
   }
   if (consultas[3].length) {
     const cv = consultas[3][0];
-    return { tipo: 'COMITÉ VECINAL', detalle: 'ya está asignado a la comunidad "' + (cv.comunidad || '') + '".' };
+    encontrados.push({ tipo: 'COMITÉ VECINAL', detalle: 'ya está asignado a la comunidad "' + (cv.comunidad || '') + '".' });
   }
   if (consultas[4].length) {
     const cc = consultas[4][0];
-    return { tipo: 'CARGO DE CENTRO', detalle: 'ya ocupa el cargo "' + (cc.cargo || '') + '" en el centro "' + (cc.centro_codigo || '') + '".' };
+    encontrados.push({ tipo: 'CARGO DE CENTRO', detalle: 'ya ocupa el cargo "' + (cc.cargo || '') + '" en el centro "' + (cc.centro_codigo || '') + '".' });
   }
+  if (!encontrados.length) return null;
+
+  const destino = (() => {
+    const c = String(contexto || '').toLowerCase();
+    if (c.includes('moviliz')) return 'MOVILIZADOR';
+    if (c.includes('comprom')) return 'COMPROMETIDO';
+    if (c.includes('direccion')) return 'DIRECCIÓN EJECUTIVA';
+    if (c.includes('comite')) return 'COMITÉ VECINAL';
+    if (c.includes('cargo')) return 'CARGO DE CENTRO';
+    return String(contexto || 'OTRO').toUpperCase();
+  })();
+
+  const incompatibles = encontrados.filter(d => d.tipo !== destino);
+  if (!incompatibles.length) return encontrados[0];
+
+  const detalle = incompatibles.map(d => d.detalle).join(' ');
+  const autorizado = await autorizarDuplicidadPersona(ced, destino, incompatibles);
+  if (!autorizado) return {
+    ...incompatibles[0],
+    detalle: detalle + ' Se requiere autorización de Jefe de Comando o Administrador para registrarla además como ' + destino + '.'
+  };
   return null;
 }
 
+async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
+  const nombres = (encontrados || []).map(x => x.tipo + ': ' + x.detalle).join('<br>');
+  const motivo = 'Duplicidad controlada de persona: ' + (encontrados || []).map(x => x.tipo).join(', ') + ' → ' + destino;
+  const auth = await new Promise(resolve => {
+    win(ic('lock',18)+' Autorización requerida',
+      '<div class="alert warn"><div class="a-ic">!</div><div><b>Esta persona ya figura en otra función del sistema.</b><br>' +
+      esc(fC('V', cedula)) + ' requiere autorización para registrarse además como <b>' + esc(destino) + '</b>.<br><br>' +
+      '<div style="font-size:12px">' + nombres + '</div>' +
+      '<div style="margin-top:8px;color:var(--mut)">La excepción queda auditada y no elimina ni modifica el registro original.</div></div></div>' +
+      '<label class="fl" style="margin-top:12px">Usuario autorizante (Jefe o Administrador)</label><input class="inp" id="authUser" autocomplete="username" placeholder="Usuario">' +
+      '<label class="fl" style="margin-top:10px">Clave de autorización</label><input class="inp" id="authPass" type="password" autocomplete="current-password" placeholder="Clave">' +
+      '<label class="fl" style="margin-top:10px">Motivo</label><textarea class="inp" id="authMotivo" rows="2" placeholder="Indique el motivo de la excepción"></textarea>',
+      '<button class="btn btn-w" onclick="closeModal();window.__authResolve&&window.__authResolve(false)">Cancelar</button><button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad('' + esc(cedula) + '','' + esc(destino) + '')">Autorizar y continuar</button>',600
+    );
+    window.__authResolve=resolve;
+  });
+  return !!auth;
+}
+
+async function confirmarAutorizacionDuplicidad(cedula, destino) {
+  const u=String($('authUser')?.value||'').trim(), p=$('authPass')?.value||'';
+  const motivo=String($('authMotivo')?.value||'').trim();
+  if(!u||!p) return toast('Ingrese usuario y clave de autorización','err');
+  if(!motivo) return toast('Indique el motivo de la excepción','err');
+  try {
+    const rows=await q('SELECT * FROM usuarios WHERE usuario=? AND activo=1 LIMIT 1',[u]);
+    if(!rows.length) return toast('Usuario autorizante no encontrado o inactivo','err');
+    const user=rows[0];
+    if(!['J','A'].includes(user.rol)) return toast('Solo un Jefe de Comando o Administrador puede autorizar esta operación','err');
+    if(user.clave_hash !== await hash(p)) return toast('Clave de autorización incorrecta','err');
+    await x('INSERT INTO autorizaciones_duplicidad_persona(cedula,contexto_origen,contexto_destino,detalle_duplicidad,motivo,autorizado_por,registrado_por) VALUES(?,?,?,?,?,?,?)',[
+      normC(cedula),'DUPLICIDAD_GLOBAL',destino,'Persona existente en otra función del sistema',motivo,user.id,USER?.id||null
+    ]);
+    await registrarAct('autorizacion','Duplicidad autorizada: '+fC('V',cedula)+' → '+destino+' • autorizó '+user.usuario+' • '+motivo,USER?.id||null);
+    const resolve=window.__authResolve; window.__authResolve=null; closeModal();
+    if(resolve) resolve(true);
+  } catch(e){ toast('No se pudo registrar la autorización: '+e.message,'err'); }
+}
 async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   const tel = String(telefono || '').replace(/\D/g, '');
   if (!tel) return null;
@@ -2758,14 +2834,11 @@ function downloadPDFDireccion() {
       '<th>#</th><th>CARGO</th><th>C.I.</th><th>APELLIDOS</th><th>NOMBRES</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th><th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>DIRECCIÓN</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'direccion_ejecutiva_padron_completo_' + Date.now() + '.html';
-  a.click();
-  toast('Descargado archivo HTML (abrir e imprimir a PDF con todos los campos CNE)', 'ok');
+  window.__previewDocHtml=html;
+  vistaPreviaDocumento('Vista previa • Dirección Ejecutiva',html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'direccion_ejecutiva_padron_completo\')">'+ic('file',13)+' Descargar PDF</button>');
 }
-
 /* ═══════════ COMITÉS VECINALES ═══════════ */
 let COMITE_FILTER = { comunidad: '', txt: '' };
 
@@ -3910,79 +3983,29 @@ function printComite() {
       '<th>Centro Votación</th><th>Municipio / Parroquia</th><th>Teléfono</th><th>Dirección</th><th>Nro. Calle</th><th>Nro. Casa</th><th>Problemática Actual</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
 
-  const w = window.open('', '_blank');
-  if (!w) return toast('El navegador bloqueó la ventana de impresión. Permita ventanas emergentes para este sistema.', 'err');
-  w.document.write(html);
-  w.document.close();
-  setTimeout(() => { w.focus(); w.print(); }, 500);
-}
-
-function downloadPDFComite() {
+  window.__previewDocHtml=html;
+  vistaPreviaDocumento('Vista previa • Comités Vecinales',html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+ 
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'comites_vecinales_listado_completo\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
+}function downloadPDFComite() {
   const listado = getComiteListadoCompleto();
   if (!listado.length) return toast('No hay comunidades en el catálogo oficial para generar el PDF', 'err');
-
   const rows = listado.map(item => {
     const d = datosComiteFila(item);
     const muted = item.asignado ? '' : 'color:#64748b;font-style:italic;';
-    return '<tr style="' + muted + '">' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + item.nro + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px;font-weight:700">' + esc(item.comunidad) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px;font-weight:700">' + esc(item.estado) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px;font-family:monospace">' + esc(d.ci) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.pa) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.sa) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.pn) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.sn) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.edad) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.sexo) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px;font-family:monospace">' + esc(d.fn) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.cv) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.munPar) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px;font-family:monospace">' + esc(d.tel) + '</td>' +
-      '<td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.dir) + '</td><td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.nroCalle) + '</td><td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.nroCasa) + '</td><td style="border:1px solid #cbd5e1;padding:4px">' + esc(d.problematica) + '</td>' +
-    '</tr>';
+    return '<tr style="'+muted+'">'+
+      '<td>'+item.nro+'</td><td><b>'+esc(item.comunidad)+'</b></td><td><b>'+esc(item.estado)+'</b></td><td class="mono">'+esc(d.ci)+'</td>'+
+      '<td>'+esc(d.pa)+'</td><td>'+esc(d.sa)+'</td><td>'+esc(d.pn)+'</td><td>'+esc(d.sn)+'</td><td>'+esc(d.edad)+'</td><td>'+esc(d.sexo)+'</td><td class="mono">'+esc(d.fn)+'</td>'+
+      '<td>'+esc(d.cv)+'</td><td>'+esc(d.munPar)+'</td><td class="mono">'+esc(d.tel)+'</td><td>'+esc(d.dir)+'</td><td>'+esc(d.nroCalle)+'</td><td>'+esc(d.nroCasa)+'</td><td>'+esc(d.problematica)+'</td></tr>';
   }).join('');
-
-  const asignados = listado.filter(x => x.asignado).length;
-  const content = '<div style="font-family:Arial,sans-serif;font-size:9px;color:#111">' +
-    '<h2 style="margin:0 0 4px;font-size:15px;color:#1e293b;text-transform:uppercase">Estructura de Comités Vecinales por Comunidad</h2>' +
-    '<p style="margin:0 0 12px;color:#64748b;font-size:9px">Sistema de Gestión Electoral • Catálogo oficial de 118 comunidades • Asignados: ' + asignados + ' • Sin asignar: ' + (listado.length - asignados) + ' • Total: ' + listado.length + '</p>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:8px"><thead style="background:#f1f5f9"><tr>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">#</th><th style="border:1px solid #cbd5e1;padding:4px">Comunidad</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Estado</th><th style="border:1px solid #cbd5e1;padding:4px">Cédula</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Primer Apellido</th><th style="border:1px solid #cbd5e1;padding:4px">Segundo Apellido</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Primer Nombre</th><th style="border:1px solid #cbd5e1;padding:4px">Segundo Nombre</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Edad</th><th style="border:1px solid #cbd5e1;padding:4px">Sexo</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">F. Nacimiento</th><th style="border:1px solid #cbd5e1;padding:4px">Centro Votación</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Municipio / Parroquia</th><th style="border:1px solid #cbd5e1;padding:4px">Teléfono</th>' +
-      '<th style="border:1px solid #cbd5e1;padding:4px">Dirección</th><th style="border:1px solid #cbd5e1;padding:4px">Nro. Calle</th><th style="border:1px solid #cbd5e1;padding:4px">Nro. Casa</th><th style="border:1px solid #cbd5e1;padding:4px">Problemática Actual</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-
-  const container = document.createElement('div');
-  container.innerHTML = content;
-  container.style.background = '#fff';
-  document.body.appendChild(container);
-
-  const title = 'comites_vecinales_listado_completo_' + Date.now();
-  if (typeof html2pdf !== 'function') {
-    document.body.removeChild(container);
-    return toast('No está disponible el generador PDF. Verifique la conexión y vuelva a intentarlo.', 'err');
-  }
-  html2pdf().set({
-    margin: 8,
-    filename: title + '.pdf',
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-    pagebreak: { mode: ['css', 'legacy'] }
-  }).from(container).save().then(() => {
-    document.body.removeChild(container);
-    toast('PDF completo de Comités Vecinales generado exitosamente', 'ok');
-  }).catch(err => {
-    if (container.parentNode) document.body.removeChild(container);
-    console.error('Error generando PDF:', err);
-    toast('Error al descargar PDF', 'err');
-  });
+  const asignados=listado.filter(x=>x.asignado).length;
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comités Vecinales</title><style>body{font-family:Arial,sans-serif;font-size:9px;color:#111;padding:16px}h2{color:#1e293b}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:4px;vertical-align:top;font-size:8px}th{background:#f1f5f9}.mono{font-family:monospace}@page{size:landscape;margin:10mm}</style></head><body>'+
+    '<h2>Estructura de Comités Vecinales por Comunidad</h2><p>Catálogo oficial de 118 comunidades • Asignados: '+asignados+' • Sin asignar: '+(listado.length-asignados)+' • Total: '+listado.length+'</p>'+
+    '<table><thead><tr><th>#</th><th>Comunidad</th><th>Estado</th><th>C.I.</th><th>Primer Apellido</th><th>Segundo Apellido</th><th>Primer Nombre</th><th>Segundo Nombre</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th><th>Centro</th><th>Municipio/Parroquia</th><th>Teléfono</th><th>Dirección</th><th>Nro. Calle</th><th>Nro. Casa</th><th>Problemática</th></tr></tr></thead><tbody>'+rows+'</tbody></table></body></html>';
+  window.__previewDocHtml=html;
+  vistaPreviaDocumento('Vista previa • Comités Vecinales',html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'comites_vecinales_listado_completo\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
 }
 
 </script>
