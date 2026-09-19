@@ -415,6 +415,9 @@ async function execSchema() {
     }
   }
 
+  // En primera inicialización el esquema acaba de crear el comité con la restricción legacy; normalizarlo ahora.
+  await migrateComiteRoles();
+
   // La columna ya forma parte del esquema actual; se conserva esta migración
   // para bases creadas por versiones anteriores.
   try {
