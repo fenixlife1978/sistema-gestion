@@ -1975,8 +1975,7 @@ function applyImp() {
       if (centroids.length) {
         setProg('Centros electorales...', 0);
         for (let i = 0; i < centroids.length; i += CHUNK) {
-          const batch = centroids.slice(i, i + CHUNK).map(c => ({ sql: 'INSERT OR IGNORE INTO centros(codigo,nombre,municipio,parroquia,estado,mesas,cod_estado,cod_municipio,cod_parroquia) VALUES(?,?,?,?,?,?,1,?,?)', args: [c.cvCod, c.cvNom, c.mun, c.par, c.estado, c.codEst, c.codMun, c.codPar] }));
-          await turso(batch);
+          /* Persistencia centralizada en /api/padron/gestionar. */
           setProg('Centros electorales... ' + Math.min(i + CHUNK, centroids.length), 5);
         }
         await refreshAll();
@@ -1986,8 +1985,7 @@ function applyImp() {
       let loaded = 0;
       const total = toAdd.length;
       for (let i = 0; i < total; i += CHUNK) {
-        const batch = toAdd.slice(i, i + CHUNK).map(p => ({ sql: 'INSERT OR IGNORE INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', args: [p.ced, p.letra, p.pa, p.sa, p.pn, p.sn, p.sexo, p.fn, edadDe(p.fn), p.codEst, p.estado, p.codMun, p.mun, p.codPar, p.par, p.cvCod, p.cvNom] }));
-        await turso(batch);
+        const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'importar',rows:toAdd.slice(i,i+CHUNK),centros:i===0?Object.values(cenMap):[],fname})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo cargar el padrón');
         loaded += batch.length;
         setProg('Cargando electores... ' + loaded + ' / ' + total, Math.round(100 * loaded / total));
       }
