@@ -1003,9 +1003,14 @@ function logout() { localStorage.removeItem('session'); location.reload() }
 /* ----------- TOOLBAR ----------- */
 async function tbSave() {
   const data = { exportado: new Date().toISOString(), usuario: USER.nombre, padron: CACHE.pad, centros: CACHE.centros, reclutadores: CACHE.recl };
-  const b = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'respaldo_1x10_turso_' + Date.now() + '.json'; a.click();
-  toast('Respaldo descargado', 'ok');
+  const json=JSON.stringify(data,null,1), name='respaldo_1x10_turso_' + Date.now() + '.json';
+  const previewHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Vista previa • Respaldo 1×10</title><style>body{font-family:Consolas,monospace;font-size:11px;padding:18px;background:#fff;color:#22303e;white-space:pre-wrap;word-break:break-word}h3{font-family:Arial,sans-serif;color:#123c69}</style></head><body><h3>Vista previa • '+esc(name)+'</h3><pre>'+esc(json)+'</pre></body></html>';
+  window.__previewBackupText=json;
+  vistaPreviaDocumento('Vista previa • Respaldo 1×10',previewHtml,
+    '<button class="btn btn-navy" onclick="descargarBackupPrevisualizado(window.__previewBackupText,\''+esc(name)+'\')">'+ic('file',13)+' Descargar respaldo</button>');
+}
+function descargarBackupPrevisualizado(json,name){
+  const b=new Blob([json],{type:'application/json;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); closeModal(); toast('Respaldo descargado','ok');
 }
 function tbEdit() { LAST_REC ? openRec(LAST_REC) : toast('Abra primero una lista de movilizador', 'err') }
 function tbDel() {
