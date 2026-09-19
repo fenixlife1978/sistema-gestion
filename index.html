@@ -1145,6 +1145,7 @@ function editTelComprometido(reclId, ced) {
     '<div style="font-size:13px;margin-bottom:12px"><b>Elector:</b> ' + esc(nomComp) + ' <span class="mono">(' + fC(p ? p.letra : 'V', ced) + ')</span></div>' +
     '<label class="fl">Número de teléfono</label>' +
     '<input class="inp mono" id="editTelInput" value="' + esc(item.telefono || '') + '" placeholder="0412-2232523" maxlength="12" pattern="0\\d{3}-\\d{7}">' +
+    '<div class="grid g2" style="gap:8px;margin-top:10px"><div><label class="fl">Número de calle</label><input class="inp" id="editCalleInput" value="' + esc(item.numero_calle || '') + '"></div><div><label class="fl">Número de casa</label><input class="inp" id="editCasaInput" value="' + esc(item.numero_casa || '') + '"></div></div>' +
     '<p style="font-size:11.5px;color:var(--mut);margin-top:6px">Formato esperado: 04XX-XXXXXXX (11 dígitos, comenzando con 0)</p>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>' +
     '<button class="btn btn-navy" onclick="saveTelComprometido(' + reclId + ',\'' + ced + '\')">' + ic('check', 14) + ' Guardar teléfono</button>', 500
@@ -1153,6 +1154,8 @@ function editTelComprometido(reclId, ced) {
 }
 async function saveTelComprometido(reclId, ced) {
   const raw = ($('editTelInput').value || '').trim();
+  const calle = ($('editCalleInput')?.value || '').trim();
+  const casa = ($('editCasaInput')?.value || '').trim();
   let tel = raw ? normTel(raw) : '';
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Debe tener 11 dígitos comenzando en 0 (ej: 0412-2232523)', 'err');
   if (tel) {
@@ -1160,7 +1163,7 @@ async function saveTelComprometido(reclId, ced) {
     if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000);
   }
   try {
-    await x('UPDATE asignaciones SET telefono = ? WHERE reclutador_id = ? AND cedula = ?', [tel || null, reclId, ced]);
+    await x('UPDATE asignaciones SET telefono = ?, numero_calle = ?, numero_casa = ? WHERE reclutador_id = ? AND cedula = ?', [tel || null, calle || null, casa || null, reclId, ced]);
     await refreshAll();
     closeModal();
     if (CUR === 'registro') renderRegistro();
