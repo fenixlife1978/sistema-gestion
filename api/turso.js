@@ -1,7 +1,22 @@
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Este endpoint solo debe ser consumido por la aplicación web del sistema.
+  // No se usa '*' porque el endpoint es un proxy con capacidad de ejecutar SQL.
+  const origin = String(req.headers.origin || '').replace(/\\/$/, '');
+  const allowedOrigins = new Set([
+    'https://gestion-erp-electoral.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173'
+  ]);
+  const allowed = !origin || allowedOrigins.has(origin);
+  if (origin && allowed) res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (!allowed) return res.status(403).json({ error: 'Origen no autorizado' });
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -24,9 +39,16 @@ module.exports = async function handler(req, res) {
     const statements = body.statements;
     if (!statements) return res.status(400).json({ error: 'No se enviaron sentencias SQL' });
 
-    const stmts = Array.isArray(statements)
-      ? statements.map(s => ({ q: s.q || s.sql, params: s.params || s.args || [] }))
-      : [{ q: statements.q || statements.sql, params: statements.params || statements.args || [] }];
+    const rawStmts = Array.isArray(statements) ? statements : [statements];
+    if (rawStmts.length > 100) return res.status(413).json({ error: 'Demasiadas sentencias en una sola petición' });
+
+    const stmts = rawStmts.map(s => ({ q: s?.q || s?.sql, params: s?.params || s?.args || [] }));
+    if (stmts.some(s => typeof s.q !== 'string' || !s.q.trim())) {
+      return res.status(400).json({ error: 'Cada sentencia debe contener SQL válido' });
+    }
+    if (stmts.some(s => s.q.length > 50000)) {
+      return res.status(413).json({ error: 'Sentencia SQL demasiado grande' });
+    }
 
     const r = await fetch(url, {
       method: 'POST',
