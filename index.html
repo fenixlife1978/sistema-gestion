@@ -617,36 +617,60 @@ async function registrarAct(tipo, texto, uid) {
 
 /* ----------- RECARGA DE CACHE DESDE TURSO ----------- */
 async function refreshAll() {
-  CACHE.pad = await q('SELECT * FROM padron ORDER BY p_apellido, p_nombre');
+  // Una sola llamada al proxy Turso para todo el snapshot. Antes cada q() abría
+  // una petición HTTP independiente y, además, las listas de cada reclutador
+  // generaban un N+1. El resultado funcional se mantiene, pero con un único
+  // viaje Vercel -> Turso por sincronización.
+  const statements = [
+    { q: 'SELECT * FROM padron ORDER BY p_apellido, p_nombre' },
+    { q: 'SELECT * FROM centros ORDER BY nombre' },
+    { q: 'SELECT * FROM reclutadores ORDER BY creado DESC' },
+    { q: 'SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100' },
+    { q: 'SELECT * FROM usuarios ORDER BY rol, nombre' },
+    { q: 'SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id' },
+    { q: 'SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC' },
+    { q: 'SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC' },
+    { q: 'SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id' },
+    { q: 'SELECT cp.comite_id, cp.problema_id, c.categoria, c.nombre AS problema_nombre FROM comite_problemas cp JOIN catalogo_problemas c ON c.id = cp.problema_id ORDER BY cp.comite_id, c.orden, c.id' },
+    { q: 'SELECT v.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, u.nombre AS operador_nom FROM verificaciones_votacion v LEFT JOIN padron p ON p.cedula=v.cedula LEFT JOIN usuarios u ON u.id=v.verificado_por ORDER BY v.verificado_en DESC, v.id DESC' },
+    { q: 'SELECT * FROM actas_mesa ORDER BY centro_codigo, mesa' },
+    { q: 'SELECT * FROM mesa_operativa ORDER BY centro_codigo, mesa' },
+    { q: 'SELECT * FROM mesa_miembros ORDER BY mesa_operativa_id, id' },
+    { q: 'SELECT * FROM cortes_electorales ORDER BY tomado_en DESC, id DESC' },
+    { q: 'SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula ORDER BY a.reclutador_id, a.posicion' }
+  ];
+  const results = await turso(statements);
+  const rows = results.map(x => {
+    const rr = x?.results || {};
+    const cols = rr.columns || [], rows = rr.rows || [];
+    return rows.map(row => Object.fromEntries(cols.map((col,i) => [col,row[i]])));
+  });
+  CACHE.pad = rows[0] || [];
   CACHE.pad.forEach(p => { p.edad = edadDe(p.fecha_nac) || p.edad || 0; });
-  CACHE.centros = await q('SELECT * FROM centros ORDER BY nombre');
-  CACHE.recl = await q('SELECT * FROM reclutadores ORDER BY creado DESC');
-  CACHE.act = await q('SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100');
-  CACHE.users = await q('SELECT * FROM usuarios ORDER BY rol, nombre');
-  CACHE.cargos = await q('SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id');
-  try {
-    CACHE.direccion = await q('SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC');
-  } catch (e) {
-    console.warn('Fallback CACHE.direccion:', e);
-    try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
+  CACHE.centros = rows[1] || [];
+  CACHE.recl = rows[2] || [];
+  CACHE.act = rows[3] || [];
+  CACHE.users = rows[4] || [];
+  CACHE.cargos = rows[5] || [];
+  CACHE.direccion = rows[6] || [];
+  CACHE.comite = rows[7] || [];
+  CACHE.catalogoProblemas = rows[8] || [];
+  CACHE.comiteProblemas = rows[9] || [];
+  CACHE.verificacion = rows[10] || [];
+  CACHE.actasMesa = rows[11] || [];
+  CACHE.mesasOperativas = rows[12] || [];
+  CACHE.mesaMiembros = rows[13] || [];
+  CACHE.cortes = rows[14] || [];
+
+  // Una sola consulta para todas las asignaciones, agrupada en memoria.
+  const asignaciones = rows[15] || [];
+  const porReclutador = new Map();
+  for (const a of asignaciones) {
+    const key = String(a.reclutador_id);
+    if (!porReclutador.has(key)) porReclutador.set(key, []);
+    porReclutador.get(key).push(a);
   }
-  try {
-    CACHE.comite = await q('SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC');
-  } catch (e) {
-    console.warn('Fallback CACHE.comite:', e);
-    try { CACHE.comite = await q('SELECT * FROM comite_vecinal ORDER BY id DESC'); } catch (err) { CACHE.comite = []; }
-  }
-  CACHE.catalogoProblemas = await q('SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id');
-  CACHE.comiteProblemas = await q('SELECT cp.comite_id, cp.problema_id, c.categoria, c.nombre AS problema_nombre FROM comite_problemas cp JOIN catalogo_problemas c ON c.id = cp.problema_id ORDER BY cp.comite_id, c.orden, c.id');
-  CACHE.verificacion = await q(`SELECT v.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, u.nombre AS operador_nom FROM verificaciones_votacion v LEFT JOIN padron p ON p.cedula=v.cedula LEFT JOIN usuarios u ON u.id=v.verificado_por ORDER BY v.verificado_en DESC, v.id DESC`);
-  CACHE.actasMesa = await q('SELECT * FROM actas_mesa ORDER BY centro_codigo, mesa');
-  CACHE.mesasOperativas = await q('SELECT * FROM mesa_operativa ORDER BY centro_codigo, mesa');
-  CACHE.mesaMiembros = await q('SELECT * FROM mesa_miembros ORDER BY mesa_operativa_id, id');
-  CACHE.cortes = await q('SELECT * FROM cortes_electorales ORDER BY tomado_en DESC, id DESC');
-  // Enriquecer reclutadores con listas desde asignaciones
-  for (const r of CACHE.recl) {
-    r.lista = await q('SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula WHERE a.reclutador_id = ? ORDER BY a.posicion', [r.id]);
-  }
+  for (const r of CACHE.recl) r.lista = porReclutador.get(String(r.id)) || [];
 }
 
 function padBy(c) { const n=normC(c); return CACHE.pad.find(p => normC(p.cedula) === n); }
