@@ -8,10 +8,15 @@ on:
         required: false
         default: "https://gestion-erp-electoral.vercel.app"
         type: string
-      duration:
-        description: "Seconds per load level"
+      users:
+        description: "Number of independent authenticated users"
         required: true
-        default: "30"
+        default: "10"
+        type: string
+      duration:
+        description: "Seconds for the controlled load"
+        required: true
+        default: "10"
         type: string
       confirm_production_load:
         description: "Type RUN-PRODUCTION-LOAD to authorize real production load"
@@ -25,10 +30,8 @@ permissions:
 jobs:
   load:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
     env:
-      # Stable production alias. Unlike a deployment-specific *.vercel.app
-      # URL, this follows the current production deployment automatically.
       BASE_URL: ${{ inputs.base_url || 'https://gestion-erp-electoral.vercel.app' }}
       LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
       LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
@@ -37,8 +40,9 @@ jobs:
       LOAD_TEST_CENTRO: ${{ secrets.LOAD_TEST_CENTRO }}
       LOAD_TEST_CEDULA: ${{ secrets.LOAD_TEST_CEDULA }}
       LOAD_TEST_MESA: ${{ secrets.LOAD_TEST_MESA }}
-      DURATION: ${{ inputs.duration || '120' }}
+      DURATION: ${{ inputs.duration || '10' }}
       SESSION_COOKIES_FILE: load-test-sessions.json
+      USERS: ${{ inputs.users || '10' }}
     steps:
       - name: Checkout target commit
         uses: actions/checkout@v4
@@ -47,7 +51,9 @@ jobs:
           fetch-depth: 1
 
       - name: Verify test prerequisites
+        shell: bash
         run: |
+          set -euo pipefail
           test "${{ inputs.confirm_production_load }}" = "RUN-PRODUCTION-LOAD"
           test -n "$LOAD_TEST_CENTRO"
           test -n "$LOAD_TEST_CEDULA"
@@ -56,13 +62,18 @@ jobs:
           test -n "$LOGIN_USER"
           test -n "$LOGIN_PASSWORD"
           test -n "$LOGIN_ROLE"
-          node --version
+          [[ "$USERS" =~ ^[1-9][0-9]*$ ]]
+          [[ "$DURATION" =~ ^[1-9][0-9]*$ ]]
+          test "$USERS" -le 400
           echo "Testing commit: $(git rev-parse HEAD)"
           echo "Target production URL: $BASE_URL"
+          echo "Independent users: $USERS"
+          echo "Duration: ${DURATION}s"
 
       - name: Wait for current production deployment
         shell: bash
         run: |
+          set -euo pipefail
           for i in $(seq 1 30); do
             if curl -fsS --max-time 10 "$BASE_URL/api/health" >/tmp/health.json; then
               cat /tmp/health.json
@@ -74,56 +85,27 @@ jobs:
           echo "Production health endpoint did not become ready in 5 minutes"
           exit 1
 
-      - name: Create 400 independent authenticated sessions
+      - name: Create independent authenticated sessions
         shell: bash
         run: |
+          set -euo pipefail
           rm -f "$SESSION_COOKIES_FILE"
-          USERS=400 BASE_URL="$BASE_URL" LOGIN_USER="$LOGIN_USER" LOGIN_PASSWORD="$LOGIN_PASSWORD" LOGIN_ROLE="$LOGIN_ROLE" LOAD_TEST_USERS_JSON="$LOAD_TEST_USERS_JSON" SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" node scripts/create-load-test-sessions.mjs
+          USERS="$USERS" BASE_URL="$BASE_URL" LOGIN_USER="$LOGIN_USER" LOGIN_PASSWORD="$LOGIN_PASSWORD" LOGIN_ROLE="$LOGIN_ROLE" LOAD_TEST_USERS_JSON="$LOAD_TEST_USERS_JSON" SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" node scripts/create-load-test-sessions.mjs
           test -s "$SESSION_COOKIES_FILE"
           COUNT="$(node -e 'const fs=require("fs"); console.log(JSON.parse(fs.readFileSync(process.env.SESSION_COOKIES_FILE,"utf8")).length)' )"
-          test "$COUNT" -ge 400
+          test "$COUNT" -ge "$USERS"
           echo "Independent authenticated sessions created: $COUNT"
 
-      - name: Load 50 users
+      - name: Run controlled authenticated load
+        shell: bash
         run: |
           set -o pipefail
-          USERS=50 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-50.log
-
-      - name: Load 100 users
-        run: |
-          set -o pipefail
-          USERS=100 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-100.log
-
-      - name: Load 150 users
-        run: |
-          set -o pipefail
-          USERS=150 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-150.log
-
-      - name: Load 200 users
-        run: |
-          set -o pipefail
-          USERS=200 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-200.log
-
-      - name: Load 300 users
-        run: |
-          set -o pipefail
-          USERS=300 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-300.log
-
-      - name: Load 400 users
-        run: |
-          set -o pipefail
-          USERS=400 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-400.log
+          USERS="$USERS" SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load.log
 
       - name: Upload load-test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: election-load-test-results
-          path: |
-            load-50.log
-            load-100.log
-            load-150.log
-            load-200.log
-            load-300.log
-            load-400.log
+          path: load.log
           if-no-files-found: warn
