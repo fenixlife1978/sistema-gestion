@@ -630,15 +630,22 @@ async function doLogin() {
   const u = $('lgU').value.trim(), p = $('lgP').value, selR = $('lgR').value;
   if (!u || !p) return toast('Ingrese usuario y clave', 'err');
   try {
-    const r = await fetch('/api/auth/login', {
+    const r = await fetch('/api?route=auth/login', {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      cache: 'no-store',
       body: JSON.stringify({ usuario: u, clave: p, rol: selR })
     });
+    const contentType = r.headers.get('content-type') || '';
     let data = {};
-    try { data = await r.json(); } catch (e) {}
-    if (!r.ok) return toast(data.error || 'No fue posible iniciar sesión', 'err', 7000);
+    if (contentType.includes('application/json')) {
+      try { data = await r.json(); } catch (e) {}
+    } else {
+      const raw = await r.text().catch(() => '');
+      data = raw ? { error: raw.slice(0, 180) } : {};
+    }
+    if (!r.ok) return toast((data.error || ('HTTP ' + r.status + ' al autenticar')), 'err', 8000);
     USER = data.user;
     localStorage.setItem('curTab', 'dash');
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
