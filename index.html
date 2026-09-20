@@ -711,7 +711,7 @@ const MODS = [
   { id: 'centros', l: 'Centros', i: 'school' },
   { id: 'rep', l: 'Reportes y Cruces', i: 'chart' },
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
-  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] },
+  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A', 'O'] },
   { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' },
   { id: 'comite', l: 'Comités Vecinales', i: 'users' },
   { id: 'control', l: 'Control Electoral', i: 'check' }
@@ -1893,7 +1893,9 @@ function delUser(id) {
 
 /* ----------- CONFIGURACIÓN ----------- */
 function renderData() {
-  if (!['J', 'A'].includes(USER.rol)) { $('sec-data').innerHTML = panel('Acceso denegado', '<div class="empty">Solo Jefe de Comando o Administradores.</div>'); return }
+  if (!['J', 'A', 'O'].includes(USER.rol)) { $('sec-data').innerHTML = panel('Acceso denegado', '<div class="empty">Rol no autorizado.</div>'); return }
+  const isAdmin = ['J', 'A'].includes(USER.rol);
+  const adminTools = isAdmin ? '<button class="btn btn-navy" onclick="repairEdades()">' + ic('db', 14) + ' Reparar edades</button><button class="btn btn-navy" onclick="resetCNE()">' + ic('db', 14) + ' Reiniciar padrón CNE</button><button class="btn btn-red" onclick="wipeTurso()">' + ic('trash', 14) + ' Vaciar todas las tablas</button>' : '';
   $('sec-data').innerHTML = panel('Configuración / Carga de Data CNE',
     '<div class="grid g2" style="margin-bottom:14px">' +
     '<div><label class="fl">1 • Padrón de electores (CSV / Excel del CNE)</label><div class="dz" id="dzPad" onclick="$(\'fPad\').click()">' + ic('up', 28) + '<p style="margin-top:6px"><b>Arrastre o haga clic</b></p><span style="font-size:12px">.xlsx / .xls / .csv / .txt  PC o mvil</span></div><input type="file" id="fPad" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="readFile(this)"><div class="fmt">LETRA_CEDULA | CEDULA_IDENTIDAD | P_APELLIDO | S_APELLIDO | P_NOMBRE | S_NOMBRE | SEXO | FECHA_NACIMIENTO | CODIGO_ESTADO | ESTADO | CODIGO_MUNICIPIO | MUNICIPIO | CODIGO_PARROQUIA | PARROQUIA | CENTRO_VOTACION | NOMBRE_CV</div></div>' +
@@ -1903,7 +1905,7 @@ function renderData() {
     '<div class="ck-it"><b>' + CACHE.recl.length + '</b><span>Reclutadores</span></div>' +
     '<div class="ck-it"><b>' + CACHE.users.length + '</b><span>Usuarios</span></div>' +
     '</div><div class="mono" style="font-size:11px;color:var(--mut);margin-top:12px">Conexin vía API proxy (Vercel)</div></div></div></div>' +
-    '<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-w" onclick="tplCSV()">' + ic('file', 14) + ' Plantilla CSV</button><button class="btn btn-navy" onclick="repairEdades()">' + ic('db', 14) + ' Reparar edades</button><button class="btn btn-navy" onclick="resetCNE()">' + ic('db', 14) + ' Reiniciar padrón CNE</button><button class="btn btn-red" onclick="wipeTurso()">' + ic('trash', 14) + ' Vaciar todas las tablas</button></div>');
+    '<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-w" onclick="tplCSV()">' + ic('file', 14) + ' Plantilla CSV</button>' + adminTools + '</div>');
   setTimeout(() => {
     const dz = document.getElementById('dzPad');
     if (!dz) return;
@@ -2013,7 +2015,7 @@ function applyImp() {
       const total = toAdd.length;
       for (let i = 0; i < total; i += CHUNK) {
         const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'importar',rows:toAdd.slice(i,i+CHUNK),centros:i===0?Object.values(cenMap):[],fname})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo cargar el padrón');
-        loaded += batch.length;
+        loaded += Math.min(CHUNK, total - loaded);
         setProg('Cargando electores... ' + loaded + ' / ' + total, Math.round(100 * loaded / total));
       }
       setProg('Carga completa. Actualizando...', 100);
