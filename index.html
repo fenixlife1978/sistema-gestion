@@ -2845,7 +2845,7 @@ function renderControlElectoral() {
       '<td>' + (x.acta ? x.acta.votos_partido : '—') + '</td>' +
       '<td>' + (x.diff === null ? '—' : x.diff) + '</td>' +
       '<td>' + estado + '</td>' +
-      '<td>' + (mesaOperativa(centro.codigo,x.mesa) ? '<span class="chip chip-g">CONSTITUIDA</span>' : '<span class="chip chip-y">SIN CONSTITUIR</span>') + '</td>' +
+      '<td>' + (mesaOperativa(centro.codigo,x.mesa) ? (mesaOperativa(centro.codigo,x.mesa).estado==='CERRADA' ? '<span class="chip chip-b">CERRADA</span>' : '<span class="chip chip-g">CONSTITUIDA</span>') : '<span class="chip chip-y">SIN CONSTITUIR</span>') + '</td>' +
       '<td><button class="btn btn-navy btn-xs" onclick="abrirConstitucionMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Constitución</button> <button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
     '</tr>';
   }).join('');
@@ -3059,11 +3059,12 @@ function abrirConstitucionMesa(codigo, mesa) {
     const persona=asig?.cedula?personaNombreCedula(asig.cedula):null;
     const nombre=persona?.nombre||'';
     const ci=asig?.cedula?fC(persona?.letra||asig.letra||'V',asig.cedula):'';
+    const sinLabel=String(k.cargo||'').replace(/^Testigo (Principal|Suplente) Mesa \d+$/i,'Sin Testigo $1').replace(/^Coordinador del Centro$/i,'Sin Coordinador');
     const estado=st.estado==='RATIFICADO'
       ? '<span class="chip chip-g">RATIFICADO</span>'
       : st.estado==='REEMPLAZADO'
         ? '<span class="chip chip-b">REEMPLAZADO</span>'
-        : '<span class="chip chip-y">SIN '+esc(String(k.cargo).toUpperCase())+'</span>';
+        : '<span class="chip chip-y">'+esc(sinLabel)+'</span>';
     const rat=st.estado==='RATIFICADO'?'checked':'';
     const disabled=mo?.estado==='CERRADA'?'disabled':'';
     return '<div class="kcard" style="padding:10px;margin-bottom:7px"><div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">' +
