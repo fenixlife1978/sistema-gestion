@@ -1,0 +1,56 @@
+name: login-smoke-test
+
+on:
+  push:
+    branches:
+      - audit/hardening-2026-09-19
+    paths:
+      - .github/workflows/login-smoke-test.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_URL: https://sistema-gestion-cloul8lz7-fenixlife.vercel.app
+      LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
+      LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
+      LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/hardening-2026-09-19
+      - name: Login smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$LOGIN_USER"
+          test -n "$LOGIN_PASSWORD"
+          test -n "$LOGIN_ROLE"
+          node <<'NODE'
+          const base = process.env.BASE_URL.replace(/\/$/, "");
+          (async () => {
+            const r = await fetch(base + "/api/auth/login", {
+              method: "POST",
+              headers: {"content-type":"application/json","accept":"application/json"},
+              body: JSON.stringify({
+                usuario: process.env.LOGIN_USER,
+                clave: process.env.LOGIN_PASSWORD,
+                rol: process.env.LOGIN_ROLE
+              })
+            });
+            const body = await r.text();
+            console.log("LOGIN_STATUS=" + r.status);
+            console.log("LOGIN_BODY=" + body.slice(0,500));
+            if (!r.ok) process.exit(1);
+            const cookie = r.headers.get("set-cookie") || "";
+            if (!cookie.includes("erp_session=")) {
+              console.error("LOGIN_COOKIE_NOT_FOUND");
+              process.exit(1);
+            }
+            console.log("LOGIN_COOKIE_OK=true");
+          })().catch(e => { console.error("LOGIN_ERROR=" + e.message); process.exit(1); });
+          NODE
