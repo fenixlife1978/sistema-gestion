@@ -741,7 +741,7 @@ function openHist() {
 }
 function openDocs() {
   win(ic('file', 18) + ' Documentos y exportaciones',
-    '<div style="margin-bottom:10px"><label class="fl">Cargo</label><select class="inp" id="comECargo"><option>COORDINADOR</option><option>RESPONSABLE DE ORGANIZACIÓN</option><option>RESPONSABLE ELECTORAL</option><option>RESPONSABLE DE JUVENTUD</option><option>RESPONSABLE DE ACCIÓN SOCIAL</option></select></div>' +
+    '<div style="margin-bottom:10px"><label class="fl">Cargo</label><select class="inp" id="comECargo"><option>COORDINADOR</option><option>RESPONSABLE DE ORGANIZACIÓN</option><option>RESPONSABLE ELECTORAL</option><option>RESPONSABLE DE JUVENTUD</option><option>RESPONSABLE DE ACCIÓN SOCIAL</option></select></div><div id="mesaObsMaquinaWrap" style="margin-top:10px;display:"+(estadoMaquina==='OPERATIVA'?'none':'block')+""><label class="fl">Observación / incidencia de la máquina</label><textarea class="inp" id="mesaObservacionMaquina" rows="3" maxlength="500" placeholder="Describa la falla, incidencia, reparación o reemplazo realizado..." "+(cerrado?'disabled':'')+">"+esc(observacionMaquina)+"</textarea></div>' +
     '<div class="grid g2" style="gap:10px">' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="expPadron()">' + ic('dl', 15) + ' Padrón CNE completo (CSV)</button>' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="expRep()">' + ic('dl', 15) + ' Reporte cruzado (CSV)</button>' +
@@ -3052,7 +3052,7 @@ function abrirConstitucionMesa(codigo, mesa) {
   const centro=cenBy(codigo), mo=mesaOperativa(codigo,mesa), miembros=mesaMiembros(codigo,mesa);
   if(!centro) return toast('Centro no encontrado','err');
   const horaC=mo?.hora_constitucion||'', horaI=mo?.hora_inicio_votacion||'', test=Number(mo?.testigos_asistieron||0);
-  const estadoMaquina=mo?.estado_maquina||'OPERATIVA';
+  const estadoMaquina=mo?.estado_maquina||'OPERATIVA', observacionMaquina=mo?.observacion_maquina||'';
   const cargos=catalogoCargosMesa(codigo,mesa);
   const slotsHtml=cargos.map((k,i)=>{
     const asig=(CACHE.cargos||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.cargo)===String(k.cargo));
@@ -3088,7 +3088,7 @@ function abrirConstitucionMesa(codigo, mesa) {
     : '<button class="btn btn-red" '+(!acta?'disabled title="Registre primero los resultados del acta"':'')+' onclick="cerrarMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('lock',14)+' Cerrar Mesa y generar Acta de Cierre</button>';
   win(ic('check',18)+' Constitución • Mesa '+esc(mesa),
     '<div class="alert ok"><b>'+esc(centro.nombre)+'</b><br>Mesa '+esc(mesa)+' • Código '+esc(codigo)+(cerrado?' • CERRADA':' • ABIERTA')+'</div>'+
-    '<div style="margin-top:12px"><label class="fl">Estado de la máquina de votación</label><select class="inp" id="mesaEstadoMaquina" "+(cerrado?'disabled':'')+"><option value="OPERATIVA" "+(estadoMaquina==='OPERATIVA'?'selected':'')+">Operativa</option><option value="DEFECTUOSA" "+(estadoMaquina==='DEFECTUOSA'?'selected':'')+">Defectuosa</option><option value="DAÑADA" "+(estadoMaquina==='DAÑADA'?'selected':'')+">Dañada</option><option value="EN REPARACIÓN" "+(estadoMaquina==='EN REPARACIÓN'?'selected':'')+">En reparación</option><option value="REEMPLAZADA" "+(estadoMaquina==='REEMPLAZADA'?'selected':'')+">Reemplazada</option><option value="OTRO" "+(estadoMaquina==='OTRO'?'selected':'')+">Otro</option></select></div><div class="grid g2" style="gap:10px;margin-top:12px">'+
+    '<div style="margin-top:12px"><label class="fl">Estado de la máquina de votación</label><select class="inp" id="mesaEstadoMaquina" "+(cerrado?'disabled':'')+"><option value="OPERATIVA" "+(estadoMaquina==='OPERATIVA'?'selected':'')+">Operativa</option><option value="DEFECTUOSA" "+(estadoMaquina==='DEFECTUOSA'?'selected':'')+">Defectuosa</option><option value="DAÑADA" "+(estadoMaquina==='DAÑADA'?'selected':'')+">Dañada</option><option value="EN REPARACIÓN" "+(estadoMaquina==='EN REPARACIÓN'?'selected':'')+">En reparación</option><option value="REEMPLAZADA" "+(estadoMaquina==='REEMPLAZADA'?'selected':'')+">Reemplazada</option><option value="OTRO" "+(estadoMaquina==='OTRO'?'selected':'')+">Otro</option><div class="grid g2" style="gap:10px;margin-top:12px">'+
       '<div><label class="fl">Hora de Constitución</label><input class="inp mono" id="mesaHoraConstitucion" type="time" value="'+esc(horaC)+'" '+(cerrado?'disabled':'')+'></div>'+
       '<div><label class="fl">Hora de Inicio del Acto de Votación</label><input class="inp mono" id="mesaHoraInicio" type="time" value="'+esc(horaI)+'" '+(cerrado?'disabled':'')+'></div>'+
       '<div><label class="fl">Testigos que asistieron</label><input class="inp mono" id="mesaTestigos" type="number" min="0" step="1" value="'+test+'" '+(cerrado?'disabled':'')+'></div>'+
@@ -3104,10 +3104,11 @@ function abrirConstitucionMesa(codigo, mesa) {
 async function guardarConstitucionMesa(codigo,mesa) {
   const hc=$('mesaHoraConstitucion')?.value||'', hi=$('mesaHoraInicio')?.value||'', test=Number($('mesaTestigos')?.value||0);
   const estado_maquina=$('mesaEstadoMaquina')?.value||'OPERATIVA';
+  const observacion_maquina=$('mesaObservacionMaquina')?.value?.trim()||'';
   if(test<0||!Number.isInteger(test)) return toast('El número de testigos debe ser un entero no negativo','err');
   try {
     const checks=[...document.querySelectorAll('.mesaPred:checked')].filter(ch=>ch.value).map(ch=>({cedula:normC(ch.value),cargo:ch.dataset.cargo||'Cargo'}));
-    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'constituir',centro_codigo:codigo,mesa:String(mesa),hora_constitucion:hc,hora_inicio_votacion:hi,testigos_asistieron:test,estado_maquina,afectos:checks})});
+    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'constituir',centro_codigo:codigo,mesa:String(mesa),hora_constitucion:hc,hora_inicio_votacion:hi,testigos_asistieron:test,estado_maquina,observacion_maquina,afectos:checks})});
     const data=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo guardar la constitución');
     await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Constitución de Mesa guardada','ok');
   } catch(e){toast('Error guardando constitución: '+e.message,'err',8000);}
