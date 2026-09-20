@@ -4,30 +4,32 @@
   Uses only real API routes + real HTTP methods/payload shapes.
   Optional real fixture variables:
     LOAD_TEST_CENTRO, LOAD_TEST_CEDULA, LOAD_TEST_MESA
-  If they are not supplied, write endpoints are exercised through their
-  real validation paths (no fake loadTest payloads and no fake routes).
+  Sessions are supplied through SESSION_COOKIES_FILE and must contain at
+  least one real authenticated cookie per virtual user.
 */
+const fs=require('fs');
 const BASE_URL=String(process.env.BASE_URL||'').replace(/\/$/,'');
 const USERS=Math.max(1,Number(process.env.USERS||50));
 const DURATION=Math.max(10,Number(process.env.DURATION||120));
 const SCENARIO=process.env.SCENARIO||'election';
-const COOKIES=process.env.SESSION_COOKIES?JSON.parse(process.env.SESSION_COOKIES):null;
-const SINGLE=process.env.SESSION_COOKIE||'';
+const COOKIE_FILE=String(process.env.SESSION_COOKIES_FILE||'').trim();
+const COOKIES=COOKIE_FILE?JSON.parse(fs.readFileSync(COOKIE_FILE,'utf8')):[];
 const CENTRO=String(process.env.LOAD_TEST_CENTRO||'').trim();
 const CEDULA=String(process.env.LOAD_TEST_CEDULA||'').replace(/\D/g,'');
 const MESA=String(process.env.LOAD_TEST_MESA||'1').trim();
 if(!BASE_URL) throw new Error('BASE_URL requerido');
-if(!SINGLE&&!COOKIES?.length) throw new Error('SESSION_COOKIE o SESSION_COOKIES requerido');
+if(!COOKIE_FILE) throw new Error('SESSION_COOKIES_FILE requerido');
+if(!Array.isArray(COOKIES)||COOKIES.length<USERS) throw new Error('Se requieren '+USERS+' sesiones autenticadas independientes; recibidas '+(Array.isArray(COOKIES)?COOKIES.length:0));
 
 const stats={total:0,ok:0,errors:0,byStatus:{},lat:[],timeouts:0,start:Date.now()};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const percentile=(a,p)=>{if(!a.length)return 0;const b=[...a].sort((x,y)=>x-y);return b[Math.min(b.length-1,Math.floor((p/100)*(b.length-1)))]};
-const cookieFor=i=>COOKIES?.[i%COOKIES.length]||SINGLE;
+const cookieFor=i=>COOKIES[i];
 
 function requestSpec(i){
   const specs=[
     {path:'/api/health',method:'GET',expected:[200],public:true},
-    {path:'/api/auth/session',method:'GET',expected:[200,401]},
+    {path:'/api/auth/session',method:'GET',expected:[200]},
     {path:'/api/mesas/miembros',method:'POST',expected:[200,400,404,409],body:CENTRO?{accion:'historial_maquina',centro_codigo:CENTRO,mesa:MESA}:{accion:'historial_maquina'}},
     {path:'/api/cortes',method:'POST',expected:[201,400,404],body:CENTRO?{centro_codigo:CENTRO,etiqueta:'LOAD-TEST'}:{centro_codigo:''}},
     {path:'/api/actas',method:'POST',expected:[201,400,404,409],body:CENTRO?{centro_codigo:CENTRO,mesa:MESA,votos_partido:0}:{centro_codigo:'',mesa:'1',votos_partido:0}},
@@ -35,7 +37,7 @@ function requestSpec(i){
   ];
   const metric=i%3===0;
   const burst=(Date.now()-stats.start)%900000<120000;
-  if(!metric&&!burst) return specs.slice(0,2);
+  if(!metric&&!burst)return specs.slice(0,2);
   return specs;
 }
 
@@ -62,12 +64,9 @@ async function virtualUser(i,end){
 }
 
 (async()=>{
-  console.log(JSON.stringify({baseUrl:BASE_URL,users:USERS,durationSeconds:DURATION,scenario:SCENARIO,fixtureConfigured:Boolean(CENTRO),started:new Date().toISOString()}));
+  console.log(JSON.stringify({baseUrl:BASE_URL,users:USERS,durationSeconds:DURATION,scenario:SCENARIO,fixtureConfigured:Boolean(CENTRO),independentSessions:COOKIES.length>=USERS,started:new Date().toISOString()}));
   const end=Date.now()+DURATION*1000;
   await Promise.all(Array.from({length:USERS},(_,i)=>virtualUser(i,end)));
-
-  // Never spread a large latency array into Math.max: at 300/400 VUs this can
-  // overflow the JS argument stack and silently suppress the final report.
   const maxLatency=stats.lat.reduce((max,v)=>v>max?v:max,0);
   console.log(JSON.stringify({
     totalRequests:stats.total,acceptedResponses:stats.ok,unexpectedResponses:stats.errors,
