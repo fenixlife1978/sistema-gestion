@@ -1,4 +1,4 @@
-const {parseBody,turso,rowsFrom,verify,getCookie}=require('../../lib/auth');
+const {parseBody,turso,rowsFrom,verify,getCookie}=require('../lib/auth');
 
 const ci=v=>String(v??'').replace(/\D/g,'').slice(0,20);
 const st=(v,n)=>String(v??'').trim().slice(0,n);
