@@ -166,6 +166,7 @@ const SCHEMA = [
     hora_inicio_votacion TEXT,
     testigos_asistieron INTEGER NOT NULL DEFAULT 0 CHECK(testigos_asistieron >= 0),
     estado_maquina TEXT NOT NULL DEFAULT 'OPERATIVA' CHECK(estado_maquina IN ('OPERATIVA','DEFECTUOSA','DAÑADA','EN REPARACIÓN','REEMPLAZADA','OTRO')),
+    observacion_maquina TEXT,
     estado TEXT NOT NULL DEFAULT 'ABIERTA' CHECK(estado IN ('ABIERTA','CERRADA')),
     hora_cierre TEXT,
     cierre_por INTEGER,
@@ -177,6 +178,7 @@ const SCHEMA = [
     FOREIGN KEY(actualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
   )`,
   `ALTER TABLE mesa_operativa ADD COLUMN estado_maquina TEXT NOT NULL DEFAULT 'OPERATIVA'`,
+  `ALTER TABLE mesa_operativa ADD COLUMN observacion_maquina TEXT`,
   `ALTER TABLE mesa_operativa ADD COLUMN estado TEXT NOT NULL DEFAULT 'ABIERTA'`,
   `ALTER TABLE mesa_operativa ADD COLUMN hora_cierre TEXT`,
   `ALTER TABLE mesa_operativa ADD COLUMN cierre_por INTEGER`,
