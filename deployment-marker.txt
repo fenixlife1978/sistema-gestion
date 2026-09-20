@@ -1,2 +1,2 @@
 Vercel Git trigger verification — 2026-09-20
-This file is intentionally harmless and exists only to verify Git-triggered Preview deployment synchronization.
+Verified-commit requirement was disabled for this project; this marker intentionally triggers a fresh Preview deployment.
