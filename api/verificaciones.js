@@ -24,10 +24,7 @@ module.exports=async function(req,res){
     if(!/^\d{1,4}$/.test(mesa))
       return fail(res,400,'Número de mesa inválido');
 
-    const centros=rowsFrom(await turso([{
-      q:'SELECT codigo,nombre,mesas FROM centros WHERE codigo=? LIMIT 1',
-      params:[centro]
-    }]));
+    const centros=rowsFrom(await turso([{q:'SELECT codigo,nombre,mesas FROM centros WHERE codigo=? LIMIT 1',params:[centro]}]));
     const c=centros[0];
     if(!c) return fail(res,404,'Centro electoral no encontrado');
 
@@ -36,31 +33,26 @@ module.exports=async function(req,res){
     if(maxMesas>0 && (nMesa<1 || nMesa>maxMesas))
       return fail(res,409,'La mesa indicada no pertenece al centro seleccionado');
 
-    const personas=rowsFrom(await turso([
+    const validacion=await turso([
       {q:'SELECT cedula FROM centro_cargos WHERE centro_codigo=? AND cedula=? LIMIT 1',params:[centro,cedula]},
       {q:'SELECT p.cedula FROM padron p WHERE p.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
       {q:'SELECT a.cedula FROM asignaciones a JOIN padron p ON p.cedula=a.cedula WHERE a.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
       {q:'SELECT r.cedula FROM reclutadores r JOIN padron p ON p.cedula=r.cedula WHERE r.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
       {q:'SELECT d.cedula FROM direccion_ejecutiva d JOIN padron p ON p.cedula=d.cedula WHERE d.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
-      {q:'SELECT cv.cedula FROM comite_vecinal cv JOIN padron p ON p.cedula=cv.cedula WHERE cv.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']}
-    ]));
+      {q:'SELECT cv.cedula FROM comite_vecinal cv JOIN padron p ON p.cedula=cv.cedula WHERE cv.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
+      {q:'SELECT id,centro_codigo,mesa,estado FROM verificaciones_votacion WHERE cedula=? LIMIT 1',params:[cedula]}
+    ]);
+    const personas=validacion.slice(0,6).flatMap(x=>rowsFrom(x));
     if(!personas.length) return fail(res,409,'La persona no tiene un cargo o función registrada en este centro');
 
-    const existing=rowsFrom(await turso([{
-      q:'SELECT id,centro_codigo,mesa,estado FROM verificaciones_votacion WHERE cedula=? LIMIT 1',
-      params:[cedula]
-    }]));
+    const existing=rowsFrom(validacion[6] || {});
 
     if(existing.length){
       const v=existing[0];
-      await turso([{
-        q:'UPDATE verificaciones_votacion SET centro_codigo=?,mesa=?,estado=?,verificado_en=datetime(\'now\'),verificado_por=? WHERE id=?',
-        params:[centro,mesa,'VOTO_VERIFICADO',session.uid,v.id]
-      }]);
-      await turso([{
-        q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
-        params:['voto','Verificación individual actualizada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]
-      }]);
+      await turso([
+        {q:'UPDATE verificaciones_votacion SET centro_codigo=?,mesa=?,estado=?,verificado_en=datetime(\'now\'),verificado_por=? WHERE id=?',params:[centro,mesa,'VOTO_VERIFICADO',session.uid,v.id]},
+        {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['voto','Verificación individual actualizada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]}
+      ]);
       return res.status(200).json({ok:true,accion:'actualizada',id:v.id,centro_codigo:centro,mesa});
     }
 
@@ -75,11 +67,11 @@ module.exports=async function(req,res){
       throw e;
     }
 
-    const inserted=rowsFrom(await turso([{q:'SELECT id FROM verificaciones_votacion WHERE cedula=? LIMIT 1',params:[cedula]}]));
-    await turso([{
-      q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
-      params:['voto','Verificación individual registrada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]
-    }]);
+    const post=await turso([
+      {q:'SELECT id FROM verificaciones_votacion WHERE cedula=? LIMIT 1',params:[cedula]},
+      {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['voto','Verificación individual registrada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]}
+    ]);
+    const inserted=rowsFrom(post[0] || {});
 
     return res.status(201).json({ok:true,accion:'registrada',id:inserted[0]?.id||null,centro_codigo:centro,mesa});
   }catch(e){
