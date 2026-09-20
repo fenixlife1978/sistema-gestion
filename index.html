@@ -229,6 +229,44 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
+/* ----------- CLIENTE TURSO (vía API proxy) ----------- */
+const API_URL = '/api/turso';
+async function turso(stmts) {
+  const r = await fetch(API_URL, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ statements: Array.isArray(stmts) ? stmts.map(s => ({ q: s.sql || s.q, params: s.args || s.params || [] })) : [{ q: stmts.sql || stmts.q, params: stmts.args || stmts.params || [] }] })
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error('HTTP ' + r.status + ': ' + txt);
+  }
+  const j = await r.json();
+  if (j.error) {
+    const errMsg = typeof j.error === 'string' ? j.error : (j.error.message || 'Error Turso');
+    throw new Error(errMsg);
+  }
+  if (Array.isArray(j)) {
+    const errItem = j.find(item => item && item.error);
+    if (errItem) {
+      const msg = typeof errItem.error === 'string' ? errItem.error : (errItem.error.message || 'Error Turso');
+      throw new Error(msg);
+    }
+  }
+  return Array.isArray(stmts) ? j : j[0];
+}
+async function q(sql, args = []) {
+  const r = await turso({ sql, args });
+  if (!r || !r.results) return [];
+  const cols = r.results.columns, rows = r.results.rows;
+  return rows.map(row => {
+    const o = {};
+    cols.forEach((c, i) => { o[c] = row[i]; });
+    return o;
+  });
+}
+
 /* ----------- HASH DE CLAVES (SHA-256 + sal) ----------- */
 const SAL = 'c1x10_v1_';
 async function hash(pw) {
