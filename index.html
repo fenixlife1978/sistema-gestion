@@ -611,7 +611,7 @@ async function refreshAll() {
   }
 }
 
-function padBy(c) { return CACHE.pad.find(p => p.cedula === normC(c)); }
+function padBy(c) { const n=normC(c); return CACHE.pad.find(p => normC(p.cedula) === n); }
 function cenBy(cod) { return CACHE.centros.find(c => c.codigo === String(cod)); }
 function nomP(p) { return ((p.p_nombre || '') + ' ' + (p.s_nombre || '')).trim(); }
 function apeP(p) { return ((p.p_apellido || '') + ' ' + (p.s_apellido || '')).trim(); }
@@ -1527,7 +1527,7 @@ const CARGOS_DIRECCION = [
 
 function getCargosCentro(codigo) {
   return catalogoCargosCentro(codigo).map(nombre => {
-    const asig = CACHE.cargos.find(c => c.centro_codigo === codigo && String(c.cargo||'').trim() === nombre);
+    const asig = CACHE.cargos.find(c => String(c.centro_codigo) === String(codigo) && String(c.cargo||'').trim() === nombre);
     return { cargo: nombre, cedula: asig ? asig.cedula : null, persona: asig && (asig.p_apellido || asig.p_nombre) ? asig : null, telefono: asig ? asig.telefono : null, direccion: asig ? asig.direccion : null };
   });
 }
@@ -1631,7 +1631,7 @@ function datosVerificacionCentro(v) {
   const p=padBy(ci)||v||{};
   const nombre=((p.p_apellido||'')+' '+(p.s_apellido||'')+', '+(p.p_nombre||'')+' '+(p.s_nombre||'')).replace(/^\s*,\s*|,\s*$/g,'').trim();
   const operador=v?.operador_nom || ((CACHE.users||[]).find(u=>Number(u.id)===Number(v?.verificado_por))||{}).nombre || 'No identificado';
-  const hora=v?.verificado_en ? horaVE(v.verificado_en) : 'No registrada';
+  const ts=v?.verificado_en || v?.fecha_verificacion || v?.creado || null; const hora=ts ? horaVE(ts) : 'No registrada';
   return {ci,persona:nombre||'Persona no encontrada',hora,mesa:String(v?.mesa||''),operador,cargo:v?.cargo||''};
 }
 
