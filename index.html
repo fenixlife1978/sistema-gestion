@@ -1505,16 +1505,14 @@ const CARGOS_CENTRO = [
   'Coordinador de Logística',
   'Coordinador Electoral',
   'Coordinador de Movilización',
-  'Coordinador de Juventud',
-  'Testigo Principal Mesa 1',
-  'Testigo Suplente Mesa 1',
-  'Testigo Principal Mesa 2',
-  'Testigo Suplente Mesa 2',
-  'Testigo Principal Mesa 3',
-  'Testigo Suplente Mesa 3',
-  'Testigo Principal Mesa 4',
-  'Testigo Suplente Mesa 4'
+  'Coordinador de Juventud'
 ];
+function catalogoCargosCentro(codigo) {
+  const c=cenBy(codigo), n=Math.max(1,Number(c?.mesas||1));
+  const out=CARGOS_CENTRO.slice();
+  for(let i=1;i<=n;i++){ out.push('Testigo Principal Mesa '+i,'Testigo Suplente Mesa '+i); }
+  return out;
+}
 
 const CARGOS_DIRECCION = [
   'PRESIDENTE','SECRETARIA GENERAL','SECRETARIA DE ORGANIZACION','SECRETARIA ELECTORAL',
@@ -1529,9 +1527,9 @@ const CARGOS_DIRECCION = [
 ];
 
 function getCargosCentro(codigo) {
-  return CARGOS_CENTRO.map(nombre => {
-    const asig = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === nombre);
-    return { cargo: nombre, cedula: asig ? asig.cedula : null, persona: asig && asig.p_apellido ? asig : null, telefono: asig ? asig.telefono : null, direccion: asig ? asig.direccion : null };
+  return catalogoCargosCentro(codigo).map(nombre => {
+    const asig = CACHE.cargos.find(c => c.centro_codigo === codigo && String(c.cargo||'').trim() === nombre);
+    return { cargo: nombre, cedula: asig ? asig.cedula : null, persona: asig && (asig.p_apellido || asig.p_nombre) ? asig : null, telefono: asig ? asig.telefono : null, direccion: asig ? asig.direccion : null };
   });
 }
 
@@ -1553,7 +1551,7 @@ function runCargoSearch(codigo, idx) {
 }
 
 function openCargoManual(codigo, idx, query) {
-  const cargo = CARGOS_CENTRO[idx];
+  const cargo = getCargosCentro(codigo)[idx]?.cargo || CARGOS_CENTRO[idx];
   const isCed = /^\d{5,9}$/.test(normC(query));
   win(ic('userPlus', 18) + ' Registrar y asignar: ' + esc(cargo),
     '<p style="font-size:12px;color:var(--mut);margin-bottom:12px">Complete los datos. La persona se guardará en el padrón y se asignará al cargo.</p>' +
@@ -1590,7 +1588,7 @@ async function saveCargoManual(codigo, idx) {
 }
 
 async function assignCargo(codigo, idx, cedula, tel, dir, padron) {
-  const cargo = CARGOS_CENTRO[idx];
+  const cargo = getCargosCentro(codigo)[idx]?.cargo || CARGOS_CENTRO[idx];
   tel = tel ? String(tel).trim() : '';
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
