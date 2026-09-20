@@ -4,14 +4,15 @@ on:
   push:
     branches:
       - main
-      - audit/hardening-2026-09-19
     paths:
       - .github/workflows/authenticated-load-test.yml
+      - scripts/load-test.mjs
   workflow_dispatch:
     inputs:
       base_url:
-        description: "Vercel Preview URL to test"
-        required: true
+        description: "Vercel URL to test"
+        required: false
+        default: "https://sistema-gestion-q70bhn7tw-fenixlife.vercel.app"
         type: string
       duration:
         description: "Seconds per load level"
@@ -28,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-pcrlrv723-fenixlife.vercel.app' }}
+      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-q70bhn7tw-fenixlife.vercel.app' }}
       LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
       LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
       LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
@@ -37,10 +38,11 @@ jobs:
       LOAD_TEST_MESA: ${{ secrets.LOAD_TEST_MESA }}
       DURATION: ${{ inputs.duration || '120' }}
     steps:
-      - name: Checkout hardening branch
+      - name: Checkout target commit
         uses: actions/checkout@v4
         with:
-          ref: audit/hardening-2026-09-19
+          ref: ${{ github.sha }}
+          fetch-depth: 1
 
       - name: Verify test prerequisites
         run: |
@@ -49,6 +51,8 @@ jobs:
           test -n "$LOGIN_PASSWORD"
           test -n "$LOGIN_ROLE"
           node --version
+          echo "Testing commit: $(git rev-parse HEAD)"
+          echo "Target URL: $BASE_URL"
 
       - name: Login and obtain runtime session
         shell: bash
