@@ -7,7 +7,7 @@
   Sessions are supplied through SESSION_COOKIES_FILE and must contain at
   least one real authenticated cookie per virtual user.
 */
-const fs=require('fs');
+import fs from 'node:fs';
 const BASE_URL=String(process.env.BASE_URL||'').replace(/\/$/,'');
 const USERS=Math.max(1,Number(process.env.USERS||50));
 const DURATION=Math.max(10,Number(process.env.DURATION||120));
@@ -20,6 +20,7 @@ const MESA=String(process.env.LOAD_TEST_MESA||'1').trim();
 if(!BASE_URL) throw new Error('BASE_URL requerido');
 if(!COOKIE_FILE) throw new Error('SESSION_COOKIES_FILE requerido');
 if(!Array.isArray(COOKIES)||COOKIES.length<USERS) throw new Error('Se requieren '+USERS+' sesiones autenticadas independientes; recibidas '+(Array.isArray(COOKIES)?COOKIES.length:0));
+if(!CENTRO||!CEDULA||!MESA) throw new Error('Fixture electoral requerido: defina LOAD_TEST_CENTRO, LOAD_TEST_CEDULA y LOAD_TEST_MESA antes de ejecutar carga contra producción.');
 
 const stats={total:0,ok:0,errors:0,byStatus:{},lat:[],timeouts:0,start:Date.now()};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -28,7 +29,7 @@ const cookieFor=i=>COOKIES[i];
 
 function requestSpec(i){
   const specs=[
-    {path:'/api/health',method:'GET',expected:[200],public:true},
+    {path:'/api/auth/session',method:'GET',expected:[200]},
     {path:'/api/auth/session',method:'GET',expected:[200]},
     {path:'/api/mesas/miembros',method:'POST',expected:[200,400,404,409],body:CENTRO?{accion:'historial_maquina',centro_codigo:CENTRO,mesa:MESA}:{accion:'historial_maquina'}},
     {path:'/api/cortes',method:'POST',expected:[201,400,404],body:CENTRO?{centro_codigo:CENTRO,etiqueta:'LOAD-TEST'}:{centro_codigo:''}},
