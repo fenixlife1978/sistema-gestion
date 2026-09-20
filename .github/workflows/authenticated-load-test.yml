@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-q79tiq4ym-fenixlife.vercel.app' }}
+      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-4jwsj08n0-fenixlife.vercel.app' }}
       LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
       LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
       LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
@@ -46,32 +46,15 @@ jobs:
           test -n "$LOGIN_ROLE"
           node --version
 
-      - name: Mint GitHub OIDC token for Vercel Trusted Sources
-        id: vercel-oidc
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const token = await core.getIDToken();
-            core.setSecret(token);
-            core.setOutput('token', token);
-
       - name: Login and obtain runtime session
         shell: bash
-        env:
-          VERCEL_TRUSTED_OIDC_TOKEN: ${{ steps.vercel-oidc.outputs.token }}
         run: |
-          test -n "$VERCEL_TRUSTED_OIDC_TOKEN"
-          echo "::add-mask::$VERCEL_TRUSTED_OIDC_TOKEN"
           COOKIE="$(node -e '
           (async()=>{
             const url=process.env.BASE_URL.replace(/\/$/,"")+"/api/auth/login";
             const r=await fetch(url,{
               method:"POST",
-              headers:{
-                "content-type":"application/json",
-                "accept":"application/json",
-                "x-vercel-trusted-oidc-idp-token":process.env.VERCEL_TRUSTED_OIDC_TOKEN
-              },
+              headers:{"content-type":"application/json","accept":"application/json"},
               body:JSON.stringify({
                 usuario:process.env.LOGIN_USER,
                 clave:process.env.LOGIN_PASSWORD,
