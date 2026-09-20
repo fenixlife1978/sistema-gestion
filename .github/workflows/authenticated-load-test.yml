@@ -1,13 +1,6 @@
 name: authenticated-load-test
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/authenticated-load-test.yml
-      - scripts/load-test.mjs
-      - scripts/create-load-test-sessions.mjs
   workflow_dispatch:
     inputs:
       base_url:
@@ -18,7 +11,12 @@ on:
       duration:
         description: "Seconds per load level"
         required: true
-        default: "120"
+        default: "30"
+        type: string
+      confirm_production_load:
+        description: "Type RUN-PRODUCTION-LOAD to authorize real production load"
+        required: true
+        default: ""
         type: string
 
 permissions:
@@ -50,6 +48,10 @@ jobs:
 
       - name: Verify test prerequisites
         run: |
+          test "${{ inputs.confirm_production_load }}" = "RUN-PRODUCTION-LOAD"
+          test -n "$LOAD_TEST_CENTRO"
+          test -n "$LOAD_TEST_CEDULA"
+          test -n "$LOAD_TEST_MESA"
           test -n "$BASE_URL"
           test -n "$LOGIN_USER"
           test -n "$LOGIN_PASSWORD"
