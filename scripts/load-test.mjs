@@ -3,6 +3,7 @@
   Load test for sistema-gestion.
   Node 18+ only; no external dependencies.
   Does NOT bypass Vercel Preview Protection.
+  Deployment verification marker: 2026-09-20.
 
   Examples:
     BASE_URL=https://... SESSION_COOKIE='session=...' USERS=50 DURATION=300 node scripts/load-test.mjs
