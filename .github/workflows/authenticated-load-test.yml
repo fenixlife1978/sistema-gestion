@@ -3,6 +3,7 @@ name: authenticated-load-test
 on:
   push:
     branches:
+      - main
       - audit/hardening-2026-09-19
     paths:
       - .github/workflows/authenticated-load-test.yml
@@ -96,6 +97,14 @@ jobs:
         run: |
           USERS=200 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-200.log
 
+      - name: Load 300 users
+        run: |
+          USERS=300 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-300.log
+
+      - name: Load 400 users
+        run: |
+          USERS=400 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-400.log
+
       - name: Upload load-test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -106,4 +115,6 @@ jobs:
             load-100.log
             load-150.log
             load-200.log
+            load-300.log
+            load-400.log
           if-no-files-found: warn
