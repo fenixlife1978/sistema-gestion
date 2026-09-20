@@ -21,35 +21,29 @@ module.exports=async function(req,res){
     if(!centro||!/^[0-9]{1,4}$/.test(mesa)||!Number.isInteger(votos)||votos<0)
       return fail(res,400,'Centro, mesa y cantidad de votos son inválidos');
 
-    const centros=rowsFrom(await turso([{
-      q:'SELECT codigo,nombre,mesas FROM centros WHERE codigo=? LIMIT 1',
-      params:[centro]
-    }]));
-    const c=centros[0];
+    const pre=await turso([
+      {q:'SELECT codigo,nombre,mesas FROM centros WHERE codigo=? LIMIT 1',params:[centro]},
+      {q:'SELECT estado FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]},
+      {q:'SELECT id,votos_partido FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}
+    ]);
+    const c=rowsFrom(pre[0] || {})[0];
     if(!c) return fail(res,404,'Centro electoral no encontrado');
 
     const maxMesas=Number(c.mesas||0);
     const nMesa=Number(mesa);
-    const mesaEstado=rowsFrom(await turso([{q:'SELECT estado FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]))[0];
+    const mesaEstado=rowsFrom(pre[1] || {})[0];
     if(mesaEstado?.estado==='CERRADA') return fail(res,409,'La mesa está cerrada; no se pueden modificar sus resultados');
     if(maxMesas>0&&(nMesa<1||nMesa>maxMesas))
       return fail(res,409,'La mesa indicada no pertenece al centro seleccionado');
 
-    const existente=rowsFrom(await turso([{
-      q:'SELECT id,votos_partido FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',
-      params:[centro,mesa]
-    }]));
+    const existente=rowsFrom(pre[2] || {});
 
     const now=new Date().toISOString();
     if(existente.length){
-      await turso([{
-        q:'UPDATE actas_mesa SET votos_partido=?,cantidad_acta=?,actualizado_en=?,actualizado_por=? WHERE id=?',
-        params:[votos,votos,now,session.uid,existente[0].id]
-      }]);
-      await turso([{
-        q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
-        params:['acta','Acta CNE actualizada: votos del partido • Centro '+centro+' • Mesa '+mesa+' • '+votos,session.uid]
-      }]);
+      await turso([
+        {q:'UPDATE actas_mesa SET votos_partido=?,cantidad_acta=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:[votos,votos,now,session.uid,existente[0].id]},
+        {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['acta','Acta CNE actualizada: votos del partido • Centro '+centro+' • Mesa '+mesa+' • '+votos,session.uid]}
+      ]);
       return res.status(200).json({ok:true,accion:'actualizada',id:existente[0].id,centro_codigo:centro,mesa,votos_partido:votos});
     }
 
@@ -64,11 +58,11 @@ module.exports=async function(req,res){
       throw e;
     }
 
-    const inserted=rowsFrom(await turso([{q:'SELECT id FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
-    await turso([{
-      q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
-      params:['acta','Acta CNE registrada: votos del partido • Centro '+centro+' • Mesa '+mesa+' • '+votos,session.uid]
-    }]);
+    const post=await turso([
+      {q:'SELECT id FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]},
+      {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['acta','Acta CNE registrada: votos del partido • Centro '+centro+' • Mesa '+mesa+' • '+votos,session.uid]}
+    ]);
+    const inserted=rowsFrom(post[0] || {});
 
     return res.status(201).json({ok:true,accion:'registrada',id:inserted[0]?.id||null,centro_codigo:centro,mesa,votos_partido:votos});
   }catch(e){
