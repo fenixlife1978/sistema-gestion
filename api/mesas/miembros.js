@@ -14,12 +14,13 @@ module.exports=async function(req,res){
     if(!centro||!mesa) return fail(res,400,'Centro y mesa son obligatorios');
     const cen=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo=? LIMIT 1',params:[centro]}]));
     if(!cen.length) return fail(res,404,'Centro electoral no encontrado');
-    const mo=rowsFrom(await turso([{q:'SELECT id,estado,hora_cierre FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
+    const mo=rowsFrom(await turso([{q:'SELECT id,estado,estado_maquina,hora_cierre FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
     let mesaId=mo[0]?.id;
     if(mo[0]?.estado==='CERRADA' && accion!=='cerrar') return fail(res,409,'La mesa ya está cerrada y no admite modificaciones');
     if(accion==='constituir'){
-      const hc=clean(b.hora_constitucion,10), hi=clean(b.hora_inicio_votacion,10), test=Number(b.testigos_asistieron);
-      if((hc&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hc))||(hi&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hi))||!Number.isInteger(test)||test<0) return fail(res,400,'Datos de constitución inválidos');
+      const hc=clean(b.hora_constitucion,10), hi=clean(b.hora_inicio_votacion,10), test=Number(b.testigos_asistieron), maquina=clean(b.estado_maquina,30).toUpperCase();
+      const estadosMaquina=['OPERATIVA','DEFECTUOSA','DAÑADA','EN REPARACIÓN','REEMPLAZADA','OTRO'];
+      if((hc&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hc))||(hi&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hi))||!Number.isInteger(test)||test<0||!estadosMaquina.includes(maquina)) return fail(res,400,'Datos de constitución inválidos');
       const afectos=Array.isArray(b.afectos)?b.afectos.slice(0,100):[];
       const cargos=rowsFrom(await turso([{q:'SELECT cedula,cargo FROM centro_cargos WHERE centro_codigo=? AND cedula IS NOT NULL',params:[centro]}]));
       const allowed=new Map(cargos.map(x=>[ci(x.cedula),clean(x.cargo,120)]));
@@ -29,15 +30,15 @@ module.exports=async function(req,res){
         if(!c||!allowed.has(c)||allowed.get(c)!==cargo) return fail(res,403,'Miembro afecto no corresponde a un cargo registrado en el centro');
         selected.push({cedula:c,cargo});
       }
-      if(mesaId) await turso([{q:'UPDATE mesa_operativa SET hora_constitucion=?,hora_inicio_votacion=?,testigos_asistieron=?,actualizado_en=datetime(\'now\'),actualizado_por=? WHERE id=?',params:[hc||null,hi||null,test,session.uid,mesaId]}]);
+      if(mesaId) await turso([{q:'UPDATE mesa_operativa SET hora_constitucion=?,hora_inicio_votacion=?,testigos_asistieron=?,actualizado_en=datetime(\'now\'),actualizado_por=? WHERE id=?',params:[hc||null,hi||null,test,maquina,session.uid,mesaId]}]);
       else {
-        await turso([{q:'INSERT INTO mesa_operativa(centro_codigo,mesa,hora_constitucion,hora_inicio_votacion,testigos_asistieron,actualizado_por) VALUES(?,?,?,?,?,?)',params:[centro,mesa,hc||null,hi||null,test,session.uid]}]);
+        await turso([{q:'INSERT INTO mesa_operativa(centro_codigo,mesa,hora_constitucion,hora_inicio_votacion,testigos_asistieron,estado_maquina,actualizado_por) VALUES(?,?,?,?,?,?,?)',params:[centro,mesa,hc||null,hi||null,test,maquina,session.uid]}]);
         mesaId=rowsFrom(await turso([{q:'SELECT id FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]))[0]?.id;
       }
       if(!mesaId) return fail(res,500,'No se pudo identificar la mesa constituida');
       await turso([{q:'DELETE FROM mesa_miembros WHERE mesa_operativa_id=? AND tipo=?',params:[mesaId,'AFECTO']}]);
       for(const s of selected) await turso([{q:'INSERT OR IGNORE INTO mesa_miembros(mesa_operativa_id,cedula,cargo,tipo,origen,autorizado,registrado_por) VALUES(?,?,?,?,?,?,?)',params:[mesaId,s.cedula,s.cargo,'AFECTO','CENTRO',1,session.uid]}]);
-      await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Constitución Mesa '+mesa+' • Centro '+centro+' • Hora constitución '+(hc||'N/D')+' • Inicio '+(hi||'N/D')+' • Testigos '+test,session.uid]}]);
+      await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Constitución Mesa '+mesa+' • Centro '+centro+' • Hora constitución '+(hc||'N/D')+' • Inicio '+(hi||'N/D')+' • Testigos '+test+' • Máquina '+maquina,session.uid]}]);
       return res.status(200).json({ok:true,mesa_id:mesaId});
     }
     if(accion==='cerrar'){
