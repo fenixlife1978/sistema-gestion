@@ -1621,12 +1621,28 @@ async function removeCargoCentro(codigo, idx) {
   } catch (e) { toast(e.message, 'err') }
 }
 
+function ultimaVerificacionCentro(codigo) {
+  const rows=(CACHE.verificacion||[]).filter(v=>String(v.centro_codigo)===String(codigo));
+  if(!rows.length) return null;
+  return rows.slice().sort((a,b)=>String(b.verificado_en||'').localeCompare(String(a.verificado_en||'')))[0];
+}
+function datosVerificacionCentro(v) {
+  const ci=normC(v?.cedula||'');
+  const p=padBy(ci)||v||{};
+  const nombre=((p.p_apellido||'')+' '+(p.s_apellido||'')+', '+(p.p_nombre||'')+' '+(p.s_nombre||'')).replace(/^\s*,\s*|,\s*$/g,'').trim();
+  const operador=v?.operador_nom || ((CACHE.users||[]).find(u=>Number(u.id)===Number(v?.verificado_por))||{}).nombre || 'No identificado';
+  const hora=v?.verificado_en ? horaVE(v.verificado_en) : 'No registrada';
+  return {ci,persona:nombre||'Persona no encontrada',hora,mesa:String(v?.mesa||''),operador,cargo:v?.cargo||''};
+}
+
 function openCentro(cod) {
   const c = cenBy(cod); if (!c) return;
   const list = CACHE.pad.filter(p => p.centro_votacion === cod);
   const R = [[18, 25, '18–25'], [26, 35, '26–35'], [36, 45, '36–45'], [46, 55, '46–55'], [56, 65, '56–65'], [66, 999, '66+']];
   const cargos = getCargosCentro(cod);
   const asignados = cargos.filter(k => k.persona).length;
+  const ultimaVerif = ultimaVerificacionCentro(cod);
+  const ultimaVerifData = ultimaVerif ? datosVerificacionCentro(ultimaVerif) : null;
   const cargoRows = cargos.map((k, i) => {
     const p = k.persona;
     const bgColor = i < 6 ? '#f0fdf4' : '#eff6ff';
@@ -1646,7 +1662,21 @@ function openCentro(cod) {
     '<div class="grid g4" style="margin-bottom:14px"><div class="ck-it"><b>' + list.length + '</b><span>Electores</span></div><div class="ck-it"><b>' + list.filter(p => p.sexo === 'M').length + ' / ' + list.filter(p => p.sexo === 'F').length + '</b><span>M / F</span></div><div class="ck-it"><b>' + list.filter(p => asignDe(p.cedula)).length + '</b><span>Comprometidos</span></div><div class="ck-it"><b>' + (() => { const ev = list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad; return ed > 0 && ed <= 120; }); return ev.length ? (ev.reduce((a, p) => a + (edadDe(p.fecha_nac) || p.edad || 0), 0) / ev.length).toFixed(0) : ''; })() + '</b><span>Edad prom.</span></div></div>' +
     '<label class="fl">Rango etario del centro</label><div id="ch-cenE"></div>' +
     '<div style="margin-top:12px"><label class="fl">Mesas de votación (editable)</label><div style="display:flex;gap:8px"><input class="inp" type="number" min="1" value="' + (c.mesas || 1) + '" style="max-width:110px" id="cMes"><button class="btn btn-w" onclick="updateMesas(\'' + c.codigo + '\')">Guardar en Turso</button></div></div>' +
-    '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label class="fl" style="font-size:13px;margin-bottom:8px">Cargos del Centro Electoral <span class="chip chip-b">' + asignados + '/14 asignados</span></label><div style="display:grid;gap:8px">' + cargoRows + '</div></div>',
+    '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">' +
+      '<label class="fl" style="font-size:13px;margin-bottom:8px">Última verificación del centro</label>' +
+      (ultimaVerifData
+        ? '<div class="kcard" style="padding:12px;border-left:4px solid var(--green);background:#fff">' +
+            '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">' +
+              '<div><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Persona verificada</span><div style="font-weight:700;color:var(--navy)">' + esc(ultimaVerifData.persona) + '</div></div>' +
+              '<div><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Cédula</span><div class="mono" style="font-weight:700">' + esc(fC((padBy(ultimaVerifData.ci)||{}).letra||'V',ultimaVerifData.ci)) + '</div></div>' +
+              '<div><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Mesa</span><div style="font-weight:700">' + esc(ultimaVerifData.mesa||'No registrada') + '</div></div>' +
+              '<div><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Hora de verificación</span><div class="mono" style="font-weight:700">' + esc(ultimaVerifData.hora) + '</div></div>' +
+              '<div style="grid-column:1/-1"><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Operador</span><div style="font-weight:700;color:var(--teal)">' + esc(ultimaVerifData.operador) + '</div></div>' +
+            '</div>' +
+          '</div>'
+        : '<div class="empty" style="padding:14px;border:1px dashed var(--line2);border-radius:6px">No hay verificaciones registradas para este centro.</div>') +
+    '</div>' +
+    '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label class="fl" style="font-size:13px;margin-bottom:8px">Cargos predeterminados del Centro Electoral <span class="chip chip-b">' + asignados + '/' + cargos.length + ' asignados</span></label><div style="font-size:11px;color:var(--mut);margin-bottom:8px">Se muestran todos los cargos predeterminados; los que no tengan persona asignada permanecen disponibles para asignación.</div><div style="display:grid;gap:8px">' + cargoRows + '</div></div>',
     '<button class="btn btn-w" onclick="closeModal();REPF.centro=\'' + c.codigo + '\';go(\'rep\')">' + ic('chart', 14) + ' Reportes</button><button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 780);
   vbars('cenE', R.map(r => ({ l: r[2], v: list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad || 0; return ed >= r[0] && ed <= r[1]; }).length })));
 }
@@ -3039,8 +3069,16 @@ function miembrosPredeterminadosCentro(codigo) {
 }
 function catalogoCargosMesa(codigo,mesa) {
   const n=String(mesa);
-  const cargos=getCargosCentro(codigo).filter(x => String(x.cargo||'').toLowerCase().includes('mesa '+n.toLowerCase()) || !String(x.cargo||'').toLowerCase().includes('mesa '));
-  return cargos;
+  const base=CARGOS_CENTRO.map(c=>({cargo:c,cedula:null,persona:null}));
+  const testigos=[
+    {cargo:'Testigo Principal Mesa '+n,cedula:null,persona:null},
+    {cargo:'Testigo Suplente Mesa '+n,cedula:null,persona:null}
+  ];
+  const source=getCargosCentro(codigo);
+  return [...base,...testigos].map(k=>{
+    const asig=source.find(x=>String(x.cargo||'').trim()===k.cargo);
+    return asig ? {...k,...asig} : k;
+  });
 }
 function estadoSlotMesa(codigo,mesa,cargo) {
   const ms=mesaMiembros(codigo,mesa);
