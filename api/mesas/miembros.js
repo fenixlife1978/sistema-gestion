@@ -18,9 +18,11 @@ module.exports=async function(req,res){
     let mesaId=mo[0]?.id;
     if(mo[0]?.estado==='CERRADA' && accion!=='cerrar') return fail(res,409,'La mesa ya está cerrada y no admite modificaciones');
     if(accion==='constituir'){
-      const hc=clean(b.hora_constitucion,10), hi=clean(b.hora_inicio_votacion,10), test=Number(b.testigos_asistieron), maquina=clean(b.estado_maquina,30).toUpperCase();
+      const hc=clean(b.hora_constitucion,10), hi=clean(b.hora_inicio_votacion,10), test=Number(b.testigos_asistieron), maquina=clean(b.estado_maquina,30).toUpperCase(), observacionMaquina=clean(b.observacion_maquina,500);
       const estadosMaquina=['OPERATIVA','DEFECTUOSA','DAÑADA','EN REPARACIÓN','REEMPLAZADA','OTRO'];
       if((hc&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hc))||(hi&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hi))||!Number.isInteger(test)||test<0||!estadosMaquina.includes(maquina)) return fail(res,400,'Datos de constitución inválidos');
+      if(maquina==='OPERATIVA' && observacionMaquina) return fail(res,400,'No se requiere observación cuando la máquina está operativa');
+      if(maquina!=='OPERATIVA' && !observacionMaquina) return fail(res,400,'Debe registrar una observación para el estado de máquina seleccionado');
       const afectos=Array.isArray(b.afectos)?b.afectos.slice(0,100):[];
       const cargos=rowsFrom(await turso([{q:'SELECT cedula,cargo FROM centro_cargos WHERE centro_codigo=? AND cedula IS NOT NULL',params:[centro]}]));
       const allowed=new Map(cargos.map(x=>[ci(x.cedula),clean(x.cargo,120)]));
@@ -30,9 +32,9 @@ module.exports=async function(req,res){
         if(!c||!allowed.has(c)||allowed.get(c)!==cargo) return fail(res,403,'Miembro afecto no corresponde a un cargo registrado en el centro');
         selected.push({cedula:c,cargo});
       }
-      if(mesaId) await turso([{q:'UPDATE mesa_operativa SET hora_constitucion=?,hora_inicio_votacion=?,testigos_asistieron=?,actualizado_en=datetime(\'now\'),actualizado_por=? WHERE id=?',params:[hc||null,hi||null,test,maquina,session.uid,mesaId]}]);
+      if(mesaId) await turso([{q:'UPDATE mesa_operativa SET hora_constitucion=?,hora_inicio_votacion=?,testigos_asistieron=?,actualizado_en=datetime(\'now\'),actualizado_por=? WHERE id=?',params:[hc||null,hi||null,test,maquina,observacionMaquina||null,session.uid,mesaId]}]);
       else {
-        await turso([{q:'INSERT INTO mesa_operativa(centro_codigo,mesa,hora_constitucion,hora_inicio_votacion,testigos_asistieron,estado_maquina,actualizado_por) VALUES(?,?,?,?,?,?,?)',params:[centro,mesa,hc||null,hi||null,test,maquina,session.uid]}]);
+        await turso([{q:'INSERT INTO mesa_operativa(centro_codigo,mesa,hora_constitucion,hora_inicio_votacion,testigos_asistieron,estado_maquina,observacion_maquina,actualizado_por) VALUES(?,?,?,?,?,?,?,?)',params:[centro,mesa,hc||null,hi||null,test,maquina,observacionMaquina||null,session.uid]}]);
         mesaId=rowsFrom(await turso([{q:'SELECT id FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]))[0]?.id;
       }
       if(!mesaId) return fail(res,500,'No se pudo identificar la mesa constituida');
@@ -48,7 +50,8 @@ module.exports=async function(req,res){
       if(!acta) return fail(res,409,'No se puede cerrar la mesa sin registrar primero los resultados del acta');
       const now=new Date().toISOString();
       const miembrosCierre=rowsFrom(await turso([{q:'SELECT cedula,cargo,tipo,origen,autorizado,autorizado_por,autorizado_en FROM mesa_miembros WHERE mesa_operativa_id=? ORDER BY id',params:[mesaId]}]));
-      const resultado={votos_partido:Number(acta.votos_partido||0),cantidad_acta:Number(acta.cantidad_acta||0),estado_maquina:mo[0]?.estado_maquina||'OPERATIVA',cerrada_en:now,miembros:miembrosCierre};
+      const estadoObs=rowsFrom(await turso([{q:'SELECT estado_maquina,observacion_maquina FROM mesa_operativa WHERE id=? LIMIT 1',params:[mesaId]}]))[0]||{};
+      const resultado={votos_partido:Number(acta.votos_partido||0),cantidad_acta:Number(acta.cantidad_acta||0),estado_maquina:estadoObs.estado_maquina||'OPERATIVA',observacion_maquina:estadoObs.observacion_maquina||'',cerrada_en:now,miembros:miembrosCierre};
       await turso([{q:'UPDATE mesa_operativa SET estado=?,hora_cierre=?,cierre_por=?,resultados_cierre_json=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:['CERRADA',now,session.uid,JSON.stringify(resultado),now,session.uid,mesaId]}]);
       await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Cierre de Mesa '+mesa+' • Centro '+centro+' • Hora '+now+' • Votos '+Number(acta.votos_partido||0),session.uid]}]);
       return res.status(200).json({ok:true,estado:'CERRADA',hora_cierre:now,resultados:resultado});
