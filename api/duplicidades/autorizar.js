@@ -44,6 +44,7 @@ module.exports=async function handler(req,res){
     const now=new Date().toISOString();
     const statements=[
       {q:'BEGIN',params:[]},
+      {q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=COALESCE(consumida_en,?), consumida_por=COALESCE(consumida_por,?) WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL',params:[now,auth.id,cedula,destino]},
       {q:'INSERT INTO autorizaciones_duplicidad_persona(cedula,contexto_origen,contexto_destino,detalle_duplicidad,motivo,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?)',params:[cedula,origen,destino,detalle,motivo,auth.id,now,session.uid]},
       {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['autorizacion','Duplicidad autorizada: C.I. '+cedula+' → '+destino+' • autorizó '+auth.usuario+' • '+motivo,session.uid]},
       {q:'COMMIT',params:[]}
