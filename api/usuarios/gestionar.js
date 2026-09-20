@@ -13,6 +13,11 @@ module.exports=async function(req,res){
       const rol=String(b.rol||'').trim(), cargo=String(b.cargo||'').trim(), telefono=b.telefono?String(b.telefono):null, clave=String(b.clave||'');
       if(!usuario||!nombre||!['J','A','O'].includes(rol)) return res.status(400).json({error:'Datos de usuario inválidos'});
       if(id){
+        const target=rowsFrom(await turso([{q:'SELECT id,usuario,rol,activo FROM usuarios WHERE id=? LIMIT 1',params:[id]}]))[0];
+        if(!target) return res.status(404).json({error:'Usuario no encontrado'});
+        if(id===actor.id && rol!==actor.rol) return res.status(403).json({error:'No puede cambiar su propio rol'});
+        if(target.rol==='J' && rol!=='J' && target.activo){const nJ=Number(rowsFrom(await turso([{q:'SELECT COUNT(*) n FROM usuarios WHERE activo=1 AND rol=\'J\'',params:[]}]))[0]?.n||0);if(nJ<=1)return res.status(409).json({error:'No puede retirar el último Jefe activo'});}
+        if(target.rol==='A' && rol!=='A' && target.activo){const nA=Number(rowsFrom(await turso([{q:'SELECT COUNT(*) n FROM usuarios WHERE activo=1 AND rol=\'A\'',params:[]}]))[0]?.n||0);if(nA<=1)return res.status(409).json({error:'No puede retirar el último Administrador activo'});}
         if(clave){
           await turso([{q:'UPDATE usuarios SET nombre=?,rol=?,cargo=?,telefono=?,clave_hash=? WHERE id=?',params:[nombre,rol,cargo,telefono,modernHash(clave),id]}]);
         }else{
@@ -27,6 +32,10 @@ module.exports=async function(req,res){
     if(action==='toggle'){
       const id=Number(b.id), activo=Number(b.activo)?1:0;
       if(!id) return res.status(400).json({error:'Usuario inválido'});
+      if(id===actor.id && !activo) return res.status(403).json({error:'No puede desactivar su propia sesión administrativa'});
+      const target=rowsFrom(await turso([{q:'SELECT id,rol,activo FROM usuarios WHERE id=? LIMIT 1',params:[id]}]))[0];
+      if(!target) return res.status(404).json({error:'Usuario no encontrado'});
+      if(!activo && target.activo && (target.rol==='J'||target.rol==='A')){const n=Number(rowsFrom(await turso([{q:'SELECT COUNT(*) n FROM usuarios WHERE activo=1 AND rol=?',params:[target.rol]}]))[0]?.n||0);if(n<=1)return res.status(409).json({error:'No puede desactivar el último usuario activo con rol '+target.rol});}
       await turso([{q:'UPDATE usuarios SET activo=? WHERE id=?',params:[activo,id]}]);
       return res.json({ok:true});
     }
