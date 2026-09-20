@@ -43,7 +43,7 @@ async function login(credentials){
     const body=await r.text();
     throw new Error('LOGIN_HTTP_STATUS='+r.status+' RESPONSE='+body.slice(0,300));
   }
-  const m=setCookie.match(/(?:^|,\\s*)(erp_session=[^;,]+)/);
+  const m=setCookie.match(/(?:^|,\s*)(erp_session=[^;,]+)/);
   if(!m) throw new Error('LOGIN_COOKIE_NOT_FOUND');
   return m[1];
 }
