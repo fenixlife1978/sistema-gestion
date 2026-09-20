@@ -10,6 +10,7 @@ const handlers = {
   "auth/login": () => require("./auth/login"),
   "auth/session": () => require("./auth/session"),
   "auth/logout": () => require("./auth/logout"),
+  "turso": () => require("./turso"),
   "bootstrap": () => require("./bootstrap"),
   "duplicidades/autorizar": () => require("./duplicidades/autorizar"),
   "personas/registrar": () => require("./personas/registrar"),
