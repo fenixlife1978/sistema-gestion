@@ -1,6 +1,11 @@
 name: authenticated-load-test
 
 on:
+  push:
+    branches:
+      - audit/hardening-2026-09-19
+    paths:
+      - .github/workflows/authenticated-load-test.yml
   workflow_dispatch:
     inputs:
       base_url:
@@ -18,11 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      BASE_URL: ${{ inputs.base_url }}
+      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-q79tiq4ym-fenixlife.vercel.app' }}
       LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
       LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
       LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
-      DURATION: ${{ inputs.duration }}
+      DURATION: ${{ inputs.duration || '120' }}
     steps:
       - name: Checkout hardening branch
         uses: actions/checkout@v4
