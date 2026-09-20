@@ -600,7 +600,7 @@ async function refreshAll() {
   }
   CACHE.catalogoProblemas = await q('SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id');
   CACHE.comiteProblemas = await q('SELECT cp.comite_id, cp.problema_id, c.categoria, c.nombre AS problema_nombre FROM comite_problemas cp JOIN catalogo_problemas c ON c.id = cp.problema_id ORDER BY cp.comite_id, c.orden, c.id');
-  CACHE.verificacion = await q('SELECT * FROM verificaciones_votacion ORDER BY verificado_en DESC, id DESC');
+  CACHE.verificacion = await q(`SELECT v.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, u.nombre AS operador_nom FROM verificaciones_votacion v LEFT JOIN padron p ON p.cedula=v.cedula LEFT JOIN usuarios u ON u.id=v.verificado_por ORDER BY v.verificado_en DESC, v.id DESC`);
   CACHE.actasMesa = await q('SELECT * FROM actas_mesa ORDER BY centro_codigo, mesa');
   CACHE.mesasOperativas = await q('SELECT * FROM mesa_operativa ORDER BY centro_codigo, mesa');
   CACHE.mesaMiembros = await q('SELECT * FROM mesa_miembros ORDER BY mesa_operativa_id, id');
@@ -2850,19 +2850,20 @@ function renderControlElectoral() {
     '</tr>';
   }).join('');
 
-  const ultimas = verificados.slice().sort((a,b) => String(b.verificado_en).localeCompare(String(a.verificado_en))).slice(0, 30).map(x => {
-    const p = padBy(x.cedula) || {};
-    const as = asignDe(x.cedula);
-    const rr = as && as.r ? as.r : null;
-    const rp = rr ? (padBy(rr.cedula) || rr) : null;
+  const ultimas = verificados.slice().sort((a,b) => String(b.verificado_en||'').localeCompare(String(a.verificado_en||''))).slice(0, 30).map(x => {
+    const p = (x.p_nombre || x.p_apellido) ? x : (padBy(x.cedula) || {});
+    const nombre = ((p.p_apellido || '') + ' ' + (p.s_apellido || '') + ', ' + (p.p_nombre || '') + ' ' + (p.s_nombre || '')).replace(/^\s*,\s*|,\s*$/g,'').trim() || 'Persona no encontrada';
+    const ci = normC(x.cedula);
+    const fecha = String(x.verificado_en||'').replace('T',' ');
+    const operador = x.operador_nom || ((CACHE.users || []).find(u => Number(u.id) === Number(x.verificado_por)) || {}).nombre || (USER ? USER.nombre : 'Operador actual');
     return '<tr>' +
-      '<td class="mono">' + esc(x.verificado_en || '') + '</td>' +
-      '<td>' + esc(((p.p_apellido || '') + ' ' + (p.p_nombre || '')).trim()) + '</td>' +
-      '<td class="mono">' + esc(fC(p.letra || 'V', x.cedula)) + '</td>' +
-      '<td><b>' + esc(x.mesa) + '</b></td>' +
-      '<td>' + esc(x.origen || '') + '</td>' +
-      '<td>' + esc(x.cargo || (rp ? nomP(rp) : '')) + '</td>' +
-      '<td>' + esc(((CACHE.users || []).find(u => Number(u.id) === Number(x.verificado_por)) || {}).nombre || '') + '</td>' +
+      '<td class="mono"><b>' + esc(fecha) + '</b></td>' +
+      '<td>' + esc(nombre) + '</td>' +
+      '<td class="mono">' + esc(fC(p.letra || 'V', ci || '')) + '</td>' +
+      '<td><b>' + esc(x.mesa || '') + '</b></td>' +
+      '<td>' + esc(origenRegistroPersona(ci)) + '</td>' +
+      '<td>' + esc(x.cargo || origenRegistroPersona(ci)) + '</td>' +
+      '<td><b>' + esc(operador) + '</b></td>' +
     '</tr>';
   }).join('');
 
@@ -3031,53 +3032,124 @@ function nombreCompletoRegistro(cedula) {
   const p=padBy(cedula);
   return p ? (apeP(p)+', '+nomP(p)).trim() : (personaNombreCedula(cedula).nombre||cedula);
 }
+function miembrosPredeterminadosCentro(codigo) {
+  return (CACHE.cargos || []).filter(x => String(x.centro_codigo) === String(codigo) && x.cedula);
+}
+function catalogoCargosMesa(codigo,mesa) {
+  const n=String(mesa);
+  const cargos=getCargosCentro(codigo).filter(x => String(x.cargo||'').toLowerCase().includes('mesa '+n.toLowerCase()) || !String(x.cargo||'').toLowerCase().includes('mesa '));
+  return cargos;
+}
+function estadoSlotMesa(codigo,mesa,cargo) {
+  const ms=mesaMiembros(codigo,mesa);
+  const accidental=ms.find(m=>m.tipo==='ACCIDENTAL'&&String(m.cargo)===String(cargo));
+  if(accidental) return {estado:'REEMPLAZADO',miembro:accidental};
+  const titular=ms.find(m=>m.tipo==='AFECTO'&&String(m.cargo)===String(cargo));
+  if(titular) return {estado:'RATIFICADO',miembro:titular};
+  return {estado:'AUSENTE',miembro:null};
+}
 function abrirConstitucionMesa(codigo, mesa) {
   const centro=cenBy(codigo), mo=mesaOperativa(codigo,mesa), miembros=mesaMiembros(codigo,mesa);
   if(!centro) return toast('Centro no encontrado','err');
   const horaC=mo?.hora_constitucion||'', horaI=mo?.hora_inicio_votacion||'', test=Number(mo?.testigos_asistieron||0);
-  const pred=miembrosPredeterminadosCentro(codigo);
-  const predHtml=pred.length ? pred.map(p=>{
-    const checked=miembros.some(m=>normC(m.cedula)===normC(p.cedula)&&m.tipo==='AFECTO')?'checked':'';
-    return '<label style="display:flex;gap:8px;align-items:center;padding:7px;border-bottom:1px solid var(--line2)"><input type="checkbox" class="mesaPred" value="'+esc(p.cedula)+'" data-cargo="'+esc(p.cargo||'Cargo')+'" '+checked+'><span><b>'+esc(nombreCompletoRegistro(p.cedula))+'</b><br><small>'+esc(p.cargo||'Cargo')+' • '+esc(fC(p.letra||'V',p.cedula))+'</small></span></label>';
-  }).join('') : '<div class="empty">No hay cargos predeterminados registrados para este centro.</div>';
+  const cargos=catalogoCargosMesa(codigo,mesa);
+  const slotsHtml=cargos.map((k,i)=>{
+    const asig=(CACHE.cargos||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.cargo)===String(k.cargo));
+    const st=estadoSlotMesa(codigo,mesa,k.cargo);
+    const persona=asig?.cedula?personaNombreCedula(asig.cedula):null;
+    const nombre=persona?.nombre||'';
+    const ci=asig?.cedula?fC(persona?.letra||asig.letra||'V',asig.cedula):'';
+    const estado=st.estado==='RATIFICADO'
+      ? '<span class="chip chip-g">RATIFICADO</span>'
+      : st.estado==='REEMPLAZADO'
+        ? '<span class="chip chip-b">REEMPLAZADO</span>'
+        : '<span class="chip chip-y">SIN '+esc(String(k.cargo).toUpperCase())+'</span>';
+    const rat=st.estado==='RATIFICADO'?'checked':'';
+    const disabled=mo?.estado==='CERRADA'?'disabled':'';
+    return '<div class="kcard" style="padding:10px;margin-bottom:7px"><div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:230px"><div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase">'+esc(k.cargo)+'</div>'+
+      '<div style="font-size:13px;font-weight:700;color:var(--navy)">'+(nombre?esc(nombre):'<span style="color:var(--mut)">Cargo sin titular asignado en Centros</span>')+'</div>'+
+      (ci?'<div class="mono" style="font-size:10.5px;color:var(--mut)">'+esc(ci)+'</div>':'')+'</div>'+
+      '<label class="btn btn-w btn-xs" style="cursor:pointer"><input type="checkbox" class="mesaPred" value="'+esc(asig?.cedula||'')+'" data-cargo="'+esc(k.cargo)+'" '+rat+' '+disabled+' '+(!asig?.cedula?'disabled':'')+'> Ratificar</label>'+
+      estado+
+      '<button class="btn btn-navy btn-xs" '+disabled+' onclick="abrirBusquedaReemplazoMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\',\''+esc(k.cargo).replace(/'/g,"\\'")+'\')">'+ic('search',12)+' Reemplazo accidental</button>'+
+      '</div></div>';
+  }).join('');
   const acc=miembros.filter(m=>m.tipo==='ACCIDENTAL').map(m=>{
     const inf=personaNombreCedula(m.cedula);
-    return '<div class="kcard" style="margin-top:7px"><b>'+esc(inf.nombre)+'</b><div class="mono">'+esc(fC(inf.letra,m.cedula))+' • '+esc(m.cargo)+' • ACCIDENTAL • '+(m.autorizado?'AUTORIZADO':'NO AUTORIZADO')+'</div></div>';
-  }).join('') || '<div class="empty">No hay miembros accidentales registrados.</div>';
+    return '<div class="row10"><span class="uava">'+ini(inf.nombre)+'</span><div style="flex:1"><b>'+esc(inf.nombre)+'</b><div class="mono" style="font-size:10.5px;color:var(--mut)">'+esc(fC(inf.letra,m.cedula))+' • '+esc(m.cargo)+' • Reemplazo autorizado</div></div></div>';
+  }).join('') || '<div class="empty" style="padding:10px">No hay reemplazos accidentales.</div>';
+  const cerrado=mo?.estado==='CERRADA';
+  const acta=(CACHE.actasMesa||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.mesa)===String(mesa));
+  const cierreBtn= cerrado
+    ? '<span class="chip chip-g">MESA CERRADA • '+esc(mo.hora_cierre||'')+'</span>'
+    : '<button class="btn btn-red" '+(!acta?'disabled title="Registre primero los resultados del acta"':'')+' onclick="cerrarMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('lock',14)+' Cerrar Mesa y generar Acta de Cierre</button>';
   win(ic('check',18)+' Constitución • Mesa '+esc(mesa),
-    '<div class="alert ok"><b>'+esc(centro.nombre)+'</b><br>Mesa '+esc(mesa)+' • Código '+esc(codigo)+'</div>' +
-    '<div class="grid g2" style="gap:10px;margin-top:12px">' +
-      '<div><label class="fl">Hora de Constitución de Mesa</label><input class="inp mono" id="mesaHoraConstitucion" type="time" value="'+esc(horaC)+'"></div>' +
-      '<div><label class="fl">Hora de Inicio del Acto de Votación</label><input class="inp mono" id="mesaHoraInicio" type="time" value="'+esc(horaI)+'"></div>' +
-      '<div><label class="fl">Número de Testigos que asistieron</label><input class="inp mono" id="mesaTestigos" type="number" min="0" step="1" value="'+test+'"></div>' +
-    '</div>' +
-    '<div style="margin-top:14px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="font-weight:700;color:var(--navy);margin-bottom:8px">Miembros predeterminados del centro • afectos al partido</div><div style="max-height:220px;overflow:auto">'+predHtml+'</div></div>' +
-    '<div style="margin-top:12px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--navy)">Miembros accidentales / reemplazos</b><button class="btn btn-w btn-xs" onclick="agregarMiembroAccidental(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">+ Agregar reemplazo</button></div><div id="mesaAccidentales">'+acc+'</div><div style="font-size:11px;color:var(--mut);margin-top:7px">Los reemplazos requieren autorización de Jefe de Comando o Administrador. Se almacenan separadamente y no modifican el universo normal de verificación ni los resultados del acta.</div></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cerrar</button><button class="btn btn-g" onclick="guardarConstitucionMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">Guardar constitución</button><label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--navy)">Formato <select class="inp" id="mesaActaFormato" style="width:auto;padding:6px 9px"><option value="A4">A4</option><option value="CARTA">Carta</option></select></label><button class="btn btn-navy" onclick="imprimirActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('print',14)+' Imprimir acta</button><button class="btn btn-navy" onclick="downloadPDFActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('file',14)+' PDF</button>',820
+    '<div class="alert ok"><b>'+esc(centro.nombre)+'</b><br>Mesa '+esc(mesa)+' • Código '+esc(codigo)+(cerrado?' • CERRADA':' • ABIERTA')+'</div>'+
+    '<div class="grid g2" style="gap:10px;margin-top:12px">'+
+      '<div><label class="fl">Hora de Constitución</label><input class="inp mono" id="mesaHoraConstitucion" type="time" value="'+esc(horaC)+'" '+(cerrado?'disabled':'')+'></div>'+
+      '<div><label class="fl">Hora de Inicio del Acto de Votación</label><input class="inp mono" id="mesaHoraInicio" type="time" value="'+esc(horaI)+'" '+(cerrado?'disabled':'')+'></div>'+
+      '<div><label class="fl">Testigos que asistieron</label><input class="inp mono" id="mesaTestigos" type="number" min="0" step="1" value="'+test+'" '+(cerrado?'disabled':'')+'></div>'+
+    '</div>'+
+    '<div style="margin-top:14px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="font-weight:800;color:var(--navy);margin-bottom:8px">Cargos del centro para esta Mesa</div><div style="font-size:11px;color:var(--mut);margin-bottom:9px">La asignación proviene del módulo Centros. Marque <b>Ratificar</b> únicamente para quien se presentó. Si no se presenta, el cargo queda explícitamente como <b>Sin ...</b> hasta que se registre un reemplazo.</div><div style="max-height:360px;overflow:auto">'+slotsHtml+'</div></div>'+
+    '<div style="margin-top:12px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="font-weight:700;color:var(--navy);margin-bottom:7px">Reemplazos accidentales registrados</div>'+acc+'</div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cerrar</button>'+(!cerrado?'<button class="btn btn-g" onclick="guardarConstitucionMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">Guardar constitución</button>':'')+
+    '<button class="btn btn-navy" onclick="imprimirActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('print',14)+' Acta de inicialización</button>'+
+    (cerrado?'<button class="btn btn-navy" onclick="imprimirActaCierre(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('print',14)+' Acta de cierre</button>':'')+
+    cierreBtn,860
   );
 }
 async function guardarConstitucionMesa(codigo,mesa) {
   const hc=$('mesaHoraConstitucion')?.value||'', hi=$('mesaHoraInicio')?.value||'', test=Number($('mesaTestigos')?.value||0);
   if(test<0||!Number.isInteger(test)) return toast('El número de testigos debe ser un entero no negativo','err');
   try {
-    const checks=[...document.querySelectorAll('.mesaPred:checked')].map(ch=>({cedula:normC(ch.value),cargo:ch.dataset.cargo||'Cargo'}));
+    const checks=[...document.querySelectorAll('.mesaPred:checked')].filter(ch=>ch.value).map(ch=>({cedula:normC(ch.value),cargo:ch.dataset.cargo||'Cargo'}));
     const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'constituir',centro_codigo:codigo,mesa:String(mesa),hora_constitucion:hc,hora_inicio_votacion:hi,testigos_asistieron:test,afectos:checks})});
     const data=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo guardar la constitución');
-    await refreshAll(); closeModal(); renderControlElectoral(); toast('Constitución de Mesa guardada','ok');
+    await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Constitución de Mesa guardada','ok');
   } catch(e){toast('Error guardando constitución: '+e.message,'err',8000);}
 }
-async function agregarMiembroAccidental(codigo,mesa) {
-  const ced=prompt('C.I. de la persona que reemplazará el cargo:'); if(!ced) return;
-  const c=normC(ced), cargo=prompt('Cargo que reemplazará en la Mesa:'); if(!cargo) return;
-  const auth=await autorizarOperacion('Reemplazo accidental de cargo en Mesa '+mesa+' • '+cargo);
-  if(!auth?.ok) return;
-  const u=auth.user?.usuario||'', p=auth.clave||'';
-  if(!u||!p) return toast('No se pudo completar la autorización segura','err');
-  try {
-    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'accidental',centro_codigo:codigo,mesa:String(mesa),cedula:c,cargo,authUsuario:u,authClave:p})});
-    const data=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo registrar el reemplazo');
-    await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Reemplazo autorizado y registrado','ok');
-  } catch(e){toast('No se pudo registrar el reemplazo: '+e.message,'err',8000);}
+function abrirBusquedaReemplazoMesa(codigo,mesa,cargo) {
+  const cerrado=mesaOperativa(codigo,mesa)?.estado==='CERRADA';
+  if(cerrado) return toast('La mesa está cerrada','err');
+  const actual=estadoSlotMesa(codigo,mesa,cargo);
+  if(actual.estado==='RATIFICADO') return toast('El titular fue ratificado; no corresponde reemplazo accidental','err');
+  const p=personaNombreCedula('');
+  win(ic('search',18)+' Reemplazo accidental • '+esc(cargo),
+    '<div class="alert warn"><b>Seleccione a la persona que cubrirá el cargo.</b><br>El reemplazo requiere autorización de Jefe de Comando o Administrador y queda auditado.</div>'+
+    '<label class="fl">Buscar por nombre o C.I.</label><input class="inp" id="mesaReplaceSearch" placeholder="Nombre, apellido o cédula..." oninput="filtrarReemplazoMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\',\''+esc(cargo).replace(/'/g,"\\'")+'\')" autocomplete="off">'+
+    '<div id="mesaReplaceResults" style="margin-top:10px;max-height:300px;overflow:auto"></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>',600
+  );
+  filtrarReemplazoMesa(codigo,mesa,cargo);
+}
+function filtrarReemplazoMesa(codigo,mesa,cargo) {
+  const qv=String($('mesaReplaceSearch')?.value||'').trim().toLowerCase(), qci=normC(qv);
+  const rows=(CACHE.pad||[]).filter(p=>{
+    const nom=((p.p_apellido||'')+' '+(p.s_apellido||'')+' '+(p.p_nombre||'')+' '+(p.s_nombre||'')).toLowerCase();
+    return qv && ((qci.length>=3&&String(p.cedula).includes(qci))||nom.includes(qv));
+  }).slice(0,20);
+  const box=$('mesaReplaceResults'); if(!box)return;
+  box.innerHTML=rows.length?rows.map(p=>'<button class="rec-sel" style="margin-bottom:6px" onclick="seleccionarReemplazoMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\',\''+esc(cargo).replace(/'/g,"\\'")+'\',\''+esc(p.cedula)+'\')"><span class="uava">'+ini(nomP(p)+' '+apeP(p))+'</span><span style="flex:1;text-align:left"><b>'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono" style="font-size:10.5px;color:var(--mut)">'+esc(fC(p.letra||'V',p.cedula))+' • '+esc(p.nombre_cv||p.centro_votacion||'')+'</div></span></button>').join(''):'<div class="empty">Escriba un nombre o cédula para buscar.</div>';
+}
+async function seleccionarReemplazoMesa(codigo,mesa,cargo,cedula) {
+  const auth=await autorizarOperacion('Reemplazo accidental de '+cargo+' en Mesa '+mesa);
+  if(!auth?.ok)return;
+  try{
+    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'accidental',centro_codigo:codigo,mesa:String(mesa),cedula:normC(cedula),cargo,authUsuario:auth.user?.usuario||'',authClave:auth.clave||''})});
+    const data=await rr.json().catch(()=>({})); if(!rr.ok)throw new Error(data.error||'No se pudo registrar el reemplazo');
+    await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Reemplazo accidental registrado','ok');
+  }catch(e){toast('No se pudo registrar el reemplazo: '+e.message,'err',8000);}
+}
+async function cerrarMesa(codigo,mesa) {
+  const a=(CACHE.actasMesa||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.mesa)===String(mesa));
+  if(!a)return toast('Registre primero los resultados del acta de la Mesa','err',7000);
+  if(!confirm('¿Confirmar cierre de la Mesa '+mesa+'? La hora se tomará automáticamente del servidor y el acta de cierre conservará los resultados registrados.'))return;
+  try{
+    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'cerrar',centro_codigo:codigo,mesa:String(mesa)})});
+    const data=await rr.json().catch(()=>({})); if(!rr.ok)throw new Error(data.error||'No se pudo cerrar la mesa');
+    await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Mesa cerrada • Acta de cierre disponible','ok',6000);
+  }catch(e){toast('No se pudo cerrar la mesa: '+e.message,'err',8000);}
 }
 function actaInicializacionHTML(codigo,mesa,formato) {
   const centro=cenBy(codigo), mo=mesaOperativa(codigo,mesa), ms=mesaMiembros(codigo,mesa);
