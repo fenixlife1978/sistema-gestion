@@ -30,6 +30,8 @@ module.exports=async function(req,res){
 
     const maxMesas=Number(c.mesas||0);
     const nMesa=Number(mesa);
+    const mesaEstado=rowsFrom(await turso([{q:'SELECT estado FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]))[0];
+    if(mesaEstado?.estado==='CERRADA') return fail(res,409,'La mesa está cerrada; no se pueden modificar sus resultados');
     if(maxMesas>0&&(nMesa<1||nMesa>maxMesas))
       return fail(res,409,'La mesa indicada no pertenece al centro seleccionado');
 
