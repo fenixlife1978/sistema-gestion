@@ -5,7 +5,7 @@
   For distinct identities, optionally provide LOAD_TEST_USERS_JSON as a
   JSON array of {usuario, clave, rol}; users are selected round-robin.
 */
-const fs = require('fs');
+import fs from 'node:fs';
 
 const BASE_URL=String(process.env.BASE_URL||'').replace(/\/$/,'');
 const USERS=Math.max(1,Number(process.env.USERS||400));
