@@ -1,0 +1,98 @@
+name: authenticated-load-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Vercel Preview URL to test"
+        required: true
+        type: string
+      duration:
+        description: "Seconds per load level"
+        required: true
+        default: "120"
+        type: string
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_URL: ${{ inputs.base_url }}
+      LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
+      LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
+      LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
+      DURATION: ${{ inputs.duration }}
+    steps:
+      - name: Checkout hardening branch
+        uses: actions/checkout@v4
+        with:
+          ref: audit/hardening-2026-09-19
+
+      - name: Verify test prerequisites
+        run: |
+          test -n "$BASE_URL"
+          test -n "$LOGIN_USER"
+          test -n "$LOGIN_PASSWORD"
+          test -n "$LOGIN_ROLE"
+          node --version
+
+      - name: Login and obtain runtime session
+        shell: bash
+        run: |
+          COOKIE="$(node <<'NODE'
+          const url = process.env.BASE_URL.replace(/\/$/,'') + '/api/auth/login';
+          const body = JSON.stringify({
+            usuario: process.env.LOGIN_USER,
+            clave: process.env.LOGIN_PASSWORD,
+            rol: process.env.LOGIN_ROLE
+          });
+          const r = await fetch(url, {
+            method: 'POST',
+            headers: {'content-type':'application/json','accept':'application/json'},
+            body
+          });
+          if (!r.ok) {
+            console.error('LOGIN_HTTP_STATUS=' + r.status);
+            process.exit(1);
+          }
+          const sc = r.headers.get('set-cookie') || '';
+          const m = sc.match(/(?:^|,\\s*)(erp_session=[^;,]+)/);
+          if (!m) {
+            console.error('LOGIN_COOKIE_NOT_FOUND');
+            process.exit(1);
+          }
+          process.stdout.write(m[1]);
+          NODE
+          )"
+          if [ -z "$COOKIE" ]; then exit 1; fi
+          echo "::add-mask::$COOKIE"
+          echo "SESSION_COOKIE=$COOKIE" >> "$GITHUB_ENV"
+
+      - name: Load 50 users
+        run: |
+          USERS=50 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election node scripts/load-test.mjs | tee load-50.json
+
+      - name: Load 100 users
+        run: |
+          USERS=100 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election node scripts/load-test.mjs | tee load-100.json
+
+      - name: Load 150 users
+        run: |
+          USERS=150 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election node scripts/load-test.mjs | tee load-150.json
+
+      - name: Load 200 users
+        run: |
+          USERS=200 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election node scripts/load-test.mjs | tee load-200.json
+
+      - name: Upload load-test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: election-load-test-results
+          path: |
+            load-50.json
+            load-100.json
+            load-150.json
+            load-200.json
+          if-no-files-found: warn
