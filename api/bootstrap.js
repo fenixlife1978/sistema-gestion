@@ -254,7 +254,10 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_aut_dup_cedula ON autorizaciones_duplicidad_persona(cedula)`,
   `CREATE INDEX IF NOT EXISTS idx_aut_dup_fecha ON autorizaciones_duplicidad_persona(autorizado_en DESC)`,
-  `ALTER TABLE autorizaciones_duplicidad_persona ADD COLUMN destino_detalle TEXT`
+  `ALTER TABLE autorizaciones_duplicidad_persona ADD COLUMN destino_detalle TEXT`,
+  `ALTER TABLE autorizaciones_duplicidad_persona ADD COLUMN consumida_en TEXT`,
+  `ALTER TABLE autorizaciones_duplicidad_persona ADD COLUMN consumida_por INTEGER`,
+  `CREATE INDEX IF NOT EXISTS idx_aut_dup_disponible ON autorizaciones_duplicidad_persona(cedula, contexto_destino, consumida_en)`,
 ];;
 
 const PROBLEMAS = [
