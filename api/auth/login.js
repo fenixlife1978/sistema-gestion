@@ -5,11 +5,14 @@ async function ensureInitialized(req,res){
   if(!schema.length){
     const bootstrap=require('../bootstrap');
     const originalMethod=req.method;
+    const originalInternal=req.internalBootstrap;
     req.method='POST';
+    req.internalBootstrap=true;
     try{
       await bootstrap(req,res);
     } finally {
       req.method=originalMethod;
+      req.internalBootstrap=originalInternal;
     }
     return true;
   }
@@ -17,11 +20,14 @@ async function ensureInitialized(req,res){
   if(Number(count[0]?.n||0)===0){
     const bootstrap=require('../bootstrap');
     const originalMethod=req.method;
+    const originalInternal=req.internalBootstrap;
     req.method='POST';
+    req.internalBootstrap=true;
     try{
       await bootstrap(req,res);
     } finally {
       req.method=originalMethod;
+      req.internalBootstrap=originalInternal;
     }
     return true;
   }
