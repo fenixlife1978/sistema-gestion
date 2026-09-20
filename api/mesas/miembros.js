@@ -14,8 +14,9 @@ module.exports=async function(req,res){
     if(!centro||!mesa) return fail(res,400,'Centro y mesa son obligatorios');
     const cen=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo=? LIMIT 1',params:[centro]}]));
     if(!cen.length) return fail(res,404,'Centro electoral no encontrado');
-    const mo=rowsFrom(await turso([{q:'SELECT id FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
+    const mo=rowsFrom(await turso([{q:'SELECT id,estado,hora_cierre FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
     let mesaId=mo[0]?.id;
+    if(mo[0]?.estado==='CERRADA' && accion!=='cerrar') return fail(res,409,'La mesa ya está cerrada y no admite modificaciones');
     if(accion==='constituir'){
       const hc=clean(b.hora_constitucion,10), hi=clean(b.hora_inicio_votacion,10), test=Number(b.testigos_asistieron);
       if((hc&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hc))||(hi&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hi))||!Number.isInteger(test)||test<0) return fail(res,400,'Datos de constitución inválidos');
@@ -39,6 +40,17 @@ module.exports=async function(req,res){
       await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Constitución Mesa '+mesa+' • Centro '+centro+' • Hora constitución '+(hc||'N/D')+' • Inicio '+(hi||'N/D')+' • Testigos '+test,session.uid]}]);
       return res.status(200).json({ok:true,mesa_id:mesaId});
     }
+    if(accion==='cerrar'){
+      if(!mesaId) return fail(res,409,'Primero debe constituirse la mesa');
+      if(mo[0]?.estado==='CERRADA') return fail(res,409,'La mesa ya está cerrada');
+      const acta=rowsFrom(await turso([{q:'SELECT id,votos_partido,cantidad_acta FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]))[0];
+      if(!acta) return fail(res,409,'No se puede cerrar la mesa sin registrar primero los resultados del acta');
+      const now=new Date().toISOString();
+      const resultado={votos_partido:Number(acta.votos_partido||0),cantidad_acta:Number(acta.cantidad_acta||0),cerrada_en:now};
+      await turso([{q:'UPDATE mesa_operativa SET estado=?,hora_cierre=?,cierre_por=?,resultados_cierre_json=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:['CERRADA',now,session.uid,JSON.stringify(resultado),now,session.uid,mesaId]}]);
+      await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Cierre de Mesa '+mesa+' • Centro '+centro+' • Hora '+now+' • Votos '+Number(acta.votos_partido||0),session.uid]}]);
+      return res.status(200).json({ok:true,estado:'CERRADA',hora_cierre:now,resultados:resultado});
+    }
     if(accion==='accidental'){
       if(!mesaId) return fail(res,409,'Primero debe constituirse la mesa');
       const cedula=ci(b.cedula), cargo=clean(b.cargo,120), authUsuario=clean(b.authUsuario,160), authClave=String(b.authClave||'');
@@ -55,8 +67,11 @@ module.exports=async function(req,res){
         {q:'SELECT cedula FROM comite_vecinal WHERE cedula=? LIMIT 1',params:[cedula]}
       ]));
       if(!exists.some(Boolean)) return fail(res,409,'La persona debe estar registrada previamente en el sistema');
-      const cargoCentro=rowsFrom(await turso([{q:'SELECT id FROM centro_cargos WHERE centro_codigo=? AND cargo=? LIMIT 1',params:[centro,cargo]}]));
+      const cargoCentro=rowsFrom(await turso([{q:'SELECT id,cedula FROM centro_cargos WHERE centro_codigo=? AND cargo=? LIMIT 1',params:[centro,cargo]}]));
       if(!cargoCentro.length) return fail(res,409,'El cargo a reemplazar no está registrado en este centro');
+      const titular=String(cargoCentro[0].cedula||'').replace(/\\D/g,'');
+      const titularPresente=rowsFrom(await turso([{q:'SELECT id FROM mesa_miembros WHERE mesa_operativa_id=? AND cedula=? AND cargo=? AND tipo=? LIMIT 1',params:[mesaId,titular,cargo,'AFECTO']}])).length;
+      if(titularPresente) return fail(res,409,'El titular de ese cargo fue ratificado; el reemplazo accidental solo procede cuando el titular no se presenta');
       const dup=rowsFrom(await turso([{q:'SELECT id FROM mesa_miembros WHERE mesa_operativa_id=? AND cedula=? AND cargo=? LIMIT 1',params:[mesaId,cedula,cargo]}]));
       if(dup.length) return fail(res,409,'El reemplazo ya está registrado en esta mesa');
       const now=new Date().toISOString();
