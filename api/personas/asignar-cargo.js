@@ -27,7 +27,7 @@ module.exports=async function(req,res){
     const sameTarget=(tipo==='direccion'&&d[2]&&String(d[2].cargo||'')===cargo)||(tipo==='centro'&&d[4]&&String(d[4].centro_codigo||'')===centro&&String(d[4].cargo||'')===cargo);
     if(sameTarget) return fail(res,409,'La persona ya ocupa ese cargo');
     if(conflicts.filter(x=>x!==destino).length){
-      const a=rowsFrom(await turso([{q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? ORDER BY id DESC LIMIT 1',params:[cedula,destino]}]));
+      const a=rowsFrom(await turso([{q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL ORDER BY id DESC LIMIT 1',params:[cedula,destino]}]));
       if(!a.length) return fail(res,409,'La persona ya figura en otra función y requiere autorización J/A para este destino');
     }
     if(tipo==='centro'){
@@ -44,13 +44,25 @@ module.exports=async function(req,res){
       await turso([{q:'INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',params:[cedula,st(padron.letra||'V',2),pa,st(padron.s_apellido,80),pn,st(padron.s_nombre,80),st(padron.sexo,1),st(padron.fecha_nac,30),padron.edad??null,st(padron.codigo_estado,30),st(padron.estado,100),st(padron.codigo_municipio,30),st(padron.municipio,120),st(padron.codigo_parroquia,30),st(padron.parroquia,120),st(padron.centro_votacion,80),st(padron.nombre_cv,250)]}]);
     }
     const now=new Date().toISOString();
+    let autorizacionId=null;
+    if(conflicts.filter(x=>x!==destino).length){
+      const authRow=rowsFrom(await turso([{q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL ORDER BY id DESC LIMIT 1',params:[cedula,destino]}]))[0];
+      if(authRow) autorizacionId=Number(authRow.id);
+    }
     if(tipo==='direccion'){
-      await turso([{q:'DELETE FROM direccion_ejecutiva WHERE cargo=?',params:[cargo]},{q:'INSERT INTO direccion_ejecutiva(cargo,cedula,nombre,telefono,direccion) VALUES(?,?,?,?,?)',params:[cargo,cedula,nombre||cedula,telefono||null,direccion||null]},{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Dirección Ejecutiva asignada: C.I. '+cedula+' → '+cargo,session.uid]}]);
+      const statements=[...(autorizacionId?[{q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,session.uid,autorizacionId]}]:[]),{q:'DELETE FROM direccion_ejecutiva WHERE cargo=?',params:[cargo]},{q:'INSERT INTO direccion_ejecutiva(cargo,cedula,nombre,telefono,direccion) VALUES(?,?,?,?,?)',params:[cargo,cedula,nombre||cedula,telefono||null,direccion||null]},{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Dirección Ejecutiva asignada: C.I. '+cedula+' → '+cargo+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''),session.uid]}];
+      if(autorizacionId) statements.unshift({q:'BEGIN',params:[]});
+      if(autorizacionId) statements.push({q:'COMMIT',params:[]});
+      await turso(statements);
     }else{
       const ex=rowsFrom(await turso([{q:'SELECT id FROM centro_cargos WHERE centro_codigo=? AND cargo=? LIMIT 1',params:[centro,cargo]}]));
-      if(ex.length) await turso([{q:'UPDATE centro_cargos SET cedula=?,telefono=COALESCE(?,telefono),direccion=COALESCE(?,direccion),asignado_en=? WHERE id=?',params:[cedula,telefono||null,direccion||null,now,ex[0].id]}]);
-      else await turso([{q:'INSERT INTO centro_cargos(centro_codigo,cargo,cedula,telefono,direccion,asignado_en) VALUES(?,?,?,?,?,?)',params:[centro,cargo,cedula,telefono||null,direccion||null,now]}]);
-      await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user',cargo+' asignado en centro '+centro+' • C.I. '+cedula,session.uid]}]);
+      const statements=[...(autorizacionId?[{q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,session.uid,autorizacionId]}]:[])];
+      if(ex.length) statements.push({q:'UPDATE centro_cargos SET cedula=?,telefono=COALESCE(?,telefono),direccion=COALESCE(?,direccion),asignado_en=? WHERE id=?',params:[cedula,telefono||null,direccion||null,now,ex[0].id]});
+      else statements.push({q:'INSERT INTO centro_cargos(centro_codigo,cargo,cedula,telefono,direccion,asignado_en) VALUES(?,?,?,?,?,?)',params:[centro,cargo,cedula,telefono||null,direccion||null,now]});
+      statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user',cargo+' asignado en centro '+centro+' • C.I. '+cedula+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''),session.uid]});
+      if(autorizacionId) statements.unshift({q:'BEGIN',params:[]});
+      if(autorizacionId) statements.push({q:'COMMIT',params:[]});
+      await turso(statements);
     }
     return res.status(201).json({ok:true,tipo,cedula,cargo,centro_codigo:centro||null});
   }catch(e){return fail(res,500,e.message||'No se pudo asignar el cargo')}
