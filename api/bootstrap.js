@@ -403,6 +403,23 @@ async function execSchema() {
   }
   await migrateComiteRoles();
 
+  // Garantizar que cada centro tenga todos los cargos predeterminados.
+  // No sobrescribe asignaciones existentes ni crea personas ficticias.
+  const CENTROS_CARGOS_PREDETERMINADOS = [
+    'Coordinador del Centro',
+    'Coordinador de Organización',
+    'Coordinador de Logística',
+    'Coordinador Electoral',
+    'Coordinador de Movilización',
+    'Coordinador de Juventud'
+  ];
+  const centrosParaCargos=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo IS NOT NULL',params:[]}]));
+  for(const centroRow of centrosParaCargos){
+    for(const cargo of CENTROS_CARGOS_PREDETERMINADOS){
+      await turso([{q:'INSERT INTO centro_cargos(centro_codigo,cargo) SELECT ?,? WHERE NOT EXISTS (SELECT 1 FROM centro_cargos WHERE centro_codigo=? AND cargo=?)',params:[centroRow.codigo,cargo,centroRow.codigo,cargo]}]);
+    }
+  }
+
   try{
     const actCols=rowsFrom(await turso([{q:'PRAGMA table_info(actas_mesa)',params:[]}]));
     if(actCols.length&&!actCols.some(x=>x.name==='votos_partido')) await turso([{q:'ALTER TABLE actas_mesa ADD COLUMN votos_partido INTEGER NOT NULL DEFAULT 0',params:[]}]);
