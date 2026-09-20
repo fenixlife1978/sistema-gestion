@@ -349,6 +349,15 @@ const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE E
 const BOOTSTRAP_VERSION = '2026-09-20-b1';
 
 async function execSchema() {
+  // La tabla de metadatos debe existir antes de consultarla. En una base
+  // existente sin erp_bootstrap_meta, la consulta anterior provocaba un
+  // 500 y dejaba la interfaz eternamente en "Inicializando base de datos".
+  await turso([{q:`CREATE TABLE IF NOT EXISTS erp_bootstrap_meta (
+    id INTEGER PRIMARY KEY CHECK(id=1),
+    version TEXT NOT NULL,
+    initialized_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,params:[]}]);
+
   // El bootstrap debe ser idempotente y rápido en cada carga. Si la versión
   // ya fue aplicada, no volvemos a ejecutar todas las migraciones contra Turso.
   const meta=rowsFrom(await turso([{q:"SELECT version FROM erp_bootstrap_meta WHERE id=1 LIMIT 1",params:[]}]));
@@ -459,7 +468,6 @@ async function execSchema() {
     ];
     for(const [u,p,n,r,c] of seeds) await turso([{q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:[u,modernHash(p),n,r,c]}]);
   }
-  await turso([{q:"CREATE TABLE IF NOT EXISTS erp_bootstrap_meta (id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT (datetime('now')))",params:[]}]);
   await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:[BOOTSTRAP_VERSION]}]);
 }
 
