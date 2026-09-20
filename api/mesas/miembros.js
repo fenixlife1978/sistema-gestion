@@ -48,7 +48,7 @@ module.exports=async function(req,res){
       if(!acta) return fail(res,409,'No se puede cerrar la mesa sin registrar primero los resultados del acta');
       const now=new Date().toISOString();
       const miembrosCierre=rowsFrom(await turso([{q:'SELECT cedula,cargo,tipo,origen,autorizado,autorizado_por,autorizado_en FROM mesa_miembros WHERE mesa_operativa_id=? ORDER BY id',params:[mesaId]}]));
-      const resultado={votos_partido:Number(acta.votos_partido||0),cantidad_acta:Number(acta.cantidad_acta||0),cerrada_en:now,miembros:miembrosCierre};
+      const resultado={votos_partido:Number(acta.votos_partido||0),cantidad_acta:Number(acta.cantidad_acta||0),estado_maquina:mo[0]?.estado_maquina||'OPERATIVA',cerrada_en:now,miembros:miembrosCierre};
       await turso([{q:'UPDATE mesa_operativa SET estado=?,hora_cierre=?,cierre_por=?,resultados_cierre_json=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:['CERRADA',now,session.uid,JSON.stringify(resultado),now,session.uid,mesaId]}]);
       await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Cierre de Mesa '+mesa+' • Centro '+centro+' • Hora '+now+' • Votos '+Number(acta.votos_partido||0),session.uid]}]);
       return res.status(200).json({ok:true,estado:'CERRADA',hora_cierre:now,resultados:resultado});
