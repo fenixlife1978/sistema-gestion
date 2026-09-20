@@ -1,4 +1,4 @@
-const {parseBody,turso,rowsFrom,verify,getCookie}=require('../../lib/auth');
+const {parseBody,turso,rowsFrom,verify,getCookie}=require('../lib/auth');
 
 const st=(v,n)=>String(v??'').trim().slice(0,n);
 const fail=(res,c,e)=>res.status(c).json({error:e});
