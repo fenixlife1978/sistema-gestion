@@ -9,13 +9,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Extract inline JavaScript
         run: |
-          node - <<'NODE'
+          node <<'NODE'
           const fs=require('fs');
           const h=fs.readFileSync('index.html','utf8');
-          const scripts=[...h.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)].map(m=>m[1]);
-          if(!scripts.length) throw new Error('No inline script found');
-          fs.writeFileSync('/tmp/index-inline.js',scripts.join('\n'));
-          console.log('scripts:',scripts.length);
+          const start=h.indexOf('<script>');
+          const end=h.lastIndexOf('</script>');
+          if(start<0 || end<start) throw new Error('Inline script block not found');
+          fs.writeFileSync('/tmp/index-inline.js',h.slice(start+8,end));
+          console.log('Extracted inline JavaScript:', end-(start+8), 'bytes');
           NODE
       - name: Check syntax
         run: node --check /tmp/index-inline.js
