@@ -101,20 +101,47 @@ jobs:
           console.log("SESSION_STATUS=" + session.r.status);
           if (!session.r.ok) throw new Error("Session validation failed: HTTP " + session.r.status);
 
-          const tests = [
-            ["/api/mesas/miembros", "MESAS_MIEMBROS"],
-            ["/api/cortes", "CORTES"],
-            ["/api/actas", "ACTAS"],
-            ["/api/verificaciones", "VERIFICACIONES"]
+          // These electoral APIs are POST-only. We exercise them with the
+          // smallest non-mutating/validation-safe requests instead of GETs.
+          const centro = process.env.LOAD_TEST_CENTRO;
+          const mesa = process.env.LOAD_TEST_MESA;
+          const cedula = process.env.LOAD_TEST_CEDULA;
+
+          const miembros = await request("/api/mesas/miembros", {
+            method: "POST",
+            headers: {cookie},
+            body: JSON.stringify({
+              accion: "historial_maquina",
+              centro_codigo: centro,
+              mesa
+            })
+          });
+          console.log("MESAS_MIEMBROS_STATUS=" + miembros.r.status);
+          if (!miembros.r.ok) throw new Error("MESAS_MIEMBROS failed: HTTP " + miembros.r.status + " body=" + miembros.text.slice(0,300));
+
+          // Validation probes for the other POST-only endpoints. These must
+          // reach the authenticated handler and return its documented 400,
+          // without creating or modifying electoral data.
+          const validationTests = [
+            ["/api/cortes", "CORTES", { }],
+            ["/api/actas", "ACTAS", { }],
+            ["/api/verificaciones", "VERIFICACIONES", { }]
           ];
 
-          for (const [path, label] of tests) {
-            const out = await request(path, {headers:{cookie}});
+          for (const [path, label, body] of validationTests) {
+            const out = await request(path, {
+              method: "POST",
+              headers: {cookie},
+              body: JSON.stringify(body)
+            });
             console.log(label + "_STATUS=" + out.r.status);
-            if (!out.r.ok) throw new Error(label + " failed: HTTP " + out.r.status + " body=" + out.text.slice(0,300));
+            if (out.r.status !== 400) {
+              throw new Error(label + " validation probe expected HTTP 400, got " + out.r.status + " body=" + out.text.slice(0,300));
+            }
           }
 
-          console.log("FIXTURE_CENTRO=" + process.env.LOAD_TEST_CENTRO);
-          console.log("FIXTURE_MESA=" + process.env.LOAD_TEST_MESA);
+          console.log("FIXTURE_CENTRO=" + centro);
+          console.log("FIXTURE_MESA=" + mesa);
+          console.log("FIXTURE_CEDULA_PRESENT=true");
           console.log("AUTHENTICATED_SMOKE_OK=true");
           NODE
