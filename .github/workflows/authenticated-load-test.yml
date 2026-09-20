@@ -18,6 +18,10 @@ on:
         default: "120"
         type: string
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   load:
     runs-on: ubuntu-latest
@@ -42,14 +46,44 @@ jobs:
           test -n "$LOGIN_ROLE"
           node --version
 
+      - name: Mint GitHub OIDC token for Vercel Trusted Sources
+        id: vercel-oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken();
+            core.setSecret(token);
+            core.setOutput('token', token);
+
       - name: Login and obtain runtime session
         shell: bash
+        env:
+          VERCEL_TRUSTED_OIDC_TOKEN: ${{ steps.vercel-oidc.outputs.token }}
         run: |
+          test -n "$VERCEL_TRUSTED_OIDC_TOKEN"
+          echo "::add-mask::$VERCEL_TRUSTED_OIDC_TOKEN"
           COOKIE="$(node -e '
           (async()=>{
             const url=process.env.BASE_URL.replace(/\/$/,"")+"/api/auth/login";
-            const r=await fetch(url,{method:"POST",headers:{"content-type":"application/json","accept":"application/json"},body:JSON.stringify({usuario:process.env.LOGIN_USER,clave:process.env.LOGIN_PASSWORD,rol:process.env.LOGIN_ROLE})});
-            if(!r.ok){console.error("LOGIN_HTTP_STATUS="+r.status);process.exit(1);}
+            const r=await fetch(url,{
+              method:"POST",
+              headers:{
+                "content-type":"application/json",
+                "accept":"application/json",
+                "x-vercel-trusted-oidc-idp-token":process.env.VERCEL_TRUSTED_OIDC_TOKEN
+              },
+              body:JSON.stringify({
+                usuario:process.env.LOGIN_USER,
+                clave:process.env.LOGIN_PASSWORD,
+                rol:process.env.LOGIN_ROLE
+              })
+            });
+            if(!r.ok){
+              console.error("LOGIN_HTTP_STATUS="+r.status);
+              const body=await r.text();
+              console.error("LOGIN_RESPONSE="+body.slice(0,500));
+              process.exit(1);
+            }
             const sc=r.headers.get("set-cookie")||"";
             const m=sc.match(/(?:^|,\s*)(erp_session=[^;,]+)/);
             if(!m){console.error("LOGIN_COOKIE_NOT_FOUND");process.exit(1);}
