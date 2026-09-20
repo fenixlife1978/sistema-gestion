@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      BASE_URL: https://sistema-gestion-cloul8lz7-fenixlife.vercel.app
+      BASE_URL: https://sistema-gestion-bawywstc2-fenixlife.vercel.app
       LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
       LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
       LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
