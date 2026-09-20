@@ -3138,7 +3138,7 @@ function abrirConstitucionMesa(codigo, mesa) {
         '<option value="REEMPLAZADA" '+(estadoMaquina==='REEMPLAZADA'?'selected':'')+'>Reemplazada</option>' +
         '<option value="OTRO" '+(estadoMaquina==='OTRO'?'selected':'')+'>Otro</option>' +
       '</select>' +
-      '<div id="mesaObsMaquinaWrap" style="margin-top:10px;display:"+(estadoMaquina==='OPERATIVA'?'none':'block')+"">' +
+      '<div id="mesaObsMaquinaWrap" style="margin-top:10px;display:'+(estadoMaquina==='OPERATIVA'?'none':'block')+'">' +
         '<label class="fl">Observación / incidencia</label>' +
         '<textarea class="inp" id="mesaObservacionMaquina" rows="3" maxlength="500" placeholder="Falla, reparación, reemplazo o resultado del servicio técnico..." '+(cerrado?'disabled':'')+'>'+esc(observacionMaquina)+'</textarea>' +
       '</div>' +
