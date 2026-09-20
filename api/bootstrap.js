@@ -258,45 +258,11 @@ const SCHEMA = [
   `ALTER TABLE autorizaciones_duplicidad_persona ADD COLUMN consumida_en TEXT`,
   `ALTER TABLE autorizaciones_duplicidad_persona ADD COLUMN consumida_por INTEGER`,
   `CREATE INDEX IF NOT EXISTS idx_aut_dup_disponible ON autorizaciones_duplicidad_persona(cedula, contexto_destino, consumida_en)`,
-];;
+];
 
 const PROBLEMAS = [
-  ['Servicios públicos','Agua potable'],
-  ['Servicios públicos','Aguas servidas / cloacas'],
-  ['Servicios públicos','Recolección de basura'],
-  ['Servicios públicos','Alumbrado público'],
-  ['Servicios públicos','Electricidad'],
-  ['Servicios públicos','Gas doméstico'],
-  ['Servicios públicos','Transporte público'],
-  ['Infraestructura','Vialidad / calles'],
-  ['Infraestructura','Aceras / brocales'],
-  ['Infraestructura','Drenajes / aguas de lluvia'],
-  ['Infraestructura','Puentes / accesos'],
-  ['Infraestructura','Espacios públicos'],
-  ['Vivienda','Déficit o deterioro de vivienda'],
-  ['Vivienda','Techo / filtraciones'],
-  ['Vivienda','Hacinamiento'],
-  ['Salud','Atención médica'],
-  ['Salud','Medicamentos'],
-  ['Salud','Ambulatorio / centro de salud'],
-  ['Educación','Infraestructura educativa'],
-  ['Educación','Acceso a educación'],
-  ['Educación','Materiales escolares'],
-  ['Seguridad','Seguridad ciudadana'],
-  ['Seguridad','Iluminación de zonas de riesgo'],
-  ['Ambiente','Contaminación'],
-  ['Ambiente','Áreas verdes'],
-  ['Ambiente','Animales en situación de calle'],
-  ['Conectividad','Telefonía / señal móvil'],
-  ['Conectividad','Internet'],
-  ['Cultura y deporte','Canchas deportivas'],
-  ['Cultura y deporte','Actividades culturales / comunitarias'],
-  ['Social','Adultos mayores'],
-  ['Social','Personas con discapacidad'],
-  ['Social','Alimentación'],
-  ['Social','Empleo / emprendimiento'],
-  ['Otros','Otro problema comunitario']
-];;
+  ['Servicios públicos','Agua potable'],['Servicios públicos','Aguas servidas / cloacas'],['Servicios públicos','Recolección de basura'],['Servicios públicos','Alumbrado público'],['Servicios públicos','Electricidad'],['Servicios públicos','Gas doméstico'],['Servicios públicos','Transporte público'],['Infraestructura','Vialidad / calles'],['Infraestructura','Aceras / brocales'],['Infraestructura','Drenajes / aguas de lluvia'],['Infraestructura','Puentes / accesos'],['Infraestructura','Espacios públicos'],['Vivienda','Déficit o deterioro de vivienda'],['Vivienda','Techo / filtraciones'],['Vivienda','Hacinamiento'],['Salud','Atención médica'],['Salud','Medicamentos'],['Salud','Ambulatorio / centro de salud'],['Educación','Infraestructura educativa'],['Educación','Acceso a educación'],['Educación','Materiales escolares'],['Seguridad','Seguridad ciudadana'],['Seguridad','Iluminación de zonas de riesgo'],['Ambiente','Contaminación'],['Ambiente','Áreas verdes'],['Ambiente','Animales en situación de calle'],['Conectividad','Telefonía / señal móvil'],['Conectividad','Internet'],['Cultura y deporte','Canchas deportivas'],['Cultura y deporte','Actividades culturales / comunitarias'],['Social','Adultos mayores'],['Social','Personas con discapacidad'],['Social','Alimentación'],['Social','Empleo / emprendimiento'],['Otros','Otro problema comunitario']
+];
 
 const isBenign = e => /duplicate column name|already exists|duplicate index|duplicate table|no such column/i.test(String(e?.message||e||'').toLowerCase());
 
@@ -318,7 +284,6 @@ async function migrateComiteRoles(){
     return;
   }
 
-  // Nunca descartar silenciosamente registros durante la migración.
   await turso([{q:`CREATE TABLE IF NOT EXISTS comite_vecinal_legacy_backup (
     backup_id INTEGER PRIMARY KEY AUTOINCREMENT,
     backed_up_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -338,13 +303,13 @@ async function migrateComiteRoles(){
     SELECT id,comunidad,COALESCE(NULLIF(cargo,''),'COORDINADOR'),cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado FROM comite_vecinal`,params:[]}]);
 
   const legacy=rowsFrom(await turso([{q:`SELECT id,comunidad,COALESCE(NULLIF(cargo,''),'') AS cargo,cedula,nombre,telefono,direccion,numero_calle,numero_casa,problematica_actual,creado
-    FROM comite_vecinal ORDER BY comunidad,id`,params:[]}])));
+    FROM comite_vecinal ORDER BY comunidad,id`,params:[]}]));
   const allowed=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
   const grouped=new Map();
   for(const row of legacy){ const key=String(row.comunidad||'').trim(); if(!grouped.has(key))grouped.set(key,[]); grouped.get(key).push(row); }
+  const rowAssignments=[];
   for(const [comunidad,rows] of grouped){
     const used=new Set();
-    for(const row of rows){ if(allowed.includes(row.cargo)&&!used.has(row.cargo))used.add(row.cargo); }
     const assignments=[];
     for(const row of rows){
       let cargo=allowed.includes(row.cargo)&&!assignments.some(x=>x.cargo===row.cargo) ? row.cargo : allowed.find(x=>!used.has(x));
@@ -378,14 +343,12 @@ async function migrateComiteRoles(){
   await turso([{q:'CREATE INDEX IF NOT EXISTS idx_comite_cargo ON comite_vecinal(cargo)',params:[]}]);
   await turso([{q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_comite_comunidad_cargo ON comite_vecinal(comunidad,cargo)',params:[]}]);
 }
-let rowAssignments=[];
+
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
 async function execSchema() {
-  const existing=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal' LIMIT 1",params:[]}])));
+  const existing=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal' LIMIT 1",params:[]}]));
   if(existing.length) await migrateComiteRoles();
-  const marker=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_bootstrap_meta' LIMIT 1",params:[]}]));
-  // Ejecutar migraciones estructurales también en bases ya inicializadas.
   const dirCols=rowsFrom(await turso([{q:'PRAGMA table_info(direccion_ejecutiva)',params:[]}]));
   if(dirCols.length){
     const dirIndexes=rowsFrom(await turso([{q:'PRAGMA index_list(direccion_ejecutiva)',params:[]}]));
@@ -434,27 +397,16 @@ async function execSchema() {
   }
 
   const warnings=[];
-  for (const sql of SCHEMA) {
-    try { await turso([{q:sql,params:[]}]); }
-    catch(e) {
-      if (isBenign(e)) warnings.push(String(e.message||e));
-      else throw e;
-    }
+  for(const sql of SCHEMA){
+    try{await turso([{q:sql,params:[]}]);}
+    catch(e){if(isBenign(e))warnings.push(String(e.message||e));else throw e;}
   }
-
-  // En primera inicialización el esquema acaba de crear el comité con la restricción legacy; normalizarlo ahora.
   await migrateComiteRoles();
 
-  // La columna ya forma parte del esquema actual; se conserva esta migración
-  // para bases creadas por versiones anteriores.
-  try {
+  try{
     const actCols=rowsFrom(await turso([{q:'PRAGMA table_info(actas_mesa)',params:[]}]));
-    if(actCols.length && !actCols.some(x=>x.name==='votos_partido')){
-      await turso([{q:'ALTER TABLE actas_mesa ADD COLUMN votos_partido INTEGER NOT NULL DEFAULT 0',params:[]}]);
-    }
-  } catch(e) {
-    if(!isBenign(e)) throw e;
-  }
+    if(actCols.length&&!actCols.some(x=>x.name==='votos_partido')) await turso([{q:'ALTER TABLE actas_mesa ADD COLUMN votos_partido INTEGER NOT NULL DEFAULT 0',params:[]}]);
+  }catch(e){if(!isBenign(e))throw e;}
 
   for(let i=0;i<PROBLEMAS.length;i++){
     const [categoria,nombre]=PROBLEMAS[i];
@@ -469,9 +421,7 @@ async function execSchema() {
       ['operador','operador123','Pedro Rivas','O','Operador de Sala'],
       ['cdiaz','operador123','Carmen Díaz','O','Operadora Territorial']
     ];
-    for(const [u,p,n,r,c] of seeds){
-      await turso([{q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:[u,modernHash(p),n,r,c]}]);
-    }
+    for(const [u,p,n,r,c] of seeds) await turso([{q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:[u,modernHash(p),n,r,c]}]);
   }
   await turso([{q:"CREATE TABLE IF NOT EXISTS erp_bootstrap_meta (id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT (datetime('now')))",params:[]}]);
   await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:["2026-09-19-h1"]}]);
@@ -480,11 +430,11 @@ async function execSchema() {
 module.exports=async function handler(req,res){
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
-  if(req.method==='OPTIONS') return res.status(200).end();
-  if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
+  if(req.method==='OPTIONS')return res.status(200).end();
+  if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
   try{
     await execSchema();
-    if(req.internalBootstrap===true) return {ok:true,ready:true};
+    if(req.internalBootstrap===true)return {ok:true,ready:true};
     const rows=rowsFrom(await turso([{q:'SELECT COUNT(*) AS n FROM padron',params:[]}]));
     return res.status(200).json({ok:true,ready:true,padron_count:Number(rows[0]?.n||0)});
   }catch(e){
