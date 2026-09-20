@@ -1,0 +1,2 @@
+Vercel Git trigger verification — 2026-09-20
+Verified-commit requirement was disabled for this project; this marker intentionally triggers a fresh Preview deployment.

@@ -1,0 +1,109 @@
+name: authenticated-load-test
+
+on:
+  push:
+    branches:
+      - audit/hardening-2026-09-19
+    paths:
+      - .github/workflows/authenticated-load-test.yml
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Vercel Preview URL to test"
+        required: true
+        type: string
+      duration:
+        description: "Seconds per load level"
+        required: true
+        default: "120"
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-pcrlrv723-fenixlife.vercel.app' }}
+      LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
+      LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
+      LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
+      LOAD_TEST_CENTRO: ${{ secrets.LOAD_TEST_CENTRO }}
+      LOAD_TEST_CEDULA: ${{ secrets.LOAD_TEST_CEDULA }}
+      LOAD_TEST_MESA: ${{ secrets.LOAD_TEST_MESA }}
+      DURATION: ${{ inputs.duration || '120' }}
+    steps:
+      - name: Checkout hardening branch
+        uses: actions/checkout@v4
+        with:
+          ref: audit/hardening-2026-09-19
+
+      - name: Verify test prerequisites
+        run: |
+          test -n "$BASE_URL"
+          test -n "$LOGIN_USER"
+          test -n "$LOGIN_PASSWORD"
+          test -n "$LOGIN_ROLE"
+          node --version
+
+      - name: Login and obtain runtime session
+        shell: bash
+        run: |
+          COOKIE="$(node -e '
+          (async()=>{
+            const url=process.env.BASE_URL.replace(/\/$/,"")+"/api/auth/login";
+            const r=await fetch(url,{
+              method:"POST",
+              headers:{"content-type":"application/json","accept":"application/json"},
+              body:JSON.stringify({
+                usuario:process.env.LOGIN_USER,
+                clave:process.env.LOGIN_PASSWORD,
+                rol:process.env.LOGIN_ROLE
+              })
+            });
+            if(!r.ok){
+              console.error("LOGIN_HTTP_STATUS="+r.status);
+              const body=await r.text();
+              console.error("LOGIN_RESPONSE="+body.slice(0,500));
+              process.exit(1);
+            }
+            const sc=r.headers.get("set-cookie")||"";
+            const m=sc.match(/(?:^|,\s*)(erp_session=[^;,]+)/);
+            if(!m){console.error("LOGIN_COOKIE_NOT_FOUND");process.exit(1);}
+            process.stdout.write(m[1]);
+          })().catch(e=>{console.error("LOGIN_ERROR="+e.message);process.exit(1);});
+          ')"
+          test -n "$COOKIE"
+          echo "::add-mask::$COOKIE"
+          echo "SESSION_COOKIE=$COOKIE" >> "$GITHUB_ENV"
+
+      - name: Load 50 users
+        run: |
+          USERS=50 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-50.log
+
+      - name: Load 100 users
+        run: |
+          USERS=100 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-100.log
+
+      - name: Load 150 users
+        run: |
+          USERS=150 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-150.log
+
+      - name: Load 200 users
+        run: |
+          USERS=200 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-200.log
+
+      - name: Upload load-test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: election-load-test-results
+          path: |
+            load-50.log
+            load-100.log
+            load-150.log
+            load-200.log
+          if-no-files-found: warn

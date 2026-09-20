@@ -1,0 +1,27 @@
+name: syntax-check
+
+on:
+  push:
+    branches:
+      - audit/hardening-2026-09-19
+    paths:
+      - api/bootstrap.js
+      - api/auth/login.js
+      - lib/auth.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/hardening-2026-09-19
+      - name: Node syntax check
+        run: |
+          node --check api/bootstrap.js
+          node --check api/auth/login.js
+          node --check lib/auth.js

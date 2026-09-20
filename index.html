@@ -234,6 +234,7 @@ const API_URL = '/api/turso';
 async function turso(stmts) {
   const r = await fetch(API_URL, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ statements: Array.isArray(stmts) ? stmts.map(s => ({ q: s.sql || s.q, params: s.args || s.params || [] })) : [{ q: stmts.sql || stmts.q, params: stmts.args || stmts.params || [] }] })
   });
@@ -265,7 +266,6 @@ async function q(sql, args = []) {
     return o;
   });
 }
-async function x(sql, args = []) { return turso({ sql, args }); }
 
 /* ----------- HASH DE CLAVES (SHA-256 + sal) ----------- */
 const SAL = 'c1x10_v1_';
@@ -598,12 +598,8 @@ function filtrarComiteProblemas(prefix) {
 }
 
 async function guardarProblemasComite(comiteId, problemaIds) {
-  await x('DELETE FROM comite_problemas WHERE comite_id = ?', [comiteId]);
-  for (const problemaId of (problemaIds || [])) {
-    if (Number.isFinite(Number(problemaId)) && Number(problemaId) > 0) {
-      await x('INSERT OR IGNORE INTO comite_problemas(comite_id, problema_id) VALUES(?,?)', [comiteId, Number(problemaId)]);
-    }
-  }
+  const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'problemas',comite_id:comiteId,problema_ids:problemaIds||[]})});
+  const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron guardar las problemáticas');
 }
 
 function problemasTextoComite(comiteId) {
@@ -613,282 +609,10 @@ function problemasTextoComite(comiteId) {
     .join(', ');
 }
 
-const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS usuarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    usuario TEXT NOT NULL UNIQUE,
-    clave_hash TEXT NOT NULL,
-    nombre TEXT NOT NULL,
-    rol TEXT NOT NULL CHECK(rol IN ('J','A','O')),
-    cargo TEXT,
-    telefono TEXT,
-    activo INTEGER NOT NULL DEFAULT 1,
-    creado TEXT DEFAULT (datetime('now'))
-  )`,
-  `CREATE TABLE IF NOT EXISTS centros (
-    codigo TEXT PRIMARY KEY,
-    nombre TEXT NOT NULL,
-    municipio TEXT,
-    parroquia TEXT,
-    estado TEXT,
-    mesas INTEGER DEFAULT 1,
-    cod_estado TEXT,
-    cod_municipio TEXT,
-    cod_parroquia TEXT
-  )`,
-  `CREATE TABLE IF NOT EXISTS padron (
-    cedula TEXT PRIMARY KEY,
-    letra TEXT NOT NULL DEFAULT 'V',
-    p_apellido TEXT,
-    s_apellido TEXT,
-    p_nombre TEXT,
-    s_nombre TEXT,
-    sexo TEXT CHECK(sexo IN ('M','F')),
-    fecha_nac TEXT,
-    edad INTEGER,
-    codigo_estado TEXT,
-    estado TEXT,
-    codigo_municipio TEXT,
-    municipio TEXT,
-    codigo_parroquia TEXT,
-    parroquia TEXT,
-    centro_votacion TEXT,
-    nombre_cv TEXT,
-    es_manual INTEGER DEFAULT 0,
-    creado TEXT DEFAULT (datetime('now'))
-  )`,
-  `CREATE TABLE IF NOT EXISTS reclutadores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cedula TEXT NOT NULL UNIQUE,
-    telefono TEXT,
-    estructura TEXT,
-    direccion TEXT,
-    creado TEXT DEFAULT (datetime('now'))
-  )`,
-  `CREATE TABLE IF NOT EXISTS asignaciones (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    reclutador_id INTEGER NOT NULL,
-    cedula TEXT NOT NULL UNIQUE,
-    posicion INTEGER,
-    telefono TEXT,
-    registrado_en TEXT DEFAULT (datetime('now')),
-    numero_calle TEXT,
-    numero_casa TEXT,
-    direccion TEXT,
-    FOREIGN KEY (reclutador_id) REFERENCES reclutadores(id) ON DELETE CASCADE
-  )`,
-  `CREATE TABLE IF NOT EXISTS actividad (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tipo TEXT,
-    texto TEXT,
-    usuario_id INTEGER,
-    creado TEXT DEFAULT (datetime('now'))
-  )`,
-  `CREATE TABLE IF NOT EXISTS centro_cargos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    centro_codigo TEXT NOT NULL,
-    cargo TEXT NOT NULL,
-    cedula TEXT,
-    telefono TEXT,
-    direccion TEXT,
-    asignado_en TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (centro_codigo) REFERENCES centros(codigo) ON DELETE CASCADE
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_pad_centro ON padron(centro_votacion)`,
-  `CREATE INDEX IF NOT EXISTS idx_pad_mun ON padron(municipio)`,
-  `CREATE INDEX IF NOT EXISTS idx_asig_recl ON asignaciones(reclutador_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_cargo_centro ON centro_cargos(centro_codigo)`,
-  `ALTER TABLE asignaciones ADD COLUMN telefono TEXT`,
-  `ALTER TABLE asignaciones ADD COLUMN numero_calle TEXT`,
-  `ALTER TABLE asignaciones ADD COLUMN numero_casa TEXT`,
-  `ALTER TABLE asignaciones ADD COLUMN direccion TEXT`,
-  `ALTER TABLE reclutadores ADD COLUMN direccion TEXT`,
-  `ALTER TABLE centro_cargos ADD COLUMN telefono TEXT`,
-  `ALTER TABLE centro_cargos ADD COLUMN direccion TEXT`,
-  `CREATE TABLE IF NOT EXISTS direccion_ejecutiva (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cargo TEXT NOT NULL,
-    cedula TEXT NOT NULL UNIQUE,
-    nombre TEXT,
-    telefono TEXT,
-    estructura TEXT,
-    direccion TEXT,
-    creado TEXT DEFAULT (datetime('now'))
-  )`,
-  `ALTER TABLE direccion_ejecutiva ADD COLUMN nombre TEXT`,
-  `ALTER TABLE direccion_ejecutiva ADD COLUMN telefono TEXT`,
-  `ALTER TABLE direccion_ejecutiva ADD COLUMN estructura TEXT`,
-  `ALTER TABLE direccion_ejecutiva ADD COLUMN direccion TEXT`,
-  `ALTER TABLE direccion_ejecutiva ADD COLUMN creado TEXT`,
-  `CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)`,
-  `CREATE TABLE IF NOT EXISTS comite_vecinal (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    comunidad TEXT NOT NULL,
-    cedula TEXT NOT NULL UNIQUE,
-    nombre TEXT,
-    telefono TEXT,
-    direccion TEXT,
-    numero_calle TEXT,
-    numero_casa TEXT,
-    problematica_actual TEXT,
-    creado TEXT DEFAULT (datetime('now'))
-  )`,
-  `ALTER TABLE comite_vecinal ADD COLUMN comunidad TEXT`,
-  `ALTER TABLE comite_vecinal ADD COLUMN nombre TEXT`,
-  `ALTER TABLE comite_vecinal ADD COLUMN telefono TEXT`,
-  `ALTER TABLE comite_vecinal ADD COLUMN direccion TEXT`,
-  `ALTER TABLE comite_vecinal ADD COLUMN numero_calle TEXT`,
-  `ALTER TABLE comite_vecinal ADD COLUMN numero_casa TEXT`,
-  `ALTER TABLE comite_vecinal ADD COLUMN problematica_actual TEXT`,
-  `CREATE INDEX IF NOT EXISTS idx_comite_comunidad ON comite_vecinal(comunidad)`,
-  `CREATE TABLE IF NOT EXISTS catalogo_problemas (id INTEGER PRIMARY KEY AUTOINCREMENT, categoria TEXT NOT NULL, nombre TEXT NOT NULL UNIQUE, activo INTEGER NOT NULL DEFAULT 1, orden INTEGER NOT NULL DEFAULT 0)`,
-  `CREATE TABLE IF NOT EXISTS comite_problemas (comite_id INTEGER NOT NULL, problema_id INTEGER NOT NULL, PRIMARY KEY(comite_id, problema_id), FOREIGN KEY(comite_id) REFERENCES comite_vecinal(id) ON DELETE CASCADE, FOREIGN KEY(problema_id) REFERENCES catalogo_problemas(id) ON DELETE CASCADE)`,
-  `CREATE INDEX IF NOT EXISTS idx_cp_problema ON comite_problemas(problema_id)`,
-  `CREATE TABLE IF NOT EXISTS verificaciones_votacion (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cedula TEXT NOT NULL UNIQUE,
-    centro_codigo TEXT NOT NULL,
-    mesa TEXT NOT NULL,
-    estado TEXT NOT NULL DEFAULT 'VOTO_VERIFICADO' CHECK(estado IN ('VOTO_VERIFICADO')),
-    verificado_en TEXT NOT NULL DEFAULT (datetime('now')),
-    verificado_por INTEGER,
-    FOREIGN KEY(centro_codigo) REFERENCES centros(codigo) ON DELETE CASCADE,
-    FOREIGN KEY(verificado_por) REFERENCES usuarios(id) ON DELETE SET NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_verif_centro ON verificaciones_votacion(centro_codigo)`,
-  `CREATE INDEX IF NOT EXISTS idx_verif_mesa ON verificaciones_votacion(centro_codigo, mesa)`,
-  `CREATE TABLE IF NOT EXISTS actas_mesa (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    centro_codigo TEXT NOT NULL,
-    mesa TEXT NOT NULL,
-    cantidad_acta INTEGER NOT NULL DEFAULT 0 CHECK(cantidad_acta >= 0),
-    votos_partido INTEGER NOT NULL DEFAULT 0 CHECK(votos_partido >= 0),
-    actualizado_en TEXT NOT NULL DEFAULT (datetime('now')),
-    actualizado_por INTEGER,
-    UNIQUE(centro_codigo, mesa),
-    FOREIGN KEY(centro_codigo) REFERENCES centros(codigo) ON DELETE CASCADE,
-    FOREIGN KEY(actualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_actas_centro ON actas_mesa(centro_codigo)`,
-  `CREATE TABLE IF NOT EXISTS mesa_operativa (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    centro_codigo TEXT NOT NULL,
-    mesa TEXT NOT NULL,
-    hora_constitucion TEXT,
-    hora_inicio_votacion TEXT,
-    testigos_asistieron INTEGER NOT NULL DEFAULT 0 CHECK(testigos_asistieron >= 0),
-    actualizado_en TEXT NOT NULL DEFAULT (datetime('now')),
-    actualizado_por INTEGER,
-    UNIQUE(centro_codigo, mesa),
-    FOREIGN KEY(centro_codigo) REFERENCES centros(codigo) ON DELETE CASCADE,
-    FOREIGN KEY(actualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_mesa_operativa_centro ON mesa_operativa(centro_codigo)`,
-  `CREATE TABLE IF NOT EXISTS mesa_miembros (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mesa_operativa_id INTEGER NOT NULL,
-    cedula TEXT NOT NULL,
-    cargo TEXT NOT NULL,
-    tipo TEXT NOT NULL CHECK(tipo IN ('AFECTO','ACCIDENTAL')),
-    origen TEXT,
-    autorizado INTEGER NOT NULL DEFAULT 0 CHECK(autorizado IN (0,1)),
-    autorizado_por INTEGER,
-    autorizado_en TEXT,
-    registrado_en TEXT NOT NULL DEFAULT (datetime('now')),
-    registrado_por INTEGER,
-    UNIQUE(mesa_operativa_id, cedula, cargo, tipo),
-    FOREIGN KEY(mesa_operativa_id) REFERENCES mesa_operativa(id) ON DELETE CASCADE,
-    FOREIGN KEY(autorizado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
-    FOREIGN KEY(registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_mesa_miembros_mesa ON mesa_miembros(mesa_operativa_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_mesa_miembros_ci ON mesa_miembros(cedula)`,
-  `CREATE TABLE IF NOT EXISTS cortes_electorales (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    centro_codigo TEXT NOT NULL,
-    etiqueta TEXT,
-    tomado_en TEXT NOT NULL DEFAULT (datetime('now')),
-    tomado_por INTEGER,
-    personas_universo INTEGER NOT NULL DEFAULT 0,
-    verificados INTEGER NOT NULL DEFAULT 0,
-    pendientes INTEGER NOT NULL DEFAULT 0,
-    porcentaje_verificado REAL NOT NULL DEFAULT 0,
-    masculinos_universo INTEGER NOT NULL DEFAULT 0,
-    femeninos_universo INTEGER NOT NULL DEFAULT 0,
-    masculinos_verificados INTEGER NOT NULL DEFAULT 0,
-    femeninos_verificados INTEGER NOT NULL DEFAULT 0,
-    mesas_total INTEGER NOT NULL DEFAULT 0,
-    mesas_con_acta INTEGER NOT NULL DEFAULT 0,
-    votos_partido_acta INTEGER NOT NULL DEFAULT 0,
-    diferencia_acta INTEGER,
-    detalle_json TEXT,
-    FOREIGN KEY(centro_codigo) REFERENCES centros(codigo) ON DELETE CASCADE,
-    FOREIGN KEY(tomado_por) REFERENCES usuarios(id) ON DELETE SET NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_cortes_centro_fecha ON cortes_electorales(centro_codigo, tomado_en DESC)`,
-  `CREATE INDEX IF NOT EXISTS idx_cortes_fecha ON cortes_electorales(tomado_en DESC)`,
-  `CREATE TABLE IF NOT EXISTS autorizaciones_duplicidad_persona (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cedula TEXT NOT NULL,
-    contexto_origen TEXT NOT NULL,
-    contexto_destino TEXT NOT NULL,
-    detalle_duplicidad TEXT,
-    motivo TEXT NOT NULL,
-    autorizado_por INTEGER NOT NULL,
-    autorizado_en TEXT NOT NULL DEFAULT (datetime('now')),
-    registrado_por INTEGER,
-    FOREIGN KEY(autorizado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
-    FOREIGN KEY(registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_aut_dup_cedula ON autorizaciones_duplicidad_persona(cedula)`,
-  `CREATE INDEX IF NOT EXISTS idx_aut_dup_fecha ON autorizaciones_duplicidad_persona(autorizado_en DESC)`
-];
-
-async function migrarActasMesaPartido() {
-  try {
-    const cols = await q('PRAGMA table_info(actas_mesa)');
-    if (!cols.some(c => c.name === 'votos_partido')) {
-      await x('ALTER TABLE actas_mesa ADD COLUMN votos_partido INTEGER NOT NULL DEFAULT 0');
-    }
-  } catch (e) {
-    console.warn('Migración actas_mesa.votos_partido:', e.message);
-  }
-}
-
-async function inicializarTurso() {
-  setLoad('Creando tablas en Turso...', 'Preparando estructura de datos...');
-  let schemaWarn = 0;
-  await migrarActasMesaPartido();
-  for (let i = 0; i < SCHEMA.length; i++) {
-    setLoad('Creando tablas en Turso...', 'Paso ' + (i + 1) + ' de ' + SCHEMA.length);
-    try { await x(SCHEMA[i]); } catch (e) { schemaWarn++; console.warn('Schema warn:', e.message); }
-  }
-  setLoad('Verificando usuarios iniciales...', schemaWarn ? ('Estructura lista con ' + schemaWarn + ' avisos de migración') : 'Estructura creada correctamente');
-  const users = await q('SELECT COUNT(*) AS n FROM usuarios');
-  if (users[0].n === 0) {
-    const seeds = [
-      ['admin@comando.com', 'admin123', 'Administrador del Sistema', 'A', 'Administrador'],
-      ['jefe', 'jefe123', 'Gualberto Martinez', 'J', 'Jefe de Comando'],
-      ['operador', 'operador123', 'Pedro Rivas', 'O', 'Operador de Sala'],
-      ['cdiaz', 'operador123', 'Carmen Díaz', 'O', 'Operadora Territorial']
-    ];
-    for (const [u, p, n, r, c] of seeds) {
-      const h = await hash(p);
-      await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', [u, h, n, r, c]);
-    }
-  }
-  for (let i = 0; i < COMITE_PROBLEMAS_BASE.length; i++) {
-    const item = COMITE_PROBLEMAS_BASE[i];
-    await x('INSERT OR IGNORE INTO catalogo_problemas(categoria,nombre,orden) VALUES(?,?,?)', [item[0], item[1], i + 1]);
-  }
-  await registrarAct('sys', 'Sistema inicializado • Turso listo', null);
-}
-
-
 function setLoad(msg, sub) { $('loadMsg').textContent = msg; if (sub !== undefined) $('loadSub').textContent = sub; }
 
 async function registrarAct(tipo, texto, uid) {
-  try { await x('INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)', [tipo, texto, uid]); } catch (e) {}
+  try { await fetch('/api/auditar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,texto})}); } catch (e) {}
 }
 
 /* ----------- RECARGA DE CACHE DESDE TURSO ----------- */
@@ -907,14 +631,14 @@ async function refreshAll() {
     try { CACHE.direccion = await q('SELECT * FROM direccion_ejecutiva ORDER BY id DESC'); } catch (err) { CACHE.direccion = []; }
   }
   try {
-    CACHE.comite = await q('SELECT cv.id, cv.comunidad, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC');
+    CACHE.comite = await q('SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC');
   } catch (e) {
     console.warn('Fallback CACHE.comite:', e);
     try { CACHE.comite = await q('SELECT * FROM comite_vecinal ORDER BY id DESC'); } catch (err) { CACHE.comite = []; }
   }
   CACHE.catalogoProblemas = await q('SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id');
   CACHE.comiteProblemas = await q('SELECT cp.comite_id, cp.problema_id, c.categoria, c.nombre AS problema_nombre FROM comite_problemas cp JOIN catalogo_problemas c ON c.id = cp.problema_id ORDER BY cp.comite_id, c.orden, c.id');
-  CACHE.verificacion = await q('SELECT * FROM verificaciones_votacion ORDER BY verificado_en DESC, id DESC');
+  CACHE.verificacion = await q(`SELECT v.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, u.nombre AS operador_nom FROM verificaciones_votacion v LEFT JOIN padron p ON p.cedula=v.cedula LEFT JOIN usuarios u ON u.id=v.verificado_por ORDER BY v.verificado_en DESC, v.id DESC`);
   CACHE.actasMesa = await q('SELECT * FROM actas_mesa ORDER BY centro_codigo, mesa');
   CACHE.mesasOperativas = await q('SELECT * FROM mesa_operativa ORDER BY centro_codigo, mesa');
   CACHE.mesaMiembros = await q('SELECT * FROM mesa_miembros ORDER BY mesa_operativa_id, id');
@@ -925,7 +649,7 @@ async function refreshAll() {
   }
 }
 
-function padBy(c) { return CACHE.pad.find(p => p.cedula === normC(c)); }
+function padBy(c) { const n=normC(c); return CACHE.pad.find(p => normC(p.cedula) === n); }
 function cenBy(cod) { return CACHE.centros.find(c => c.codigo === String(cod)); }
 function nomP(p) { return ((p.p_nombre || '') + ' ' + (p.s_nombre || '')).trim(); }
 function apeP(p) { return ((p.p_apellido || '') + ' ' + (p.s_apellido || '')).trim(); }
@@ -944,16 +668,24 @@ async function doLogin() {
   const u = $('lgU').value.trim(), p = $('lgP').value, selR = $('lgR').value;
   if (!u || !p) return toast('Ingrese usuario y clave', 'err');
   try {
-    const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [u]);
-    if (!row.length) return toast('Usuario no encontrado o inactivo', 'err');
-    const h = await hash(p);
-    if (row[0].clave_hash !== h) return toast('Clave incorrecta', 'err');
-    const userRole = row[0].rol;
-    if (selR === 'J' && userRole !== 'J') return toast('Este usuario no tiene rol de Jefe de Comando', 'err');
-    if (selR === 'A' && !['J', 'A'].includes(userRole)) return toast('Este usuario no tiene rol de Administrador', 'err');
-    if (selR === 'O' && userRole !== 'O') return toast('Este usuario no tiene rol de Operador', 'err');
-    USER = row[0];
-    localStorage.setItem('session', JSON.stringify({ user: USER, cur: 'dash' }));
+    const r = await fetch('/api?route=auth/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({ usuario: u, clave: p, rol: selR })
+    });
+    const contentType = r.headers.get('content-type') || '';
+    let data = {};
+    if (contentType.includes('application/json')) {
+      try { data = await r.json(); } catch (e) {}
+    } else {
+      const raw = await r.text().catch(() => '');
+      data = raw ? { error: raw.slice(0, 180) } : {};
+    }
+    if (!r.ok) return toast((data.error || ('HTTP ' + r.status + ' al autenticar')), 'err', 8000);
+    USER = data.user;
+    localStorage.setItem('curTab', 'dash');
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
     await refreshAll();
     enterApp('dash');
@@ -979,7 +711,7 @@ const MODS = [
   { id: 'centros', l: 'Centros', i: 'school' },
   { id: 'rep', l: 'Reportes y Cruces', i: 'chart' },
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
-  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] },
+  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A', 'O'] },
   { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' },
   { id: 'comite', l: 'Comités Vecinales', i: 'users' },
   { id: 'control', l: 'Control Electoral', i: 'check' }
@@ -1002,7 +734,10 @@ function go(id) {
   const m = MODS.find(x => x.id === id);
   if (m.adm && !m.adm.includes(USER.rol)) return toast('Módulo restringido a ' + m.adm.join('/'), 'err');
   CUR = id;
-  localStorage.setItem('session', JSON.stringify({ user: USER, cur: CUR }));
+  localStorage.setItem('session', JSON.stringify({ user: {
+    id: USER.id, usuario: USER.usuario, nombre: USER.nombre, rol: USER.rol,
+    cargo: USER.cargo, telefono: USER.telefono, activo: USER.activo
+  }, cur: CUR }));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   const t = $('tb-' + id); if (t) t.classList.add('on');
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
@@ -1010,7 +745,12 @@ function go(id) {
   ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion, comite: renderComite, control: renderControlElectoral })[id]();
   window.scrollTo({ top: 0 });
 }
-function logout() { localStorage.removeItem('session'); location.reload() }
+async function logout() {
+  try { await fetch('/api/auth/logout', { method:'POST', credentials:'include' }); } catch(e) {}
+  localStorage.removeItem('curTab');
+  USER = null;
+  location.reload();
+}
 
 /* ----------- TOOLBAR ----------- */
 async function tbSave() {
@@ -1039,7 +779,7 @@ function openHist() {
 }
 function openDocs() {
   win(ic('file', 18) + ' Documentos y exportaciones',
-    '<div class="grid g2" style="gap:10px">' +
+    '<div style="margin-bottom:10px"><label class="fl">Cargo</label><select class="inp" id="comECargo"><option>COORDINADOR</option><option>RESPONSABLE DE ORGANIZACIÓN</option><option>RESPONSABLE ELECTORAL</option><option>RESPONSABLE DE JUVENTUD</option><option>RESPONSABLE DE ACCIÓN SOCIAL</option></select></div><div class="grid g2" style="gap:10px">' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="expPadron()">' + ic('dl', 15) + ' Padrón CNE completo (CSV)</button>' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="expRep()">' + ic('dl', 15) + ' Reporte cruzado (CSV)</button>' +
     '<button class="btn btn-w" style="justify-content:flex-start" onclick="LAST_REC?expLista(LAST_REC):toast(\'Seleccione movilizador\',\'err\')">' + ic('dl', 15) + ' Lista de Comprometidos (CSV)</button>' +
@@ -1144,14 +884,7 @@ function renderDash() {
   if (CACHE.pad.length > 0 && edadesValidas.length === 0) {
     CACHE.pad.forEach(p => { p.edad = edadDe(p.fecha_nac); });
     edadesValidas = CACHE.pad.filter(p => p.edad > 0 && p.edad <= 120);
-    setTimeout(async () => {
-      const all = await q('SELECT cedula, fecha_nac FROM padron');
-      const CHUNK = 200;
-      for (let i = 0; i < all.length; i += CHUNK) {
-        const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
-        await turso(batch);
-      }
-    }, 100);
+    if (['J','A'].includes(USER.rol)) setTimeout(async () => { try { await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reparar_edades'})}); } catch(e) {} }, 100);
   }
   const edadProm = edadesValidas.length ? (edadesValidas.reduce((a, p) => a + p.edad, 0) / edadesValidas.length).toFixed(1) : '';
   const R = [[18, 25, '18–25'], [26, 35, '26–35'], [36, 45, '36–45'], [46, 55, '46–55'], [56, 65, '56–65'], [66, 999, '66+']];
@@ -1340,20 +1073,28 @@ async function confirmarAutorizacionDuplicidad(cedula, destino) {
   if(!u||!p) return toast('Ingrese usuario y clave de autorización','err');
   if(!motivo) return toast('Indique el motivo de la excepción','err');
   try {
-    const rows=await q('SELECT * FROM usuarios WHERE usuario=? AND activo=1 LIMIT 1',[u]);
-    if(!rows.length) return toast('Usuario autorizante no encontrado o inactivo','err');
-    const user=rows[0];
-    if(!['J','A'].includes(user.rol)) return toast('Solo un Jefe de Comando o Administrador puede autorizar esta operación','err');
-    if(user.clave_hash !== await hash(p)) return toast('Clave de autorización incorrecta','err');
-    const origenes=(encontrados||[]).map(x=>x.tipo).filter(Boolean);
-    const detalles=(encontrados||[]).map(x=>x.detalle).filter(Boolean);
-    await x('INSERT INTO autorizaciones_duplicidad_persona(cedula,contexto_origen,contexto_destino,detalle_duplicidad,motivo,autorizado_por,registrado_por) VALUES(?,?,?,?,?,?,?)',[
-      normC(cedula),origenes.join(' | ') || 'OTRO',destino,detalles.join(' '),motivo,user.id,USER?.id||null
-    ]);
-    await registrarAct('autorizacion','Duplicidad autorizada: '+fC('V',cedula)+' → '+destino+' • autorizó '+user.usuario+' • '+motivo,USER?.id||null);
+    const r=await fetch('/api/duplicidades/autorizar',{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        cedula:normC(cedula),
+        destino:String(destino||'').trim().toUpperCase(),
+        autorizante_usuario:u,
+        autorizante_clave:p,
+        motivo,
+        origenes:encontrados.map(x=>x.tipo).filter(Boolean),
+        detalles:encontrados.map(x=>x.detalle).filter(Boolean)
+      })
+    });
+    let data={}; try{data=await r.json()}catch(e){}
+    if(!r.ok) return toast(data.error||'No se pudo validar la autorización','err',7000);
     const resolve=window.__authResolve; window.__authResolve=null; closeModal();
-    if(resolve) resolve(true); window.__dupAuthEncontrados=null;
-  } catch(e){ toast('No se pudo registrar la autorización: '+e.message,'err'); }
+    if(resolve) resolve(true);
+    window.__dupAuthEncontrados=null;
+  } catch(e) {
+    toast('No se pudo registrar la autorización: '+e.message,'err');
+  }
 }
 async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   const tel = String(telefono || '').replace(/\D/g, '');
@@ -1427,10 +1168,13 @@ async function doReg() {
   const p = padBy(c);
   if (!p) { window._manC = c; return R('<div class="alert warn"><div class="a-ic">' + ic('db', 18) + '</div><div><b>No aparece en el padrón CNE</b>La C.I. <b class="mono">' + fC('V', c) + '</b> no existe.<br><button class="btn btn-navy btn-xs" style="margin-top:8px" onclick="openManual()">' + ic('up', 12) + ' Registrar manualmente</button></div></div>') }
   try {
-    const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
-    const pos = (max[0].m || 0) + 1;
-    await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)', [r.id, c, pos, tel ? normTel(tel) : null, calle || null, casa || null, direccion || null]);
-    await registrarAct('user', 'C.I. ' + fC(p.letra, p.cedula) + ' registrada en lista de movilizador #' + r.id + ' (posición ' + pos + ')', USER.id);
+    const apiRes = await fetch('/api/personas/registrar', {
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reclutador_id:r.id, cedula:c, telefono:tel ? normTel(tel) : '', numero_calle:calle, numero_casa:casa, direccion})
+    });
+    let apiData={}; try{apiData=await apiRes.json()}catch(e){}
+    if(!apiRes.ok) throw new Error(apiData.error || 'No se pudo registrar la persona');
+    const pos = Number(apiData.posicion);
     await refreshAll(); renderRegistro(true);
     R('<div class="alert ok"><div class="a-ic">' + ic('check', 18) + '</div><div><b>✔ Registro exitoso • posición #' + pos + '</b>' + esc(apeP(p) + ', ' + nomP(p)) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + ' años  ' + p.sexo + (tel ? '  📱 ' + esc(tel) : '') + '<br>Centro: ' + esc(p.nombre_cv) + ' (' + esc(p.municipio) + ')<br>Lista: <b class="mono">' + CACHE.recl.find(x => x.id === r.id).lista.length + '/10</b></div></div>');
     toast('C.I. ' + fC(p.letra, p.cedula) + ' registrada (Turso)', 'ok');
@@ -1443,8 +1187,7 @@ function delMem(rid, c) {
   const r = CACHE.recl.find(x => x.id === rid); const p = padBy(c); const lt = p ? p.letra : 'V';
   askDo('Retirar integrante', 'Se retirará la C.I. <b>' + fC(lt, c) + '</b>' + (p ? ' (' + esc(nomP(p)) + ')' : '') + ' de la lista.', 'Retirar', async () => {
     try {
-      await x('DELETE FROM asignaciones WHERE reclutador_id = ? AND cedula = ?', [rid, c]);
-      await registrarAct('user', 'C.I. ' + fC(lt, c) + ' retirada de lista #' + rid, USER.id);
+      const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar_asignacion',reclutador_id:rid,cedula:c})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo retirar la asignación');
       await refreshAll(); toast('Integrante retirado', 'ok');
       if (CUR === 'registro') renderRegistro(); if (CUR === 'recl') renderRecl();
       if ($('mOv').classList.contains('on')) openRec(rid);
@@ -1478,7 +1221,7 @@ async function saveTelComprometido(reclId, ced) {
     if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000);
   }
   try {
-    await x('UPDATE asignaciones SET telefono = ?, numero_calle = ?, numero_casa = ?, direccion = ? WHERE reclutador_id = ? AND cedula = ?', [tel || null, calle || null, casa || null, direccion || null, reclId, ced]);
+    const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'actualizar_asignacion',reclutador_id:reclId,cedula:ced,telefono:tel,numero_calle:calle,numero_casa:casa,direccion})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar la asignación');
     await refreshAll();
     closeModal();
     if (CUR === 'registro') renderRegistro();
@@ -1515,14 +1258,9 @@ async function saveManual() {
   if (p) return toast('La cédula ya existe en Turso con el mismo centro electoral', 'err');
   const fn = $('mFn').value; const edad = edadDe(fn);
   try {
-    await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-      [ced, $('mLet').value, pa, $('mSa').value, pn, $('mSn').value, $('mSex').value, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
-    await registrarAct('user', 'Alta manual CNE: ' + fC($('mLet').value, ced), USER.id);
     const r = CACHE.recl.find(x => x.id === REG.rec);
-    if (r && r.lista.length < 10) {
-      const max = await q('SELECT COALESCE(MAX(posicion),0) AS m FROM asignaciones WHERE reclutador_id = ?', [r.id]);
-      await x('INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)', [r.id, ced, (max[0].m || 0) + 1, tel ? normTel(tel) : null, calle || null, casa || null, direccion || null]);
-    }
+    const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_comprometido_manual',cedula:ced,letra:$('mLet').value,p_apellido:pa,s_apellido:$('mSa').value,p_nombre:pn,s_nombre:$('mSn').value,sexo:$('mSex').value,fecha_nac:fn,telefono:normTel(tel),numero_calle:calle,numero_casa:casa,direccion,centro:{codigo:cv.codigo},reclutador_id:r?.id||0})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo registrar el comprometido');
     await refreshAll(); closeModal(); renderRegistro(true); toast('Elector incorporado a Turso', 'ok');
   } catch (e) { toast(e.message, 'err') }
 }
@@ -1673,7 +1411,7 @@ function descargarCSVPrevisualizado(csv,name){
 function delRecl(id) {
   const r = CACHE.recl.find(x => x.id === id);
   askDo('Eliminar movilizador', 'Se eliminará a <b>' + esc(nomP(padBy(r.cedula) || { p_nombre: r.cedula })) + '</b> y sus ' + r.lista.length + ' cupos quedarn libres en Turso (CASCADE).', 'Eliminar', async () => {
-    try { await x('DELETE FROM reclutadores WHERE id = ?', [id]); await registrarAct('user', 'Movilizador #' + id + ' eliminado', USER.id); await refreshAll(); closeModal(); renderRecl(); toast('Movilizador eliminado', 'ok') } catch (e) { toast(e.message, 'err') }
+    try { const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar_reclutador',id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo eliminar el movilizador'); await refreshAll(); closeModal(); renderRecl(); toast('Movilizador eliminado', 'ok') } catch (e) { toast(e.message, 'err') }
   });
 }
 function openNewRecl() {
@@ -1706,8 +1444,8 @@ async function nrSave() {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('INSERT INTO reclutadores(cedula,telefono,estructura,direccion) VALUES(?,?,?,?)', [p.cedula, normTel(tel), $('nrEst').value, $('nrDir').value]);
-    await registrarAct('user', 'Nuevo movilizador creado: ' + fC(p.letra, p.cedula), USER.id);
+    const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,telefono:normTel(tel),estructura:$('nrEst').value,direccion:$('nrDir').value})});
+    const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
     await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
     const nuevo = CACHE.recl.find(r => r.cedula === p.cedula);
     if (nuevo) { REG.rec = nuevo.id; go('registro') }
@@ -1741,10 +1479,8 @@ async function saveNrManual() {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-      [ced, letra, pa, $('nrmSa').value.trim(), pn, $('nrmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
-    await x('INSERT INTO reclutadores(cedula,telefono,estructura,direccion) VALUES(?,?,?,?)', [ced, normTel(tel), est, dir]);
-    await registrarAct('user', 'Movilizador creado manual: ' + fC(letra, ced), USER.id);
+    const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador_manual',cedula:ced,letra,pa,p_apellido:pa,s_apellido:$('nrmSa').value.trim(),p_nombre:pn,s_nombre:$('nrmSn').value.trim(),sexo,fecha_nac:fn,telefono:normTel(tel),estructura:est,direccion:dir,centro:{codigo:cv.codigo}})});
+    const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
     await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
     const nuevo = CACHE.recl.find(r => r.cedula === ced);
     if (nuevo) { REG.rec = nuevo.id; go('registro') }
@@ -1806,16 +1542,14 @@ const CARGOS_CENTRO = [
   'Coordinador de Logística',
   'Coordinador Electoral',
   'Coordinador de Movilización',
-  'Coordinador de Juventud',
-  'Testigo Principal Mesa 1',
-  'Testigo Suplente Mesa 1',
-  'Testigo Principal Mesa 2',
-  'Testigo Suplente Mesa 2',
-  'Testigo Principal Mesa 3',
-  'Testigo Suplente Mesa 3',
-  'Testigo Principal Mesa 4',
-  'Testigo Suplente Mesa 4'
+  'Coordinador de Juventud'
 ];
+function catalogoCargosCentro(codigo) {
+  const c=cenBy(codigo), n=Math.max(1,Number(c?.mesas||1));
+  const out=CARGOS_CENTRO.slice();
+  for(let i=1;i<=n;i++){ out.push('Testigo Principal Mesa '+i,'Testigo Suplente Mesa '+i); }
+  return out;
+}
 
 const CARGOS_DIRECCION = [
   'PRESIDENTE','SECRETARIA GENERAL','SECRETARIA DE ORGANIZACION','SECRETARIA ELECTORAL',
@@ -1830,9 +1564,9 @@ const CARGOS_DIRECCION = [
 ];
 
 function getCargosCentro(codigo) {
-  return CARGOS_CENTRO.map(nombre => {
-    const asig = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === nombre);
-    return { cargo: nombre, cedula: asig ? asig.cedula : null, persona: asig && asig.p_apellido ? asig : null, telefono: asig ? asig.telefono : null, direccion: asig ? asig.direccion : null };
+  return catalogoCargosCentro(codigo).map(nombre => {
+    const asig = CACHE.cargos.find(c => String(c.centro_codigo) === String(codigo) && String(c.cargo||'').trim() === nombre);
+    return { cargo: nombre, cedula: asig ? asig.cedula : null, persona: asig && (asig.p_apellido || asig.p_nombre) ? asig : null, telefono: asig ? asig.telefono : null, direccion: asig ? asig.direccion : null };
   });
 }
 
@@ -1854,7 +1588,7 @@ function runCargoSearch(codigo, idx) {
 }
 
 function openCargoManual(codigo, idx, query) {
-  const cargo = CARGOS_CENTRO[idx];
+  const cargo = getCargosCentro(codigo)[idx]?.cargo || CARGOS_CENTRO[idx];
   const isCed = /^\d{5,9}$/.test(normC(query));
   win(ic('userPlus', 18) + ' Registrar y asignar: ' + esc(cargo),
     '<p style="font-size:12px;color:var(--mut);margin-bottom:12px">Complete los datos. La persona se guardará en el padrón y se asignará al cargo.</p>' +
@@ -1884,16 +1618,14 @@ async function saveCargoManual(codigo, idx) {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-      [ced, letra, pa, $('cmSa').value.trim(), pn, $('cmSn').value.trim(), sexo, fn, edad, cv.cod_estado, cv.estado, cv.cod_municipio, cv.municipio, cv.cod_parroquia, cv.parroquia, cv.codigo, cv.nombre]);
-    await assignCargo(codigo, idx, ced, normTel(tel), dir);
+    await assignCargo(codigo, idx, ced, normTel(tel), dir, {cedula:ced,letra,p_apellido:pa,s_apellido:$('cmSa').value.trim(),p_nombre:pn,s_nombre:$('cmSn').value.trim(),sexo,fecha_nac:fn,edad,codigo_estado:cv.cod_estado,estado:cv.estado,codigo_municipio:cv.cod_municipio,municipio:cv.municipio,codigo_parroquia:cv.cod_parroquia,parroquia:cv.parroquia,centro_votacion:cv.codigo,nombre_cv:cv.nombre});
     await registrarAct('user', 'Alta manual para cargo: ' + fC(letra, ced) + ' ➔ ' + CARGOS_CENTRO[idx], USER.id);
     toast('Elector registrado y asignado al cargo', 'ok');
   } catch (e) { toast(e.message, 'err') }
 }
 
-async function assignCargo(codigo, idx, cedula, tel, dir) {
-  const cargo = CARGOS_CENTRO[idx];
+async function assignCargo(codigo, idx, cedula, tel, dir, padron) {
+  const cargo = getCargosCentro(codigo)[idx]?.cargo || CARGOS_CENTRO[idx];
   tel = tel ? String(tel).trim() : '';
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
@@ -1906,11 +1638,8 @@ async function assignCargo(codigo, idx, cedula, tel, dir) {
   }
   try {
     const existing = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === cargo);
-    if (existing) {
-      await x('UPDATE centro_cargos SET cedula = ?, telefono = COALESCE(?, telefono), direccion = COALESCE(?, direccion), asignado_en = datetime(\'now\') WHERE id = ?', [cedula, tel || null, dir || null, existing.id]);
-    } else {
-      await x('INSERT INTO centro_cargos(centro_codigo, cargo, cedula, telefono, direccion) VALUES(?,?,?,?,?)', [codigo, cargo, cedula, tel || null, dir || null]);
-    }
+        const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'centro',centro_codigo:codigo,cargo,cedula,telefono:tel?normTel(tel):'',direccion:dir,padron:padron||undefined})});
+    const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
     await registrarAct('user', cargo + ' asignado en centro ' + codigo + ' ? C.I. ' + cedula, USER.id);
     await refreshAll();
     openCentro(codigo);
@@ -1923,12 +1652,25 @@ async function removeCargoCentro(codigo, idx) {
   const existing = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === cargo);
   if (!existing) return;
   try {
-    await x('DELETE FROM centro_cargos WHERE id = ?', [existing.id]);
-    await registrarAct('user', cargo + ' removido del centro ' + codigo, USER.id);
+    const rr=await fetch('/api/centros/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar_cargo',id:existing.id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo remover el cargo');
     await refreshAll();
     openCentro(codigo);
     toast('Cargo removido', 'ok');
   } catch (e) { toast(e.message, 'err') }
+}
+
+function ultimaVerificacionCentro(codigo) {
+  const rows=(CACHE.verificacion||[]).filter(v=>String(v.centro_codigo)===String(codigo));
+  if(!rows.length) return null;
+  return rows.slice().sort((a,b)=>String(b.verificado_en||'').localeCompare(String(a.verificado_en||'')))[0];
+}
+function datosVerificacionCentro(v) {
+  const ci=normC(v?.cedula||'');
+  const p=padBy(ci)||v||{};
+  const nombre=((p.p_apellido||'')+' '+(p.s_apellido||'')+', '+(p.p_nombre||'')+' '+(p.s_nombre||'')).replace(/^\s*,\s*|,\s*$/g,'').trim();
+  const operador=v?.operador_nom || ((CACHE.users||[]).find(u=>Number(u.id)===Number(v?.verificado_por))||{}).nombre || 'No identificado';
+  const ts=v?.verificado_en || v?.fecha_verificacion || v?.creado || null; const hora=ts ? horaVE(ts) : 'No registrada';
+  return {ci,persona:nombre||'Persona no encontrada',hora,mesa:String(v?.mesa||''),operador,cargo:v?.cargo||''};
 }
 
 function openCentro(cod) {
@@ -1937,6 +1679,8 @@ function openCentro(cod) {
   const R = [[18, 25, '18–25'], [26, 35, '26–35'], [36, 45, '36–45'], [46, 55, '46–55'], [56, 65, '56–65'], [66, 999, '66+']];
   const cargos = getCargosCentro(cod);
   const asignados = cargos.filter(k => k.persona).length;
+  const ultimaVerif = ultimaVerificacionCentro(cod);
+  const ultimaVerifData = ultimaVerif ? datosVerificacionCentro(ultimaVerif) : null;
   const cargoRows = cargos.map((k, i) => {
     const p = k.persona;
     const bgColor = i < 6 ? '#f0fdf4' : '#eff6ff';
@@ -1956,14 +1700,28 @@ function openCentro(cod) {
     '<div class="grid g4" style="margin-bottom:14px"><div class="ck-it"><b>' + list.length + '</b><span>Electores</span></div><div class="ck-it"><b>' + list.filter(p => p.sexo === 'M').length + ' / ' + list.filter(p => p.sexo === 'F').length + '</b><span>M / F</span></div><div class="ck-it"><b>' + list.filter(p => asignDe(p.cedula)).length + '</b><span>Comprometidos</span></div><div class="ck-it"><b>' + (() => { const ev = list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad; return ed > 0 && ed <= 120; }); return ev.length ? (ev.reduce((a, p) => a + (edadDe(p.fecha_nac) || p.edad || 0), 0) / ev.length).toFixed(0) : ''; })() + '</b><span>Edad prom.</span></div></div>' +
     '<label class="fl">Rango etario del centro</label><div id="ch-cenE"></div>' +
     '<div style="margin-top:12px"><label class="fl">Mesas de votación (editable)</label><div style="display:flex;gap:8px"><input class="inp" type="number" min="1" value="' + (c.mesas || 1) + '" style="max-width:110px" id="cMes"><button class="btn btn-w" onclick="updateMesas(\'' + c.codigo + '\')">Guardar en Turso</button></div></div>' +
-    '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label class="fl" style="font-size:13px;margin-bottom:8px">Cargos del Centro Electoral <span class="chip chip-b">' + asignados + '/14 asignados</span></label><div style="display:grid;gap:8px">' + cargoRows + '</div></div>',
+    '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">' +
+      '<label class="fl" style="font-size:13px;margin-bottom:8px">Última verificación del centro</label>' +
+      (ultimaVerifData
+        ? '<div class="kcard" style="padding:12px;border-left:4px solid var(--green);background:#fff">' +
+            '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">' +
+              '<div><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Persona verificada</span><div style="font-weight:700;color:var(--navy)">' + esc(ultimaVerifData.persona) + '</div></div>' +
+              '<div><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Cédula</span><div class="mono" style="font-weight:700">' + esc(fC((padBy(ultimaVerifData.ci)||{}).letra||'V',ultimaVerifData.ci)) + '</div></div>' +
+              '<div><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Mesa</span><div style="font-weight:700">' + esc(ultimaVerifData.mesa||'No registrada') + '</div></div>' +
+              '<div><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Hora de verificación</span><div class="mono" style="font-weight:700">' + esc(ultimaVerifData.hora) + '</div></div>' +
+              '<div style="grid-column:1/-1"><span style="font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:700">Operador</span><div style="font-weight:700;color:var(--teal)">' + esc(ultimaVerifData.operador) + '</div></div>' +
+            '</div>' +
+          '</div>'
+        : '<div class="empty" style="padding:14px;border:1px dashed var(--line2);border-radius:6px">No hay verificaciones registradas para este centro.</div>') +
+    '</div>' +
+    '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label class="fl" style="font-size:13px;margin-bottom:8px">Cargos predeterminados del Centro Electoral <span class="chip chip-b">' + asignados + '/' + cargos.length + ' asignados</span></label><div style="font-size:11px;color:var(--mut);margin-bottom:8px">Se muestran todos los cargos predeterminados; los que no tengan persona asignada permanecen disponibles para asignación.</div><div style="display:grid;gap:8px">' + cargoRows + '</div></div>',
     '<button class="btn btn-w" onclick="closeModal();REPF.centro=\'' + c.codigo + '\';go(\'rep\')">' + ic('chart', 14) + ' Reportes</button><button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 780);
   vbars('cenE', R.map(r => ({ l: r[2], v: list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad || 0; return ed >= r[0] && ed <= r[1]; }).length })));
 }
 async function updateMesas(cod) {
   const v = Number($('cMes')?.value);
   if (!Number.isInteger(v) || v < 1 || v > 999) return toast('La cantidad de mesas debe ser un entero entre 1 y 999', 'err');
-  await x('UPDATE centros SET mesas = ? WHERE codigo = ?', [v, cod]);
+  const rr=await fetch('/api/centros/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'actualizar_mesas',codigo:cod,mesas:v})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron actualizar las mesas');
   await refreshAll(); closeModal(); renderCentros(); toast('Mesas actualizadas', 'ok');
 }
 
@@ -2091,6 +1849,12 @@ function openUserForm(id) {
     '<p style="font-size:12px;color:var(--mut);margin-top:12px">Los roles J y A pueden gestionar usuarios. El rol O solo opera el sistema.</p>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveUser(' + (id || 0) + ')">' + (u ? 'Actualizar' : 'Crear') + ' ?</button>', 620);
 }
+async function apiUsuario(action,payload={}){
+  const r=await fetch('/api/usuarios/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...payload})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
 async function saveUser(id) {
   const u = $('fuU').value.trim(), p = $('fuP').value, n = $('fuN').value.trim(), r = $('fuR').value, c = $('fuC').value, t = $('fuT').value.trim();
   if (!u || !n) return toast('Usuario y nombre son obligatorios', 'err');
@@ -2098,16 +1862,9 @@ async function saveUser(id) {
   const telFmt = normTel(t);
   if (t) { const dupTel = await verificarDuplicidadTelefono(t, id ? {origen:'USUARIO', id} : {}); if (dupTel) return toast(mensajeDuplicidadTelefono(t, dupTel), 'err', 8000); }
   try {
-    if (id) {
-      if (p) { const h = await hash(p); await x('UPDATE usuarios SET nombre=?,rol=?,cargo=?,telefono=?,clave_hash=? WHERE id=?', [n, r, c, telFmt, h, id]) }
-      else { await x('UPDATE usuarios SET nombre=?,rol=?,cargo=?,telefono=? WHERE id=?', [n, r, c, telFmt, id]) }
-      await registrarAct('user', 'Usuario actualizado: ' + u + ' (' + r + ')', USER.id);
-    } else {
-      if (!p) return toast('La clave es obligatoria al crear', 'err');
-      const h = await hash(p);
-      await x('INSERT INTO usuarios(usuario,clave_hash,nombre,rol,cargo,telefono) VALUES(?,?,?,?,?,?)', [u, h, n, r, c, telFmt]);
-      await registrarAct('user', 'Usuario creado: ' + u + ' (' + r + ')', USER.id);
-    }
+    if (!id && !p) return toast('La clave es obligatoria al crear', 'err');
+    await apiUsuario('save',{id,usuario:u,clave:p,nombre:n,rol:r,cargo:c,telefono:telFmt});
+    await registrarAct('user', (id?'Usuario actualizado: ':'Usuario creado: ')+u+' ('+r+')', USER.id);
     await refreshAll(); closeModal(); renderUsers(); toast('Usuario guardado', 'ok');
   } catch (e) {
     if (String(e.message).toLowerCase().includes('unique')) toast('El usuario ya existe', 'err');
@@ -2115,7 +1872,7 @@ async function saveUser(id) {
   }
 }
 async function toggleUser(id, nuevo) {
-  await x('UPDATE usuarios SET activo = ? WHERE id = ?', [nuevo, id]);
+  await apiUsuario('toggle',{id,activo:nuevo});
   await registrarAct('user', 'Usuario #' + id + (nuevo ? ' activado' : ' desactivado'), USER.id);
   await refreshAll(); renderUsers(); toast('Estado actualizado', 'ok');
 }
@@ -2128,7 +1885,7 @@ function delUser(id) {
   if (u.rol === 'J' && jCount <= 1) return toast('No puede eliminar el último Jefe de Comando', 'err');
   if (u.rol === 'A' && aCount <= 1 && jCount <= 1) return toast('No puede eliminar el último Administrador (no quedan Jefes)', 'err');
   askDo('Eliminar usuario', 'Se eliminará a <b>' + esc(u.nombre) + '</b> (' + esc(u.usuario) + ').', 'Eliminar', async () => {
-    await x('DELETE FROM usuarios WHERE id = ?', [id]);
+    await apiUsuario('delete',{id});
     await registrarAct('user', 'Usuario eliminado: ' + u.usuario, USER.id);
     await refreshAll(); renderUsers(); toast('Usuario eliminado', 'ok');
   });
@@ -2136,7 +1893,9 @@ function delUser(id) {
 
 /* ----------- CONFIGURACIÓN ----------- */
 function renderData() {
-  if (!['J', 'A'].includes(USER.rol)) { $('sec-data').innerHTML = panel('Acceso denegado', '<div class="empty">Solo Jefe de Comando o Administradores.</div>'); return }
+  if (!['J', 'A', 'O'].includes(USER.rol)) { $('sec-data').innerHTML = panel('Acceso denegado', '<div class="empty">Rol no autorizado.</div>'); return }
+  const isAdmin = ['J', 'A'].includes(USER.rol);
+  const adminTools = isAdmin ? '<button class="btn btn-navy" onclick="repairEdades()">' + ic('db', 14) + ' Reparar edades</button><button class="btn btn-navy" onclick="resetCNE()">' + ic('db', 14) + ' Reiniciar padrón CNE</button><button class="btn btn-red" onclick="wipeTurso()">' + ic('trash', 14) + ' Vaciar todas las tablas</button>' : '';
   $('sec-data').innerHTML = panel('Configuración / Carga de Data CNE',
     '<div class="grid g2" style="margin-bottom:14px">' +
     '<div><label class="fl">1 • Padrón de electores (CSV / Excel del CNE)</label><div class="dz" id="dzPad" onclick="$(\'fPad\').click()">' + ic('up', 28) + '<p style="margin-top:6px"><b>Arrastre o haga clic</b></p><span style="font-size:12px">.xlsx / .xls / .csv / .txt  PC o mvil</span></div><input type="file" id="fPad" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="readFile(this)"><div class="fmt">LETRA_CEDULA | CEDULA_IDENTIDAD | P_APELLIDO | S_APELLIDO | P_NOMBRE | S_NOMBRE | SEXO | FECHA_NACIMIENTO | CODIGO_ESTADO | ESTADO | CODIGO_MUNICIPIO | MUNICIPIO | CODIGO_PARROQUIA | PARROQUIA | CENTRO_VOTACION | NOMBRE_CV</div></div>' +
@@ -2146,7 +1905,7 @@ function renderData() {
     '<div class="ck-it"><b>' + CACHE.recl.length + '</b><span>Reclutadores</span></div>' +
     '<div class="ck-it"><b>' + CACHE.users.length + '</b><span>Usuarios</span></div>' +
     '</div><div class="mono" style="font-size:11px;color:var(--mut);margin-top:12px">Conexin vía API proxy (Vercel)</div></div></div></div>' +
-    '<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-w" onclick="tplCSV()">' + ic('file', 14) + ' Plantilla CSV</button><button class="btn btn-navy" onclick="repairEdades()">' + ic('db', 14) + ' Reparar edades</button><button class="btn btn-navy" onclick="resetCNE()">' + ic('db', 14) + ' Reiniciar padrón CNE</button><button class="btn btn-red" onclick="wipeTurso()">' + ic('trash', 14) + ' Vaciar todas las tablas</button></div>');
+    '<div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn btn-w" onclick="tplCSV()">' + ic('file', 14) + ' Plantilla CSV</button>' + adminTools + '</div>');
   setTimeout(() => {
     const dz = document.getElementById('dzPad');
     if (!dz) return;
@@ -2241,12 +2000,11 @@ function applyImp() {
       document.body.appendChild(progDiv);
       const setProg = (msg, pct) => { progDiv.innerHTML = '<div class="spinner" style="width:44px;height:44px;border:4px solid rgba(255,255,255,.25);border-top-color:#ffca28;border-radius:50%;animation:spin 1s linear infinite"></div><p style="margin-top:16px;font-size:15px;font-weight:600">' + msg + '</p><div style="width:280px;height:8px;background:rgba(255,255,255,.2);border-radius:4px;margin-top:12px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#ffca28;border-radius:4px;transition:width .3s"></div></div>' };
       closeModal();
-      let centroids = Object.values(cenMap).filter(c => !cenBy(c.cvCod));
+      let centroids = Object.values(cenMap).filter(c => !cenBy(c.cvCod)).map(c => ({ codigo: c.cvCod, nombre: c.cvNom, municipio: c.mun, parroquia: c.par, estado: c.estado, mesas: 1, cod_estado: c.codEst, cod_municipio: c.codMun, cod_parroquia: c.codPar }));
       if (centroids.length) {
         setProg('Centros electorales...', 0);
         for (let i = 0; i < centroids.length; i += CHUNK) {
-          const batch = centroids.slice(i, i + CHUNK).map(c => ({ sql: 'INSERT OR IGNORE INTO centros(codigo,nombre,municipio,parroquia,estado,mesas,cod_estado,cod_municipio,cod_parroquia) VALUES(?,?,?,?,?,?,1,?,?)', args: [c.cvCod, c.cvNom, c.mun, c.par, c.estado, c.codEst, c.codMun, c.codPar] }));
-          await turso(batch);
+          /* Persistencia centralizada en /api/padron/gestionar. */
           setProg('Centros electorales... ' + Math.min(i + CHUNK, centroids.length), 5);
         }
         await refreshAll();
@@ -2256,9 +2014,8 @@ function applyImp() {
       let loaded = 0;
       const total = toAdd.length;
       for (let i = 0; i < total; i += CHUNK) {
-        const batch = toAdd.slice(i, i + CHUNK).map(p => ({ sql: 'INSERT OR IGNORE INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', args: [p.ced, p.letra, p.pa, p.sa, p.pn, p.sn, p.sexo, p.fn, edadDe(p.fn), p.codEst, p.estado, p.codMun, p.mun, p.codPar, p.par, p.cvCod, p.cvNom] }));
-        await turso(batch);
-        loaded += batch.length;
+        const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'importar',rows:toAdd.slice(i,i+CHUNK),centros:i===0?Object.values(cenMap):[],fname})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo cargar el padrón');
+        loaded += Math.min(CHUNK, total - loaded);
         setProg('Cargando electores... ' + loaded + ' / ' + total, Math.round(100 * loaded / total));
       }
       setProg('Carga completa. Actualizando...', 100);
@@ -2274,16 +2031,9 @@ function applyImp() {
 async function repairEdades() {
   askDo('Reparar edades del padrón', 'Recalcular la edad de TODOS los electores basndose en su fecha de nacimiento.', 'Reparar', async () => {
     try {
-      const all = await q('SELECT cedula, fecha_nac FROM padron');
-      const CHUNK = 200;
       let fixed = 0;
-      for (let i = 0; i < all.length; i += CHUNK) {
-        const batch = all.slice(i, i + CHUNK).map(p => {
-          const nuevaEdad = edadDe(p.fecha_nac);
-          return { sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [nuevaEdad, p.cedula] };
-        });
-        if (batch.length) { await turso(batch); fixed += batch.length; }
-      }
+      const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reparar_edades'})});
+      const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron recalcular las edades'); fixed=Number(rd.fixed||0);
       await refreshAll(); renderData(); toast('? ' + fixed + ' edades recalculadas', 'ok', 5000);
     } catch (e) { toast('Error: ' + e.message, 'err', 8000) }
   });
@@ -2291,48 +2041,20 @@ async function repairEdades() {
 async function resetCNE() {
   askDo('Reiniciar padrón', 'Se reemplazará el padrón electoral. Se conservarán movilizadores y asignaciones, pero se limpiarán las verificaciones de jornada y las actas de mesa para evitar métricas históricas mezcladas.', 'Reiniciar', async () => {
     try {
-      await x('DELETE FROM verificaciones_votacion');
-      await x('DELETE FROM mesa_miembros'); await x('DELETE FROM mesa_operativa'); await x('DELETE FROM actas_mesa');
-      await x('DELETE FROM padron');
+      const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset_cne'})});
+      const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo reiniciar el padrón');
       await registrarAct('sys', 'Padrón CNE reiniciado y control electoral limpiado por ' + USER.nombre, USER.id);
       await refreshAll(); go('dash'); toast('Padrón reiniciado • verificaciones y actas limpiadas', 'ok');
     } catch (e) { toast('Error al reiniciar padrón: ' + e.message, 'err', 8000); }
   });
 }
 async function wipeTurso() {
-  askDo('Vaciar todas las tablas', 'Se eliminarán los datos operativos del sistema: control electoral, actas, comités, dirección, cargos, padrón, movilizadores, actividad y usuarios excepto el administrador principal. El catálogo de problemas se conservará como catálogo maestro.', 'Vaciar todo', async () => {
+  askDo('Vaciar todas las tablas', 'Se eliminarán los datos operativos del sistema. Esta operación requiere autorización J/A y conservará el catálogo maestro.', 'Vaciar todo', async () => {
     try {
-      await x('DELETE FROM comite_problemas');
-      await x('DELETE FROM verificaciones_votacion');
-      await x('DELETE FROM actas_mesa');
-      await x('DELETE FROM comite_vecinal');
-      await x('DELETE FROM direccion_ejecutiva');
-      await x('DELETE FROM centro_cargos');
-      await x('DELETE FROM asignaciones');
-      await x('DELETE FROM reclutadores');
-      await x('DELETE FROM actividad');
-      await x('DELETE FROM padron');
-      await x('DELETE FROM centros');
-      await x('DELETE FROM usuarios WHERE usuario != ?', ['admin@comando.com']);
-    const adminCheck = await q('SELECT COUNT(*) AS n FROM usuarios WHERE usuario = ?', ['admin@comando.com']);
-    if (adminCheck[0].n === 0) {
-      const h = await hash('admin123');
-      await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', ['admin@comando.com', h, 'Administrador del Sistema', 'A', 'Administrador']);
-    }
-    const seeds = [
-      ['jefe', 'jefe123', 'Gualberto Martinez', 'J', 'Jefe de Comando'],
-      ['operador', 'operador123', 'Pedro Rivas', 'O', 'Operador de Sala'],
-      ['cdiaz', 'operador123', 'Carmen Díaz', 'O', 'Operadora Territorial']
-    ];
-    for (const [u, p, n, r, c] of seeds) {
-      const h2 = await hash(p);
-      await x('INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)', [u, h2, n, r, c]);
-    }
-      await registrarAct('sys', 'Sistema reiniciado por ' + USER.nombre, USER.id);
-      await refreshAll(); go('dash'); toast('Sistema reiniciado • solo queda admin@comando.com y usuarios semilla', 'ok');
-    } catch (e) {
-      toast('Error al vaciar el sistema: ' + e.message, 'err', 8000);
-    }
+      const rr=await fetch('/api/sistema/vaciar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:'VACIAR_SISTEMA'})});
+      const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo reiniciar el sistema');
+      await refreshAll(); go('dash'); toast('Sistema reiniciado • usuarios semilla restaurados', 'ok');
+    } catch (e) { toast('Error al vaciar el sistema: ' + e.message, 'err', 8000); }
   });
 }
 
@@ -2382,45 +2104,52 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 /* ----------- ARRANQUE ----------- */
 (async function main() {
   const progressTimer = setTimeout(() => {
-    setLoad('La conexión está tardando más de lo esperado...', 'Turso sigue procesando. No cierre ni recargue la página.');
+    setLoad('La conexión está tardando más de lo esperado...', 'El servidor sigue preparando la estructura. No cierre ni recargue la página.');
   }, 10000);
   try {
-    setLoad('Conectando con Turso...');
-    await q('SELECT 1');
-    await inicializarTurso();
-    const saved = (() => { try { return JSON.parse(localStorage.getItem('session')); } catch(e) { return null; } })();
-    if (saved && saved.user && saved.user.usuario) {
-      setLoad('Restaurando sesión...');
-      const row = await q('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1', [saved.user.usuario]);
-      if (row.length) {
-        USER = row[0];
-        await refreshAll();
-        setLoad('Verificando datos...');
-        const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
-        if (badEdad > 0) {
-          setLoad('Reparando edades...', badEdad + ' registros');
-          const all = await q('SELECT cedula, fecha_nac FROM padron');
-          const CHUNK = 200;
-          for (let i = 0; i < all.length; i += CHUNK) {
-            const batch = all.slice(i, i + CHUNK).map(p => ({ sql: 'UPDATE padron SET edad = ? WHERE cedula = ?', args: [edadDe(p.fecha_nac), p.cedula] }));
-            await turso(batch);
-          }
+    setLoad('Preparando sistema...', 'Validando estructura y datos iniciales en el servidor');
+    const br = await fetch('/api/bootstrap', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store'
+    });
+    const bj = await br.json().catch(() => ({}));
+    if (!br.ok || !bj.ok) throw new Error(bj.error || ('HTTP ' + br.status));
+
+    let authenticated = false;
+    try {
+      const sr = await fetch('/api/auth/session', { credentials:'include', cache:'no-store' });
+      if (sr.ok) {
+        const sd = await sr.json();
+        if (sd.authenticated && sd.user) {
+          USER = sd.user;
+          authenticated = true;
+          setLoad('Restaurando sesión...');
           await refreshAll();
+          setLoad('Verificando datos...');
+          const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
+          if (badEdad > 0) {
+            setLoad('Reparando edades...', badEdad + ' registros');
+            if (['J','A'].includes(USER.rol)) { const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reparar_edades'})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron reparar las edades'); }
+            await refreshAll();
+          }
+          clearTimeout(progressTimer);
+          $('loading').style.display = 'none';
+          enterApp(localStorage.getItem('curTab') || 'dash');
+          return;
         }
-        clearTimeout(progressTimer);
-        $('loading').style.display = 'none';
-        enterApp(saved.cur || 'dash');
-        return;
       }
+    } catch (e) {
+      console.warn('No se pudo verificar la sesión:', e);
     }
-    const count = await q('SELECT COUNT(*) AS n FROM padron');
+
     clearTimeout(progressTimer);
-    $('lgInfo').textContent = count[0].n + ' electores • Turso OK';
+    $('lgInfo').textContent = Number(bj.padron_count || 0) + ' electores • Base de datos lista';
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
   } catch (e) {
     clearTimeout(progressTimer);
-    setLoad('Error al conectar con Turso', e.message || 'Revise la configuración del backend');
+    setLoad('Error al preparar el sistema', e.message || 'Revise la configuración del backend');
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
     $('lgInfo').textContent = 'Error de conexión';
@@ -2620,9 +2349,8 @@ async function saveDirAuto(cedula) {
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
   try {
-    await x('DELETE FROM direccion_ejecutiva WHERE cargo = ? OR cedula = ?', [cargo, cedula]);
-    await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
-      [cargo, cedula, nomComp, tel ? normTel(tel) : null, dir || null]);
+    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',direccion:dir})});
+    const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
     await registrarAct('user', 'Asignado a Dirección Ejecutiva: ' + nomComp + ' ➔ ' + cargo, USER.id);
     await refreshAll();
     renderDireccion();
@@ -2696,15 +2424,9 @@ async function saveDirManualFull() {
   const edad = edadDe(fn);
 
   try {
-    if (!padBy(ced)) {
-      await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-        [ced, letra, pa, sa, pn, sn, sexo, fn, edad, cv.cod_estado || '20', cv.estado || 'EDO. YARACUY', cv.cod_municipio || '11', cv.municipio || 'MP. INDEPENDENCIA', cv.cod_parroquia || '1', cv.parroquia || 'CM. INDEPENDENCIA', cv.codigo || '', cv.nombre || '']);
-    }
-
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
-    await x('DELETE FROM direccion_ejecutiva WHERE cargo = ? OR cedula = ?', [cargo, ced]);
-    await x('INSERT INTO direccion_ejecutiva(cargo, cedula, nombre, telefono, direccion) VALUES(?,?,?,?,?)',
-      [cargo, ced, nomComp, tel ? normTel(tel) : null, dir || null]);
+    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula:ced,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',direccion:dir,padron:{cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,edad,codigo_estado:cv.cod_estado,codigo_municipio:cv.cod_municipio,codigo_parroquia:cv.cod_parroquia,estado:cv.estado,municipio:cv.municipio,parroquia:cv.parroquia,centro_votacion:cv.codigo,nombre_cv:cv.nombre}})});
+    const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
 
     await registrarAct('user', 'Alta manual Dirección Ejecutiva: ' + fC(letra, ced) + ' ➔ ' + cargo, USER.id);
     await refreshAll();
@@ -2722,7 +2444,7 @@ async function delDir(id) {
   const nom = reg ? (reg.nombre || reg.cargo) : 'registro';
   askDo('Remover de Dirección Ejecutiva', '¿Desea remover el registro de <b>' + esc(nom) + '</b> de la Dirección Ejecutiva?', 'Remover', async () => {
     try {
-      await x('DELETE FROM direccion_ejecutiva WHERE id = ?', [id]);
+      const rr=await fetch('/api/direccion/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar',id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo eliminar');
       await refreshAll(); renderDireccion(); toast('Registro removido', 'ok');
     } catch (e) { toast('Error: ' + e.message, 'err'); }
   });
@@ -2734,7 +2456,7 @@ function openDirEdit(id) {
   const p = padBy(reg.cedula) || reg;
   win('Editar Dirección Ejecutiva — ' + esc(reg.cargo),
     '<div style="margin-bottom:10px;font-size:12px;color:var(--navy)">' +
-      '<b>Persona:</b> ' + esc(reg.nombre || (apeP(p) + ', ' + nomP(p))) + ' &nbsp;&bull;&nbsp; <b>C.I.:</b> ' + fC(p.letra || 'V', reg.cedula) +
+      '<b>Cargo:</b> ' + esc(reg.cargo || '') + ' &nbsp;&bull;&nbsp; <b>Persona:</b> ' + esc(reg.nombre || (apeP(p) + ', ' + nomP(p))) + ' &nbsp;&bull;&nbsp; <b>C.I.:</b> ' + fC(p.letra || 'V', reg.cedula) +
     '</div>' +
     '<label class="fl">Teléfono</label><input class="inp mono" id="dirETel" value="' + esc(reg.telefono || '') + '" placeholder="0412-2232523" maxlength="12">' +
     '<div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="dirEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, calle..."></div>',
@@ -2748,8 +2470,7 @@ async function saveDirEdit(id) {
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'DIRECCIÓN EJECUTIVA', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('UPDATE direccion_ejecutiva SET telefono = ?, direccion = ? WHERE id = ?',
-      [tel ? normTel(tel) : null, dir || null, id]);
+    const rr=await fetch('/api/direccion/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'editar',id,cargo,telefono:tel,direccion:dir})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar');
     await refreshAll(); renderDireccion(); closeModal(); toast('Actualizado con éxito', 'ok');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
@@ -2968,75 +2689,30 @@ function getComunidadesCatalogo() {
 }
 
 function filterComiteCards() {
-  const elCom = $('comSearch');
-  if (elCom) COMITE_FILTER.comunidad = elCom.value;
-  const el = $('comTxt');
-  if (el) COMITE_FILTER.txt = el.value;
-  const comList = CACHE.comite || [];
-  const comunidades = getComunidadesCatalogo();
-  const fCom = (COMITE_FILTER.comunidad || '').trim().toLowerCase();
-  const fTxt = (COMITE_FILTER.txt || '').trim().toLowerCase();
-
-  const comunidadesVisualizadas = fCom
-    ? comunidades.filter(c => c.toLowerCase().includes(fCom))
-    : comunidades;
-
-  const cardsHtml = comunidadesVisualizadas.map(comNom => {
-    const asig = comList.find(x => String(x.comunidad || '').trim().toUpperCase() === comNom);
-    if (asig) {
-      const p = padBy(asig.cedula) || asig;
-      const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (asig.nombre || asig.cedula);
-      const letra = p.letra || asig.letra || 'V';
-      const ci = fC(letra, asig.cedula);
-      const tel = asig.telefono ? asig.telefono : '';
-      const dir = asig.direccion ? asig.direccion : '';
-      const cvNom = p.nombre_cv || p.centro_votacion || '';
-      const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
-
-      if (fTxt) {
-        const fullText = (nomComp + ' ' + ci + ' ' + comNom + ' ' + cvNom + ' ' + tel + ' ' + dir).toLowerCase();
-        if (!fullText.includes(fTxt)) return '';
+  const elCom=$('comSearch'); if(elCom) COMITE_FILTER.comunidad=elCom.value;
+  const el=$('comTxt'); if(el) COMITE_FILTER.txt=el.value;
+  const comList=CACHE.comite||[], comunidades=getComunidadesCatalogo();
+  const fCom=(COMITE_FILTER.comunidad||'').trim().toLowerCase(), fTxt=(COMITE_FILTER.txt||'').trim().toLowerCase();
+  const cargos=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
+  const visual=fCom?comunidades.filter(c=>c.toLowerCase().includes(fCom)):comunidades;
+  const cardsHtml=visual.map(comNom=>{
+    const rows=cargos.map(cargo=>{
+      const asig=comList.find(x=>String(x.comunidad||'').trim().toUpperCase()===comNom && String(x.cargo||'').trim().toUpperCase()===cargo);
+      if(asig){
+        const p=padBy(asig.cedula)||asig, nomComp=(p.p_nombre||p.p_apellido)?(apeP(p)+', '+nomP(p)):(asig.nombre||asig.cedula);
+        const ci=fC(p.letra||asig.letra||'V',asig.cedula),tel=asig.telefono||'';
+        const full=(nomComp+' '+ci+' '+comNom+' '+cargo+' '+tel).toLowerCase();
+        if(fTxt&&!full.includes(fTxt))return '';
+        return '<div style="display:flex;gap:8px;align-items:center;padding:9px;border:1px solid var(--line2);border-radius:6px;background:#fff"><div style="flex:1;min-width:0"><div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase">'+esc(cargo)+'</div><div style="font-size:13px;font-weight:700;color:var(--navy);margin-top:2px">'+esc(nomComp)+'</div><div class="mono" style="font-size:11px;color:var(--mut)">'+esc(ci)+(tel?' • '+esc(tel):'')+'</div></div><button class="btn btn-navy btn-xs" onclick="openComiteView('+asig.id+')">'+ic('eye',13)+'</button><button class="btn btn-w btn-xs" onclick="openComiteEdit('+asig.id+')">'+ic('edit',12)+'</button><button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delComite('+asig.id+')">'+ic('x',12)+'</button></div>';
       }
-
-      return '<div class="kcard" style="padding:14px;border-left:4px solid var(--teal);background:#ffffff">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
-          '<div style="flex:1;min-width:0">' +
-            '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + ic('home', 12) + ' COMUNIDAD: ' + esc(comNom) + '</div>' +
-            '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:4px">' + esc(nomComp) + '</div>' +
-            '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:4px">' +
-              '<b>C.I.:</b> ' + ci + ((p.edad || edadDe(p.fecha_nac)) ? ' &nbsp;&bull;&nbsp; <b>Edad:</b> ' + (edadDe(p.fecha_nac) || p.edad) + 'a' : '') + (p.sexo ? ' &nbsp;&bull;&nbsp; <b>Sexo:</b> ' + p.sexo : '') +
-            '</div>' +
-            (cvNom ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('pin', 11) + ' <b>Centro:</b> ' + esc(cvNom) + (munPar ? ' (' + esc(munPar) + ')' : '') + '</div>' : '') +
-            (tel ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('chat', 11) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + esc(tel) + '</a></div>' : '') +
-            (dir ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' ' + esc(dir) + '</div>' : '') +
-          '</div>' +
-          '<div style="display:flex;gap:4px;align-items:center">' +
-          '<button class="btn btn-navy btn-xs" onclick="openComiteView(' + asig.id + ')" title="Ver Detalle y Padrón CNE">' + ic('eye', 14) + ' Ver Datos</button>' +
-            '<button class="btn btn-w btn-xs" onclick="openComiteEdit(' + asig.id + ')" title="Editar datos">' + ic('edit', 12) + '</button>' +
-            '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delComite(' + asig.id + ')" title="Remover cargo de Comité Vecinal">' + ic('x', 12) + '</button>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    } else {
-      if (fTxt && !comNom.toLowerCase().includes(fTxt)) return '';
-      return '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
-          '<div>' +
-            '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase">' + ic('home', 12) + ' COMUNIDAD: ' + esc(comNom) + '</div>' +
-            '<div style="font-size:13px;font-weight:600;color:var(--mut);margin-top:2px"><span class="chip chip-y">Sin Asignar / Vacante</span></div>' +
-          '</div>' +
-          '<button class="btn btn-navy btn-xs" onclick="openComiteManual(\'' + esc(comNom).replace(/'/g, "\\'") + '\')">' + ic('userPlus', 12) + ' Asignar Comité</button>' +
-        '</div>' +
-      '</div>';
-    }
+      if(fTxt&&!((comNom+' '+cargo).toLowerCase().includes(fTxt)))return '';
+      const safe=esc(comNom).replace(/'/g,"\\'");
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px;border:1px dashed #cbd5e1;border-radius:6px;background:#f8fafc"><div><div style="font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase">'+esc(cargo)+'</div><span class="chip chip-y">Vacante</span></div><button class="btn btn-navy btn-xs" onclick="openComiteManual(\''+safe+'\')">'+ic('userPlus',12)+' Asignar</button></div>';
+    }).join('');
+    return '<div class="kcard" style="padding:14px;border-left:4px solid var(--teal)"><div style="font-size:12px;font-weight:700;color:var(--teal);text-transform:uppercase">'+ic('home',12)+' COMUNIDAD: '+esc(comNom)+'</div><div style="margin-top:10px;display:grid;gap:7px">'+rows+'</div></div>';
   }).join('');
-
-  const grid = $('comCardsGrid');
-  if (grid) {
-    grid.innerHTML = cardsHtml || '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--mut)">No se encontraron comunidades ni responsables con el criterio buscado.</div>';
-  }
+  const grid=$('comCardsGrid'); if(grid)grid.innerHTML=cardsHtml||'<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--mut)">No se encontraron comunidades ni cargos con el criterio buscado.</div>';
 }
-
 
 function controlCentroActual() {
   return cenBy(CONTROL_ELECTORAL.centro) || CACHE.centros[0] || null;
@@ -3162,22 +2838,30 @@ function metricasCorteCentro(codigo) {
 }
 
 async function crearCorteElectoral(codigo) {
-  const met=metricasCorteCentro(codigo);
-  if(!met) return toast('Seleccione un centro válido para tomar el corte','err');
   const centro=cenBy(codigo);
+  if(!centro) return toast('Seleccione un centro válido para tomar el corte','err');
   const etiqueta=prompt('Etiqueta del corte (opcional):','Corte '+new Date().toLocaleTimeString('es-VE',{hour:'2-digit',minute:'2-digit'}));
   if(etiqueta===null) return;
   try {
-    await x('INSERT INTO cortes_electorales(centro_codigo,etiqueta,tomado_en,tomado_por,personas_universo,verificados,pendientes,porcentaje_verificado,masculinos_universo,femeninos_universo,masculinos_verificados,femeninos_verificados,mesas_total,mesas_con_acta,votos_partido_acta,diferencia_acta,detalle_json) VALUES(?,?,datetime("now"),?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[codigo,etiqueta.trim()||null,USER.id,met.personas,met.verificados,met.pendientes,met.pct,met.mM,met.mF,met.vM,met.vF,met.mesas,met.actasCargadas,met.totalActa,met.diffTotal===null?null:met.diffTotal,JSON.stringify(met.detalle)]);
-    await registrarAct('corte','Corte de métricas • Centro '+codigo+' • '+(centro?.nombre||'')+' • '+(etiqueta.trim()||'Sin etiqueta'),USER.id);
-    await refreshAll(); renderControlElectoral(); toast('Corte registrado correctamente','ok');
-  } catch(e){toast('No se pudo guardar el corte: '+e.message,'err',8000);}
+    const rr=await fetch('/api/cortes',{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({centro_codigo:String(codigo),etiqueta:etiqueta.trim()})
+    });
+    const data=await rr.json().catch(()=>({}));
+    if(!rr.ok) throw new Error(data.error||'No se pudo guardar el corte');
+    await refreshAll();
+    renderControlElectoral();
+    toast('Corte registrado correctamente','ok');
+  }catch(e){toast('No se pudo guardar el corte: '+e.message,'err',8000);}
 }
 
 function renderCortesPanel(codigo) {
   const centro=cenBy(codigo);
   const cortes=(CACHE.cortes||[]).filter(x=>String(x.centro_codigo)===String(codigo)).slice(0,20);
-  const rows=cortes.map(c=>'<tr><td class="mono">'+esc(c.tomado_en||'')+'</td><td>'+esc(c.etiqueta||'Sin etiqueta')+'</td><td>'+c.personas_universo+'</td><td>'+c.verificados+'</td><td>'+c.pendientes+'</td><td>'+Number(c.porcentaje_verificado||0).toFixed(1)+'%</td><td>'+c.mesas_con_acta+'/'+c.mesas_total+'</td><td>'+c.votos_partido_acta+'</td><td>'+(c.diferencia_acta===null||c.diferencia_acta===undefined?'—':c.diferencia_acta)+'</td><td>'+esc(((CACHE.users||[]).find(u=>Number(u.id)===Number(c.tomado_por))||{}).nombre||'')+'</td></tr>').join('');
+  const formatoHoraCorte=ts=>{if(!ts)return '';const s=String(ts);const m=s.match(/^(\\d{4}-\\d{2}-\\d{2})T?(\\d{2}):(\\d{2}):(\\d{2})/);if(m)return m[1]+' '+m[2]+':'+m[3]+':'+m[4];return s;};
+  const rows=cortes.map(c=>'<tr><td class="mono" title="'+esc(c.tomado_en||'')+'"><b>'+esc(formatoHoraCorte(c.tomado_en))+'</b><div style="font-size:11px;color:var(--mut)">hora Venezuela (UTC-04:00)</div></td><td>'+esc(c.etiqueta||'Sin etiqueta')+'</td><td>'+c.personas_universo+'</td><td>'+c.verificados+'</td><td>'+c.pendientes+'</td><td>'+Number(c.porcentaje_verificado||0).toFixed(1)+'%</td><td>'+c.mesas_con_acta+'/'+c.mesas_total+'</td><td>'+c.votos_partido_acta+'</td><td>'+(c.diferencia_acta===null||c.diferencia_acta===undefined?'—':c.diferencia_acta)+'</td><td>'+esc(((CACHE.users||[]).find(u=>Number(u.id)===Number(c.tomado_por))||{}).nombre||'')+'</td></tr>').join('');
   return panel('Cortes de control • '+esc(centro?.nombre||codigo),'<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><div style="font-size:12px;color:var(--mut)">Cada corte conserva una fotografía de las métricas y del detalle por mesa en ese momento.</div><button class="btn btn-navy btn-xs" onclick="crearCorteElectoral(\''+esc(codigo)+'\')">'+ic('check',13)+' Tomar corte ahora</button></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Fecha / hora</th><th>Etiqueta</th><th>Universo</th><th>Verificados</th><th>Pendientes</th><th>Avance</th><th>Actas</th><th>Votos partido</th><th>Diferencia</th><th>Operador</th></tr></thead><tbody>'+(rows||'<tr><td colspan="10" class="empty">Todavía no hay cortes registrados para este centro.</td></tr>')+'</tbody></table></div>',800);
 }
 
@@ -3230,24 +2914,25 @@ function renderControlElectoral() {
       '<td>' + (x.acta ? x.acta.votos_partido : '—') + '</td>' +
       '<td>' + (x.diff === null ? '—' : x.diff) + '</td>' +
       '<td>' + estado + '</td>' +
-      '<td>' + (mesaOperativa(centro.codigo,x.mesa) ? '<span class="chip chip-g">CONSTITUIDA</span>' : '<span class="chip chip-y">SIN CONSTITUIR</span>') + '</td>' +
+      '<td>' + (mesaOperativa(centro.codigo,x.mesa) ? (mesaOperativa(centro.codigo,x.mesa).estado==='CERRADA' ? '<span class="chip chip-b">CERRADA</span>' : '<span class="chip chip-g">CONSTITUIDA</span>') : '<span class="chip chip-y">SIN CONSTITUIR</span>') + '</td>' +
       '<td><button class="btn btn-navy btn-xs" onclick="abrirConstitucionMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Constitución</button> <button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
     '</tr>';
   }).join('');
 
-  const ultimas = verificados.slice().sort((a,b) => String(b.verificado_en).localeCompare(String(a.verificado_en))).slice(0, 30).map(x => {
-    const p = padBy(x.cedula) || {};
-    const as = asignDe(x.cedula);
-    const rr = as && as.r ? as.r : null;
-    const rp = rr ? (padBy(rr.cedula) || rr) : null;
+  const ultimas = verificados.slice().sort((a,b) => String(b.verificado_en||'').localeCompare(String(a.verificado_en||''))).slice(0, 30).map(x => {
+    const p = (x.p_nombre || x.p_apellido) ? x : (padBy(x.cedula) || {});
+    const nombre = ((p.p_apellido || '') + ' ' + (p.s_apellido || '') + ', ' + (p.p_nombre || '') + ' ' + (p.s_nombre || '')).replace(/^\s*,\s*|,\s*$/g,'').trim() || 'Persona no encontrada';
+    const ci = normC(x.cedula);
+    const fecha = horaVE(x.verificado_en);
+    const operador = x.operador_nom || ((CACHE.users || []).find(u => Number(u.id) === Number(x.verificado_por)) || {}).nombre || (USER ? USER.nombre : 'Operador actual');
     return '<tr>' +
-      '<td class="mono">' + esc(x.verificado_en || '') + '</td>' +
-      '<td>' + esc(((p.p_apellido || '') + ' ' + (p.p_nombre || '')).trim()) + '</td>' +
-      '<td class="mono">' + esc(fC(p.letra || 'V', x.cedula)) + '</td>' +
-      '<td><b>' + esc(x.mesa) + '</b></td>' +
-      '<td>' + esc(x.origen || '') + '</td>' +
-      '<td>' + esc(x.cargo || (rp ? nomP(rp) : '')) + '</td>' +
-      '<td>' + esc(((CACHE.users || []).find(u => Number(u.id) === Number(x.verificado_por)) || {}).nombre || '') + '</td>' +
+      '<td class="mono"><b>' + esc(fecha) + '</b></td>' +
+      '<td>' + esc(nombre) + '</td>' +
+      '<td class="mono">' + esc(fC(p.letra || 'V', ci || '')) + '</td>' +
+      '<td><b>' + esc(x.mesa || '') + '</b></td>' +
+      '<td>' + esc(origenRegistroPersona(ci)) + '</td>' +
+      '<td>' + esc(x.cargo || origenRegistroPersona(ci)) + '</td>' +
+      '<td><b>' + esc(operador) + '</b></td>' +
     '</tr>';
   }).join('');
 
@@ -3349,18 +3034,33 @@ async function guardarVerificacion(cedula) {
   const centro=controlCentroActual(), mesa=String($('ctlMesaInput')?.value||'').trim();
   if(!centro) return toast('Seleccione un centro', 'err');
   if(!mesa) return toast('Ingrese el número de Mesa', 'err');
+
   const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
   if(!persona) return toast('La persona no tiene un cargo o función registrada en este centro', 'err');
+
   try {
-    const existe=await q('SELECT id FROM verificaciones_votacion WHERE cedula = ? LIMIT 1',[normC(cedula)]);
-    if(existe.length) await x('UPDATE verificaciones_votacion SET centro_codigo=?, mesa=?, estado=?, verificado_en=datetime("now"), verificado_por=? WHERE cedula=?',[centro.codigo,mesa,'VOTO_VERIFICADO',USER.id,normC(cedula)]);
-    else await x('INSERT INTO verificaciones_votacion(cedula,centro_codigo,mesa,estado,verificado_por) VALUES(?,?,?,?,?)',[normC(cedula),centro.codigo,mesa,'VOTO_VERIFICADO',USER.id]);
-    await registrarAct('voto', 'Verificación individual registrada: '+fC(persona.p.letra||'V',cedula)+' • Centro '+centro.codigo+' • Mesa '+mesa, USER.id);
+    const r=await fetch('/api/verificaciones', {
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        cedula:normC(cedula),
+        centro_codigo:centro.codigo,
+        mesa
+      })
+    });
+    let data={};
+    try{data=await r.json()}catch(e){}
+    if(!r.ok) return toast(data.error||'No se pudo guardar la verificación','err',8000);
+
     await refreshAll();
     closeModal();
     renderControlElectoral();
     toast('Asistencia verificada • VOTÓ • Mesa '+mesa,'ok',6000);
-  } catch(e) { console.error(e); toast('No se pudo guardar la verificación: '+e.message,'err',8000); }
+  } catch(e) {
+    console.error(e);
+    toast('No se pudo guardar la verificación: '+e.message,'err',8000);
+  }
 }
 
 function mesaOperativa(codigo, mesa) {
@@ -3370,6 +3070,9 @@ function mesaMiembros(codigo, mesa) {
   const mo = mesaOperativa(codigo, mesa);
   return mo ? (CACHE.mesaMiembros || []).filter(x => Number(x.mesa_operativa_id) === Number(mo.id)) : [];
 }
+function actualizarObservacionMaquinaMesa(){const s=$('mesaEstadoMaquina'),w=$('mesaObsMaquinaWrap'),t=$('mesaObservacionMaquina');if(!s||!w)return;const op=s.value==='OPERATIVA';w.style.display=op?'none':'block';if(t)t.required=!op;}
+async function cargarHistorialMaquina(codigo,mesa){const b=$('mesaMaquinaHistorial');if(!b)return;try{const r=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'historial_maquina',centro_codigo:codigo,mesa:String(mesa)})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo consultar el historial');const h=Array.isArray(d.historial)?d.historial:[];b.innerHTML=h.length?h.map(x=>'<div class="row10" style="padding:7px 0;border-bottom:1px solid var(--line2)"><span class="chip '+(x.estado_nuevo==='OPERATIVA'?'chip-g':'chip-y')+'">'+esc(x.estado_nuevo)+'</span><div style="flex:1"><b>'+esc(x.observacion||'Sin observación')+'</b><div class="mono" style="font-size:10.5px;color:var(--mut)">'+esc(horaVE(x.cambiado_en))+' • '+esc(x.operador_nom||'Operador')+'</div></div></div>').join(''):'<div class="empty" style="padding:10px">Sin movimientos registrados.</div>';}catch(e){b.innerHTML='<div class="empty" style="padding:10px">No se pudo cargar el historial.</div>';}}
+async function cambiarEstadoMaquinaMesa(codigo,mesa){const estado=$('mesaEstadoMaquina')?.value||'OPERATIVA',obs=$('mesaObservacionMaquina')?.value?.trim()||'',actual=mesaOperativa(codigo,mesa)?.estado_maquina||'OPERATIVA';if(estado===actual&&!obs)return toast('No hay cambios de estado para registrar','err');if(estado!=='OPERATIVA'&&!obs)return toast('Debe registrar la incidencia u observación','err');if(estado==='OPERATIVA'&&actual!=='OPERATIVA'&&!obs)return toast('Indique cómo se resolvió la incidencia antes de activar la máquina','err');try{const r=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'cambiar_estado_maquina',centro_codigo:codigo,mesa:String(mesa),estado_maquina:estado,observacion_maquina:obs})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo actualizar el estado');await refreshAll();abrirConstitucionMesa(codigo,mesa);toast('Estado de máquina actualizado: '+estado,'ok');}catch(e){toast('Error actualizando máquina: '+e.message,'err',8000);}}
 function personaNombreCedula(cedula) {
   const p = padBy(cedula);
   if (p) return { nombre: (apeP(p) + ', ' + nomP(p)).trim(), letra: p.letra || 'V' };
@@ -3391,15 +3094,8 @@ async function autorizarOperacion(motivo) {
 async function confirmarAutorizacion() {
   const u=String($('authUser')?.value||'').trim(), p=$('authPass')?.value||'';
   if(!u||!p) return toast('Ingrese usuario y clave de autorización','err');
-  try {
-    const rows=await q('SELECT * FROM usuarios WHERE usuario=? AND activo=1 LIMIT 1',[u]);
-    if(!rows.length) return toast('Usuario autorizante no encontrado o inactivo','err');
-    const user=rows[0];
-    if(!['J','A'].includes(user.rol)) return toast('Solo un Jefe de Comando o Administrador puede autorizar esta operación','err');
-    if(user.clave_hash !== await hash(p)) return toast('Clave de autorización incorrecta','err');
-    const resolve=window.__authResolve; window.__authResolve=null; closeModal();
-    if(resolve) resolve({ok:true,user});
-  } catch(e){ toast('No se pudo validar la autorización: '+e.message,'err'); }
+  const resolve=window.__authResolve; window.__authResolve=null; closeModal();
+  if(resolve) resolve({ok:true,user:{usuario:u},clave:p});
 }
 function miembrosPredeterminadosCentro(codigo) {
   return (CACHE.cargos || []).filter(x => String(x.centro_codigo) === String(codigo) && x.cedula);
@@ -3408,64 +3104,158 @@ function nombreCompletoRegistro(cedula) {
   const p=padBy(cedula);
   return p ? (apeP(p)+', '+nomP(p)).trim() : (personaNombreCedula(cedula).nombre||cedula);
 }
+function miembrosPredeterminadosCentro(codigo) {
+  return (CACHE.cargos || []).filter(x => String(x.centro_codigo) === String(codigo) && x.cedula);
+}
+function catalogoCargosMesa(codigo,mesa) {
+  const n=String(mesa);
+  const base=CARGOS_CENTRO.map(c=>({cargo:c,cedula:null,persona:null}));
+  const testigos=[
+    {cargo:'Testigo Principal Mesa '+n,cedula:null,persona:null},
+    {cargo:'Testigo Suplente Mesa '+n,cedula:null,persona:null}
+  ];
+  const source=getCargosCentro(codigo);
+  return [...base,...testigos].map(k=>{
+    const asig=source.find(x=>String(x.cargo||'').trim()===k.cargo);
+    return asig ? {...k,...asig} : k;
+  });
+}
+function estadoSlotMesa(codigo,mesa,cargo) {
+  const ms=mesaMiembros(codigo,mesa);
+  const accidental=ms.find(m=>m.tipo==='ACCIDENTAL'&&String(m.cargo)===String(cargo));
+  if(accidental) return {estado:'REEMPLAZADO',miembro:accidental};
+  const titular=ms.find(m=>m.tipo==='AFECTO'&&String(m.cargo)===String(cargo));
+  if(titular) return {estado:'RATIFICADO',miembro:titular};
+  return {estado:'AUSENTE',miembro:null};
+}
 function abrirConstitucionMesa(codigo, mesa) {
   const centro=cenBy(codigo), mo=mesaOperativa(codigo,mesa), miembros=mesaMiembros(codigo,mesa);
   if(!centro) return toast('Centro no encontrado','err');
   const horaC=mo?.hora_constitucion||'', horaI=mo?.hora_inicio_votacion||'', test=Number(mo?.testigos_asistieron||0);
-  const pred=miembrosPredeterminadosCentro(codigo);
-  const predHtml=pred.length ? pred.map(p=>{
-    const checked=miembros.some(m=>normC(m.cedula)===normC(p.cedula)&&m.tipo==='AFECTO')?'checked':'';
-    return '<label style="display:flex;gap:8px;align-items:center;padding:7px;border-bottom:1px solid var(--line2)"><input type="checkbox" class="mesaPred" value="'+esc(p.cedula)+'" data-cargo="'+esc(p.cargo||'Cargo')+'" '+checked+'><span><b>'+esc(nombreCompletoRegistro(p.cedula))+'</b><br><small>'+esc(p.cargo||'Cargo')+' • '+esc(fC(p.letra||'V',p.cedula))+'</small></span></label>';
-  }).join('') : '<div class="empty">No hay cargos predeterminados registrados para este centro.</div>';
+  const estadoMaquina=mo?.estado_maquina||'OPERATIVA', observacionMaquina=mo?.observacion_maquina||'';
+  const cargos=catalogoCargosMesa(codigo,mesa);
+  const slotsHtml=cargos.map((k,i)=>{
+    const asig=(CACHE.cargos||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.cargo)===String(k.cargo));
+    const st=estadoSlotMesa(codigo,mesa,k.cargo);
+    const persona=asig?.cedula?personaNombreCedula(asig.cedula):null;
+    const nombre=persona?.nombre||'';
+    const ci=asig?.cedula?fC(persona?.letra||asig.letra||'V',asig.cedula):'';
+    const sinLabel=String(k.cargo||'').replace(/^Testigo (Principal|Suplente) Mesa \d+$/i,'Sin Testigo $1').replace(/^Coordinador del Centro$/i,'Sin Coordinador');
+    const estado=st.estado==='RATIFICADO'
+      ? '<span class="chip chip-g">RATIFICADO</span>'
+      : st.estado==='REEMPLAZADO'
+        ? '<span class="chip chip-b">REEMPLAZADO</span>'
+        : '<span class="chip chip-y">'+esc(sinLabel)+'</span>';
+    const rat=st.estado==='RATIFICADO'?'checked':'';
+    const disabled=mo?.estado==='CERRADA'?'disabled':'';
+    return '<div class="kcard" style="padding:10px;margin-bottom:7px"><div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:230px"><div style="font-size:10px;font-weight:800;color:var(--teal);text-transform:uppercase">'+esc(k.cargo)+'</div>'+
+      '<div style="font-size:13px;font-weight:700;color:var(--navy)">'+(nombre?esc(nombre):'<span style="color:var(--mut)">Cargo sin titular asignado en Centros</span>')+'</div>'+
+      (ci?'<div class="mono" style="font-size:10.5px;color:var(--mut)">'+esc(ci)+'</div>':'')+'</div>'+
+      '<label class="btn btn-w btn-xs" style="cursor:pointer"><input type="checkbox" class="mesaPred" value="'+esc(asig?.cedula||'')+'" data-cargo="'+esc(k.cargo)+'" '+rat+' '+disabled+' '+(!asig?.cedula?'disabled':'')+'> Ratificar</label>'+
+      estado+
+      '<button class="btn btn-navy btn-xs" '+disabled+' onclick="abrirBusquedaReemplazoMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\',\''+esc(k.cargo).replace(/'/g,"\\'")+'\')">'+ic('search',12)+' Reemplazo accidental</button>'+
+      '</div></div>';
+  }).join('');
   const acc=miembros.filter(m=>m.tipo==='ACCIDENTAL').map(m=>{
     const inf=personaNombreCedula(m.cedula);
-    return '<div class="kcard" style="margin-top:7px"><b>'+esc(inf.nombre)+'</b><div class="mono">'+esc(fC(inf.letra,m.cedula))+' • '+esc(m.cargo)+' • ACCIDENTAL • '+(m.autorizado?'AUTORIZADO':'NO AUTORIZADO')+'</div></div>';
-  }).join('') || '<div class="empty">No hay miembros accidentales registrados.</div>';
+    return '<div class="row10"><span class="uava">'+ini(inf.nombre)+'</span><div style="flex:1"><b>'+esc(inf.nombre)+'</b><div class="mono" style="font-size:10.5px;color:var(--mut)">'+esc(fC(inf.letra,m.cedula))+' • '+esc(m.cargo)+' • Reemplazo autorizado</div></div></div>';
+  }).join('') || '<div class="empty" style="padding:10px">No hay reemplazos accidentales.</div>';
+  const cerrado=mo?.estado==='CERRADA';
+  const acta=(CACHE.actasMesa||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.mesa)===String(mesa));
+  const cierreBtn= cerrado
+    ? '<span class="chip chip-g">MESA CERRADA • '+esc(mo.hora_cierre||'')+'</span>'
+    : '<button class="btn btn-red" '+(!acta?'disabled title="Registre primero los resultados del acta"':'')+' onclick="cerrarMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('lock',14)+' Cerrar Mesa y generar Acta de Cierre</button>';
   win(ic('check',18)+' Constitución • Mesa '+esc(mesa),
-    '<div class="alert ok"><b>'+esc(centro.nombre)+'</b><br>Mesa '+esc(mesa)+' • Código '+esc(codigo)+'</div>' +
-    '<div class="grid g2" style="gap:10px;margin-top:12px">' +
-      '<div><label class="fl">Hora de Constitución de Mesa</label><input class="inp mono" id="mesaHoraConstitucion" type="time" value="'+esc(horaC)+'"></div>' +
-      '<div><label class="fl">Hora de Inicio del Acto de Votación</label><input class="inp mono" id="mesaHoraInicio" type="time" value="'+esc(horaI)+'"></div>' +
-      '<div><label class="fl">Número de Testigos que asistieron</label><input class="inp mono" id="mesaTestigos" type="number" min="0" step="1" value="'+test+'"></div>' +
-    '</div>' +
-    '<div style="margin-top:14px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="font-weight:700;color:var(--navy);margin-bottom:8px">Miembros predeterminados del centro • afectos al partido</div><div style="max-height:220px;overflow:auto">'+predHtml+'</div></div>' +
-    '<div style="margin-top:12px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="color:var(--navy)">Miembros accidentales / reemplazos</b><button class="btn btn-w btn-xs" onclick="agregarMiembroAccidental(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">+ Agregar reemplazo</button></div><div id="mesaAccidentales">'+acc+'</div><div style="font-size:11px;color:var(--mut);margin-top:7px">Los reemplazos requieren autorización de Jefe de Comando o Administrador. Se almacenan separadamente y no modifican el universo normal de verificación ni los resultados del acta.</div></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cerrar</button><button class="btn btn-g" onclick="guardarConstitucionMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">Guardar constitución</button><label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--navy)">Formato <select class="inp" id="mesaActaFormato" style="width:auto;padding:6px 9px"><option value="A4">A4</option><option value="CARTA">Carta</option></select></label><button class="btn btn-navy" onclick="imprimirActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('print',14)+' Imprimir acta</button><button class="btn btn-navy" onclick="downloadPDFActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('file',14)+' PDF</button>',820
+    '<div class="alert ok"><b>'+esc(centro.nombre)+'</b><br>Mesa '+esc(mesa)+' • Código '+esc(codigo)+(cerrado?' • CERRADA':' • ABIERTA')+'</div>'+
+    '<div style="margin-top:12px;border:1px solid var(--line2);border-radius:8px;padding:10px">' +
+      '<label class="fl">Estado de la máquina de votación</label>' +
+      '<select class="inp" id="mesaEstadoMaquina" onchange="actualizarObservacionMaquinaMesa()" '+(cerrado?'disabled':'')+'>' +
+        '<option value="OPERATIVA" '+(estadoMaquina==='OPERATIVA'?'selected':'')+'>Operativa</option>' +
+        '<option value="DEFECTUOSA" '+(estadoMaquina==='DEFECTUOSA'?'selected':'')+'>Defectuosa</option>' +
+        '<option value="DAÑADA" '+(estadoMaquina==='DAÑADA'?'selected':'')+'>Dañada</option>' +
+        '<option value="EN REPARACIÓN" '+(estadoMaquina==='EN REPARACIÓN'?'selected':'')+'>En reparación</option>' +
+        '<option value="REEMPLAZADA" '+(estadoMaquina==='REEMPLAZADA'?'selected':'')+'>Reemplazada</option>' +
+        '<option value="OTRO" '+(estadoMaquina==='OTRO'?'selected':'')+'>Otro</option>' +
+      '</select>' +
+      '<div id="mesaObsMaquinaWrap" style="margin-top:10px;display:'+(estadoMaquina==='OPERATIVA'?'none':'block')+'">' +
+        '<label class="fl">Observación / incidencia</label>' +
+        '<textarea class="inp" id="mesaObservacionMaquina" rows="3" maxlength="500" placeholder="Falla, reparación, reemplazo o resultado del servicio técnico..." '+(cerrado?'disabled':'')+'>'+esc(observacionMaquina)+'</textarea>' +
+      '</div>' +
+      '<div style="margin-top:9px">'+
+        (!cerrado?'<button class="btn btn-navy btn-xs" onclick="cambiarEstadoMaquinaMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">🔧 Registrar cambio de estado</button>':'')+
+      '</div>' +
+      '<div style="margin-top:12px"><div style="font-weight:700;color:var(--navy);margin-bottom:6px">Historial de máquina</div>' +
+        '<div id="mesaMaquinaHistorial" style="max-height:190px;overflow:auto"><div class="empty" style="padding:10px">Cargando historial...</div></div>' +
+      '</div>' +
+    '</div><div class="grid g2" style="gap:10px;margin-top:12px">'+
+    '<div><label class="fl">Hora de Constitución</label><input class="inp mono" id="mesaHoraConstitucion" type="time" value="'+esc(horaC)+'" '+(cerrado?'disabled':'')+'></div>'+
+      '<div><label class="fl">Hora de Inicio del Acto de Votación</label><input class="inp mono" id="mesaHoraInicio" type="time" value="'+esc(horaI)+'" '+(cerrado?'disabled':'')+'></div>'+
+      '<div><label class="fl">Testigos que asistieron</label><input class="inp mono" id="mesaTestigos" type="number" min="0" step="1" value="'+test+'" '+(cerrado?'disabled':'')+'></div>'+
+    '</div>'+
+    '<div style="margin-top:14px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="font-weight:800;color:var(--navy);margin-bottom:8px">Cargos del centro para esta Mesa</div><div style="font-size:11px;color:var(--mut);margin-bottom:9px">La asignación proviene del módulo Centros. Marque <b>Ratificar</b> únicamente para quien se presentó. Si no se presenta, el cargo queda explícitamente como <b>Sin ...</b> hasta que se registre un reemplazo.</div><div style="max-height:360px;overflow:auto">'+slotsHtml+'</div></div>'+
+    '<div style="margin-top:12px;border:1px solid var(--line2);border-radius:8px;padding:10px"><div style="font-weight:700;color:var(--navy);margin-bottom:7px">Reemplazos accidentales registrados</div>'+acc+'</div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cerrar</button>'+(!cerrado?'<button class="btn btn-g" onclick="guardarConstitucionMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">Guardar constitución</button>':'')+
+    '<button class="btn btn-navy" onclick="imprimirActaInicializacion(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('print',14)+' Acta de inicialización</button>'+
+    (cerrado?'<button class="btn btn-navy" onclick="imprimirActaCierre(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('print',14)+' Acta de cierre</button>':'')+
+    cierreBtn,860
   );
+  actualizarObservacionMaquinaMesa();
+  cargarHistorialMaquina(codigo,mesa);
 }
 async function guardarConstitucionMesa(codigo,mesa) {
   const hc=$('mesaHoraConstitucion')?.value||'', hi=$('mesaHoraInicio')?.value||'', test=Number($('mesaTestigos')?.value||0);
+  const estado_maquina=$('mesaEstadoMaquina')?.value||'OPERATIVA';
+  const observacion_maquina=$('mesaObservacionMaquina')?.value?.trim()||'';
   if(test<0||!Number.isInteger(test)) return toast('El número de testigos debe ser un entero no negativo','err');
   try {
-    const ex=await q('SELECT id FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',[codigo,String(mesa)]);
-    let id;
-    if(ex.length){ id=ex[0].id; await x('UPDATE mesa_operativa SET hora_constitucion=?,hora_inicio_votacion=?,testigos_asistieron=?,actualizado_en=datetime("now"),actualizado_por=? WHERE id=?',[hc||null,hi||null,test,USER.id,id]); }
-    else { await x('INSERT INTO mesa_operativa(centro_codigo,mesa,hora_constitucion,hora_inicio_votacion,testigos_asistieron,actualizado_por) VALUES(?,?,?,?,?,?)',[codigo,String(mesa),hc||null,hi||null,test,USER.id]); const z=await q('SELECT id FROM mesa_operativa WHERE centro_codigo=? AND mesa=?',[codigo,String(mesa)]); id=z[0]?.id; }
-    if(!id) throw new Error('No se pudo identificar la constitución guardada');
-    const checks=[...document.querySelectorAll('.mesaPred:checked')];
-    await x('DELETE FROM mesa_miembros WHERE mesa_operativa_id=? AND tipo="AFECTO"',[id]);
-    for(const ch of checks) await x('INSERT OR IGNORE INTO mesa_miembros(mesa_operativa_id,cedula,cargo,tipo,origen,autorizado,registrado_por) VALUES(?,?,?,?,?,?,?)',[id,normC(ch.value),ch.dataset.cargo||'Cargo','AFECTO','CENTRO',1,USER.id]);
-    await registrarAct('mesa','Constitución Mesa '+mesa+' • Centro '+codigo+' • Hora constitución '+(hc||'N/D')+' • Inicio '+(hi||'N/D')+' • Testigos '+test,USER.id);
-    await refreshAll(); closeModal(); renderControlElectoral(); toast('Constitución de Mesa guardada','ok');
+    const checks=[...document.querySelectorAll('.mesaPred:checked')].filter(ch=>ch.value).map(ch=>({cedula:normC(ch.value),cargo:ch.dataset.cargo||'Cargo'}));
+    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'constituir',centro_codigo:codigo,mesa:String(mesa),hora_constitucion:hc,hora_inicio_votacion:hi,testigos_asistieron:test,estado_maquina,observacion_maquina,afectos:checks})});
+    const data=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo guardar la constitución');
+    await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Constitución de Mesa guardada','ok');
   } catch(e){toast('Error guardando constitución: '+e.message,'err',8000);}
 }
-async function agregarMiembroAccidental(codigo,mesa) {
-  const ced=prompt('C.I. de la persona que reemplazará el cargo:');
-  if(!ced) return;
-  const c=normC(ced); const p=padBy(c);
-  const existeEnCargos = [...(CACHE.cargos||[]),...(CACHE.comite||[]),...(CACHE.direccion||[])].some(x=>normC(x.cedula)===c) || (CACHE.recl||[]).some(r=>normC(r.cedula)===c || (r.lista||[]).some(x=>normC(x.cedula)===c));
-  if(!p && !existeEnCargos) return toast('La persona debe estar registrada previamente en el sistema','err');
-  const cargo=prompt('Cargo que reemplazará en la Mesa:');
-  if(!cargo) return;
-  const auth=await autorizarOperacion('Reemplazo accidental de cargo en Mesa '+mesa+' • '+cargo);
-  if(!auth?.ok) return;
-  const mo=mesaOperativa(codigo,mesa);
-  if(!mo) return toast('Primero guarde la constitución de la Mesa','err');
-  try {
-    await x('INSERT INTO mesa_miembros(mesa_operativa_id,cedula,cargo,tipo,origen,autorizado,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?,?)',[mo.id,c,cargo,'ACCIDENTAL',origenRegistroPersona(c),1,auth.user.id,new Date().toISOString(),USER.id]);
-    await registrarAct('autorizacion','Reemplazo accidental autorizado • C.I. '+c+' • Centro '+codigo+' • Mesa '+mesa+' • Cargo '+cargo+' • Autorizó '+auth.user.nombre,USER.id);
-    await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Reemplazo autorizado y registrado','ok');
-  } catch(e){toast('No se pudo registrar el reemplazo: '+e.message,'err',8000);}
+function abrirBusquedaReemplazoMesa(codigo,mesa,cargo) {
+  const cerrado=mesaOperativa(codigo,mesa)?.estado==='CERRADA';
+  if(cerrado) return toast('La mesa está cerrada','err');
+  const actual=estadoSlotMesa(codigo,mesa,cargo);
+  if(actual.estado==='RATIFICADO') return toast('El titular fue ratificado; no corresponde reemplazo accidental','err');
+  const p=personaNombreCedula('');
+  win(ic('search',18)+' Reemplazo accidental • '+esc(cargo),
+    '<div class="alert warn"><b>Seleccione a la persona que cubrirá el cargo.</b><br>El reemplazo requiere autorización de Jefe de Comando o Administrador y queda auditado.</div>'+
+    '<label class="fl">Buscar por nombre o C.I.</label><input class="inp" id="mesaReplaceSearch" placeholder="Nombre, apellido o cédula..." oninput="filtrarReemplazoMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\',\''+esc(cargo).replace(/'/g,"\\'")+'\')" autocomplete="off">'+
+    '<div id="mesaReplaceResults" style="margin-top:10px;max-height:300px;overflow:auto"></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>',600
+  );
+  filtrarReemplazoMesa(codigo,mesa,cargo);
+}
+function filtrarReemplazoMesa(codigo,mesa,cargo) {
+  const qv=String($('mesaReplaceSearch')?.value||'').trim().toLowerCase(), qci=normC(qv);
+  const rows=(CACHE.pad||[]).filter(p=>{
+    const nom=((p.p_apellido||'')+' '+(p.s_apellido||'')+' '+(p.p_nombre||'')+' '+(p.s_nombre||'')).toLowerCase();
+    return qv && ((qci.length>=3&&String(p.cedula).includes(qci))||nom.includes(qv));
+  }).slice(0,20);
+  const box=$('mesaReplaceResults'); if(!box)return;
+  box.innerHTML=rows.length?rows.map(p=>'<button class="rec-sel" style="margin-bottom:6px" onclick="seleccionarReemplazoMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\',\''+esc(cargo).replace(/'/g,"\\'")+'\',\''+esc(p.cedula)+'\')"><span class="uava">'+ini(nomP(p)+' '+apeP(p))+'</span><span style="flex:1;text-align:left"><b>'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono" style="font-size:10.5px;color:var(--mut)">'+esc(fC(p.letra||'V',p.cedula))+' • '+esc(p.nombre_cv||p.centro_votacion||'')+'</div></span></button>').join(''):'<div class="empty">Escriba un nombre o cédula para buscar.</div>';
+}
+async function seleccionarReemplazoMesa(codigo,mesa,cargo,cedula) {
+  const auth=await autorizarOperacion('Reemplazo accidental de '+cargo+' en Mesa '+mesa);
+  if(!auth?.ok)return;
+  try{
+    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'accidental',centro_codigo:codigo,mesa:String(mesa),cedula:normC(cedula),cargo,authUsuario:auth.user?.usuario||'',authClave:auth.clave||''})});
+    const data=await rr.json().catch(()=>({})); if(!rr.ok)throw new Error(data.error||'No se pudo registrar el reemplazo');
+    await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Reemplazo accidental registrado','ok');
+  }catch(e){toast('No se pudo registrar el reemplazo: '+e.message,'err',8000);}
+}
+async function cerrarMesa(codigo,mesa) {
+  const a=(CACHE.actasMesa||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.mesa)===String(mesa));
+  if(!a)return toast('Registre primero los resultados del acta de la Mesa','err',7000);
+  if(!confirm('¿Confirmar cierre de la Mesa '+mesa+'? La hora se tomará automáticamente del servidor y el acta de cierre conservará los resultados registrados.'))return;
+  try{
+    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'cerrar',centro_codigo:codigo,mesa:String(mesa)})});
+    const data=await rr.json().catch(()=>({})); if(!rr.ok)throw new Error(data.error||'No se pudo cerrar la mesa');
+    await refreshAll(); abrirConstitucionMesa(codigo,mesa); toast('Mesa cerrada • Acta de cierre disponible','ok',6000);
+  }catch(e){toast('No se pudo cerrar la mesa: '+e.message,'err',8000);}
 }
 function actaInicializacionHTML(codigo,mesa,formato) {
   const centro=cenBy(codigo), mo=mesaOperativa(codigo,mesa), ms=mesaMiembros(codigo,mesa);
@@ -3477,6 +3267,9 @@ function actaInicializacionHTML(codigo,mesa,formato) {
     '<h2>Miembros de mesa registrados</h2><table><thead><tr><th>C.I.</th><th>Nombre</th><th>Cargo</th><th>Tipo</th><th>Origen</th><th>Autorización</th></tr></thead><tbody>'+(ms.length?ms.map(row).join(''):'<tr><td colspan="6">Sin miembros registrados</td></tr>')+'</tbody></table>' +
     '<div class="sig">Firma / responsable</div><div class="sig">Observaciones</div></body></html>';
 }
+function horaVE(ts) { if(!ts) return ''; const d=new Date(ts); if(Number.isNaN(d.getTime())) return String(ts).replace('T',' '); return new Intl.DateTimeFormat('es-VE',{timeZone:'America/Caracas',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d); }
+function actaCierreHTML(codigo,mesa,formato) { const centro=cenBy(codigo), mo=mesaOperativa(codigo,mesa), acta=(CACHE.actasMesa||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.mesa)===String(mesa)); const resultado=mo?.resultados_cierre_json?(()=>{try{return JSON.parse(mo.resultados_cierre_json)}catch(e){return {}}})():{}; const snapshot=Array.isArray(resultado.miembros)?resultado.miembros:[]; const rows=catalogoCargosMesa(codigo,mesa).map(k=>{ const snap=snapshot.filter(x=>String(x.cargo)===String(k.cargo)); const sm=snap.find(x=>x.tipo==='ACCIDENTAL')||snap.find(x=>x.tipo==='AFECTO'); const st={estado:sm?(sm.tipo==='ACCIDENTAL'?'REEMPLAZADO':'RATIFICADO'):'AUSENTE',miembro:sm}; const m=st.miembro; const titular=(CACHE.cargos||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.cargo)===String(k.cargo)); const ti=titular?.cedula?personaNombreCedula(titular.cedula):null; const ci=m?personaNombreCedula(m.cedula):null; const estado=st.estado==='RATIFICADO'?'RATIFICADO':st.estado==='REEMPLAZADO'?'REEMPLAZADO':'SIN '+String(k.cargo).toUpperCase(); return '<tr><td>'+esc(k.cargo)+'</td><td>'+esc(ti?.nombre||'')+'</td><td>'+esc(titular?.cedula?fC(ti?.letra||'V',titular.cedula):'')+'</td><td>'+esc(estado)+'</td><td>'+esc(ci?.nombre||'')+'</td><td>'+esc(m?.cedula?fC(ci?.letra||'V',m.cedula):'')+'</td></tr>'; }).join(''); const page=String(formato||'A4').toUpperCase()==='CARTA'?'letter':'A4'; return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Acta de Cierre • Mesa '+esc(mesa)+'</title><style>body{font-family:Arial,sans-serif;color:#111;margin:18px;font-size:10.5px}h1{font-size:18px;margin:0 0 4px;color:#123c69}h2{font-size:13px;margin:15px 0 7px;border-bottom:1px solid #bbb;padding-bottom:4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:5px;text-align:left;vertical-align:top}th{background:#f1f5f9}.box{border:1px solid #bbb;padding:10px;margin-top:10px}.result{font-size:15px;font-weight:700}.sig{height:55px;border-bottom:1px solid #777;margin-top:20px;width:45%;display:inline-block;margin-right:4%}@page{size:'+page+' portrait;margin:12mm}</style></head><body>'+ '<h1>ACTA DE CIERRE DE MESA</h1><div>Sistema de Gestión Electoral</div>'+ '<div class="box"><b>Centro:</b> '+esc(centro?.nombre||codigo)+'<br><b>Código:</b> '+esc(codigo)+'<br><b>Mesa:</b> '+esc(mesa)+'<br><b>Estado de máquina:</b> '+esc(resultado.estado_maquina||mo?.estado_maquina||'OPERATIVA')+'<br><b>Observación de máquina:</b> '+esc(resultado.observacion_maquina||mo?.observacion_maquina||'Sin observación')+'<br><b>Hora de cierre:</b> '+esc(horaVE(mo?.hora_cierre))+' (Venezuela)<br><b>Operador que cerró:</b> '+esc(((CACHE.users||[]).find(u=>Number(u.id)===Number(mo?.cierre_por))||{}).nombre||USER?.nombre||'')+'</div>'+ '<div class="box"><b>Resultados registrados en sistema</b><div class="result">Votos del partido según acta: '+Number(acta?.votos_partido||resultado.votos_partido||0)+'</div><div>Cantidad de acta: '+Number(acta?.cantidad_acta||resultado.cantidad_acta||0)+'</div></div>'+ '<h2>Estado de cargos y reemplazos</h2><table><thead><tr><th>Cargo</th><th>Titular asignado en Centro</th><th>C.I. titular</th><th>Estado</th><th>Persona que cumplió</th><th>C.I. que cumplió</th></tr></thead><tbody>'+rows+'</tbody></table><div class="sig">Firma / responsable</div><div class="sig">Observaciones</div></body></html>';}
+function imprimirActaCierre(codigo,mesa) { const mo=mesaOperativa(codigo,mesa); if(!mo||mo.estado!=='CERRADA') return toast('La Mesa todavía no está cerrada','err'); const html=actaCierreHTML(codigo,mesa,'A4'); window.__previewDocHtml=html; vistaPreviaDocumento('Vista previa • Acta de Cierre • Mesa '+esc(mesa),html,'<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button><button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'acta_cierre_mesa_'+esc(mesa)+'\',\'A4\')">'+ic('file',13)+' PDF</button>'); }
 function formatoActaInicializacion(){return String($('mesaActaFormato')?.value||'A4').toUpperCase()==='CARTA'?'CARTA':'A4';}
 function vistaPreviaDocumento(titulo, html, acciones) {
   const id='previewDocModal';
@@ -3517,14 +3310,32 @@ function editarActaMesa(codigo, mesa) {
 async function guardarActaMesa(codigo, mesa) {
   const val=Number($('actaPartidoInput')?.value);
   if(!Number.isInteger(val)||val<0) return toast('Ingrese una cantidad válida de votos del partido','err');
+
   try {
-    const existe=await q('SELECT id FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',[codigo,String(mesa)]);
-    if(existe.length) await x('UPDATE actas_mesa SET votos_partido=?, cantidad_acta=?, actualizado_en=datetime("now"), actualizado_por=? WHERE id=?',[val,val,USER.id,existe[0].id]);
-    else await x('INSERT INTO actas_mesa(centro_codigo,mesa,cantidad_acta,votos_partido,actualizado_por) VALUES(?,?,?,?,?)',[codigo,String(mesa),val,val,USER.id]);
-    await registrarAct('acta','Acta CNE: votos del partido • Centro '+codigo+' • Mesa '+mesa+' • '+val,USER.id);
-    await refreshAll(); closeModal(); renderControlElectoral(); toast('Acta guardada','ok');
-  } catch(e){toast('Error guardando acta: '+e.message,'err');}
+    const r=await fetch('/api/actas', {
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        centro_codigo:codigo,
+        mesa:String(mesa),
+        votos_partido:val
+      })
+    });
+    let data={};
+    try{data=await r.json()}catch(e){}
+    if(!r.ok) return toast(data.error||'No se pudo guardar el acta','err',8000);
+
+    await refreshAll();
+    closeModal();
+    renderControlElectoral();
+    toast(data.accion==='actualizada'?'Acta actualizada':'Acta guardada','ok');
+  } catch(e) {
+    console.error(e);
+    toast('Error guardando acta: '+e.message,'err',8000);
+  }
 }
+
 
 function renderComite() {
   const activeEl = document.activeElement;
@@ -3540,13 +3351,14 @@ function renderComite() {
 
   const asignadosCount = comList.length;
   const totalComunidades = comunidades.length;
-  const pctCobertura = totalComunidades ? ((asignadosCount / totalComunidades) * 100).toFixed(1) : '0.0';
+  const totalCargos = totalComunidades * 5;
+  const pctCobertura = totalCargos ? ((asignadosCount / totalCargos) * 100).toFixed(1) : '0.0';
 
   $('sec-comite').innerHTML = panel(
-    'Comités Vecinales <span class="chip chip-b">' + asignadosCount + ' / ' + totalComunidades + ' comunidades asignadas (' + pctCobertura + '%)</span>',
+    'Comités Vecinales <span class="chip chip-b">' + asignadosCount + ' / ' + totalCargos + ' cargos asignados (' + pctCobertura + '%)</span>',
     '<div class="grid g3" style="gap:10px;margin-bottom:14px">' +
       kc('Comunidades Totales', totalComunidades, 'del catálogo oficial') +
-      kc('Comités Vecinales Asignados', asignadosCount, 'líderes registrados', (asignadosCount/Math.max(1,totalComunidades))*100) +
+      kc('Cargos Asignados', asignadosCount, 'de 5 cargos por comunidad', (asignadosCount/Math.max(1,totalCargos))*100) +
       kc('Cobertura Territorial', pctCobertura + '%', 'de comunidades cubiertas', pctCobertura, true) +
     '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--bg2);padding:10px;border-radius:8px;border:1px solid var(--line2)">' +
@@ -3596,7 +3408,7 @@ function openComiteView(id) {
       '<span class="uava" style="width:42px;height:42px;font-size:14px;border-radius:8px">' + ini(nomComp) + '</span>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:16px;font-weight:700;color:var(--navy)">' + esc(nomComp) + '</div>' +
-        '<div style="font-size:12px;font-weight:600;color:var(--teal)">Cargo: Responsable de Comité Vecinal — ' + esc(reg.comunidad) + '</div>' +
+        '<div style="font-size:12px;font-weight:600;color:var(--teal)">Cargo: ' + esc(reg.cargo || 'Comité Vecinal') + ' — ' + esc(reg.comunidad) + '</div>' +
         '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:2px">C.I.: <b>' + ci + '</b></div>' +
       '</div>' +
     '</div>' +
@@ -3636,7 +3448,7 @@ function openComiteManual(preComunidad) {
       comunidades.map(c => '<option value="' + esc(c) + '" ' + (preComunidad === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
     '</select>' +
     '<div style="margin-top:10px">' +
-      '<label class="fl">Número de Cédula de Identidad del Responsable</label>' +
+      '<label class="fl">Cargo a asignar</label><select class="inp" id="comCargo"><option value="">Seleccionar cargo...</option><option>COORDINADOR</option><option>RESPONSABLE DE ORGANIZACIÓN</option><option>RESPONSABLE ELECTORAL</option><option>RESPONSABLE DE JUVENTUD</option><option>RESPONSABLE DE ACCIÓN SOCIAL</option></select><label class="fl">Número de Cédula de Identidad del Responsable</label>' +
       '<div style="display:flex;gap:6px">' +
         '<input class="inp mono" id="comCed" placeholder="V-12.345.678" onkeydown="if(event.key===\'Enter\')comiteBuscarCedula()">' +
         '<button type="button" class="btn btn-navy" id="btnComiteBuscarCne">' + ic('search', 14) + ' Buscar CNE</button>' +
@@ -3715,6 +3527,8 @@ async function saveComiteAuto(cedula) {
   cedula = normC(cedula);
   const comSelect = $('comComunidad');
   const comunidad = comSelect ? comSelect.value.trim() : '';
+  const cargoEl=$('comCargo'); const cargo=cargoEl ? cargoEl.value.trim() : '';
+  if (!cargo) return toast('Seleccione el cargo que ocupará la persona', 'err');
   if (!comunidad) {
     if (comSelect) { comSelect.style.border = '2px solid var(--red)'; comSelect.focus(); }
     return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
@@ -3735,12 +3549,9 @@ async function saveComiteAuto(cedula) {
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
   try {
-    await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, cedula]);
-    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
-      [comunidad, cedula, nomComp, tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null]);
-    const comRow = await q('SELECT id FROM comite_vecinal WHERE comunidad = ? AND cedula = ? ORDER BY id DESC LIMIT 1', [comunidad, cedula]);
-    if (comRow.length) await guardarProblemasComite(comRow[0].id, problemas);
-    await registrarAct('user', 'Asignado a Comité Vecinal: ' + nomComp + ' ➔ ' + comunidad, USER.id);
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:(p&&p.centro_votacion)||'' ,letra:(p&&p.letra)||'V',p_apellido:(p&&p.p_apellido)||'',s_apellido:(p&&p.s_apellido)||'',p_nombre:(p&&p.p_nombre)||'',s_nombre:(p&&p.s_nombre)||'',sexo:(p&&p.sexo)||'',fecha_nac:(p&&p.fecha_nac)||''})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo asignar el comité');
+    if(rd.id) await guardarProblemasComite(rd.id, problemas);
     await refreshAll();
     renderComite();
     closeModal();
@@ -3793,6 +3604,8 @@ async function saveComiteManualFull() {
     return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
   }
 
+  const cargoEl=$('comCargo'); const cargo=cargoEl ? cargoEl.value.trim() : '';
+  if (!cargo) return toast('Seleccione el cargo que ocupará la persona', 'err');
   const ced = normC($('cmCed').value), letra = $('cmLet').value;
   const pa = $('cmPa').value.trim(), sa = $('cmSa').value.trim();
   const pn = $('cmPn').value.trim(), sn = $('cmSn').value.trim();
@@ -3821,19 +3634,10 @@ async function saveComiteManualFull() {
   const edad = edadDe(fn);
 
   try {
-    if (!padBy(ced)) {
-      await x('INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
-        [ced, letra, pa, sa, pn, sn, sexo, fn, edad, cv.cod_estado || '20', cv.estado || 'EDO. YARACUY', cv.cod_municipio || '11', cv.municipio || 'MP. INDEPENDENCIA', cv.cod_parroquia || '1', cv.parroquia || 'CM. INDEPENDENCIA', cv.codigo || '', cv.nombre || '']);
-    }
-
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
-    await x('DELETE FROM comite_vecinal WHERE comunidad = ? OR cedula = ?', [comunidad, ced]);
-    await x('INSERT INTO comite_vecinal(comunidad, cedula, nombre, telefono, direccion, numero_calle, numero_casa, problematica_actual) VALUES(?,?,?,?,?,?,?,?)',
-      [comunidad, ced, nomComp, tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null]);
-
-    const comRow = await q('SELECT id FROM comite_vecinal WHERE comunidad = ? AND cedula = ? ORDER BY id DESC LIMIT 1', [comunidad, ced]);
-    if (comRow.length) await guardarProblemasComite(comRow[0].id, problemas);
-    await registrarAct('user', 'Alta manual Comité Vecinal: ' + fC(letra, ced) + ' ➔ ' + comunidad, USER.id);
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:cvCod})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo registrar el comité');
+    if(rd.id) await guardarProblemasComite(rd.id, problemas);
     await refreshAll();
     renderComite();
     closeModal();
@@ -3849,7 +3653,7 @@ async function delComite(id) {
   const nom = reg ? (reg.nombre || reg.comunidad) : 'registro';
   askDo('Remover de Comité Vecinal', '¿Desea remover a <b>' + esc(nom) + '</b> de la comunidad <b>' + esc(reg.comunidad) + '</b>?', 'Remover', async () => {
     try {
-      await x('DELETE FROM comite_vecinal WHERE id = ?', [id]);
+      const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar',id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo eliminar el registro');
       await refreshAll(); renderComite(); toast('Registro removido', 'ok');
     } catch (e) { toast('Error: ' + e.message, 'err'); }
   });
@@ -3872,42 +3676,36 @@ function openComiteEdit(id) {
     comiteProblemasHTML('comE', (CACHE.comiteProblemas || []).filter(x => Number(x.comite_id) === Number(id)).map(x => Number(x.problema_id)), reg.problematica_actual || ''),
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveComiteEdit(' + id + ')">Guardar cambios ➜</button>', 550
   );
-  setTimeout(() => { renderComiteProblemasSelected('comE'); const el = $('comETel'); if (el) el.focus(); }, 200);
+  setTimeout(() => { const ce=$('comECargo'); if(ce) ce.value=reg.cargo||'COORDINADOR'; renderComiteProblemasSelected('comE'); const el = $('comETel'); if (el) el.focus(); }, 200);
 }
 
 async function saveComiteEdit(id) {
-  const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
+  const cargo=String($('comECargo')?.value||'').trim(); const tel = $('comETel').value.trim(), dir = $('comEDir').value.trim();
   const nroCalle = $('comENroCalle').value.trim(), nroCasa = $('comENroCasa').value.trim();
   const problematica = $('comEProblematica').value.trim();
   const problemas = selectedComiteProblemas('comE');
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'COMITÉ VECINAL', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    await x('UPDATE comite_vecinal SET telefono = ?, direccion = ?, numero_calle = ?, numero_casa = ?, problematica_actual = ? WHERE id = ?',
-      [tel ? normTel(tel) : null, dir || null, nroCalle || null, nroCasa || null, problematica || null, id]);
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'editar',id,telefono:tel,direccion:dir,numero_calle:nroCalle,numero_casa:nroCasa,problematica})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar el comité');
     await guardarProblemasComite(id, problemas);
     await refreshAll(); renderComite(); closeModal(); toast('Actualizado con éxito', 'ok');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
 
 function getComiteListadoCompleto() {
-  const asignados = CACHE.comite || [];
-  const porComunidad = new Map();
-  asignados.forEach(r => {
-    if (r && r.comunidad) porComunidad.set(String(r.comunidad).trim().toUpperCase(), r);
+  const asignados=CACHE.comite||[], cargos=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
+  const porClave=new Map();
+  asignados.forEach(r=>porClave.set(String(r.comunidad||'').trim().toUpperCase()+'|'+String(r.cargo||'').trim().toUpperCase(),r));
+  const out=[];
+  getComunidadesCatalogo().forEach((comunidad,i)=>{
+    cargos.forEach(cargo=>{
+      const asignado=porClave.get(String(comunidad).trim().toUpperCase()+'|'+cargo)||null;
+      const p=asignado?(padBy(asignado.cedula)||asignado):{};
+      out.push({nro:i+1,comunidad,cargo,asignado,p,estado:asignado?'ASIGNADO':'SIN ASIGNAR'});
+    });
   });
-
-  return getComunidadesCatalogo().map((comunidad, i) => {
-    const asignado = porComunidad.get(String(comunidad).trim().toUpperCase()) || null;
-    const p = asignado ? (padBy(asignado.cedula) || asignado) : {};
-    return {
-      nro: i + 1,
-      comunidad,
-      asignado,
-      p,
-      estado: asignado ? 'ASIGNADO' : 'SIN ASIGNAR'
-    };
-  });
+  return out;
 }
 
 function datosComiteFila(item) {
@@ -3944,6 +3742,7 @@ function printComite() {
     return '<tr' + muted + '>' +
       '<td>' + item.nro + '</td>' +
       '<td style="font-weight:700">' + esc(item.comunidad) + '</td>' +
+      '<td style="font-weight:700">' + esc(item.cargo) + '</td>' +
       '<td style="font-weight:700">' + esc(item.estado) + '</td>' +
       '<td class="mono">' + esc(d.ci) + '</td>' +
       '<td>' + esc(d.pa) + '</td>' +
@@ -3975,7 +3774,7 @@ function printComite() {
     '<h2>Estructura de Comités Vecinales por Comunidad</h2>' +
     '<p>Sistema de Gestión Electoral • Catálogo oficial de 118 comunidades • Asignados: ' + asignados + ' • Sin asignar: ' + (listado.length - asignados) + ' • Total: ' + listado.length + '</p>' +
     '<table><thead><tr>' +
-      '<th>#</th><th>Comunidad</th><th>Estado</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
+      '<th>#</th><th>Comunidad</th><th>Cargo</th><th>Estado</th><th>Cédula</th><th>Primer Apellido</th><th>Segundo Apellido</th>' +
       '<th>Primer Nombre</th><th>Segundo Nombre</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th>' +
       '<th>Centro Votación</th><th>Municipio / Parroquia</th><th>Teléfono</th><th>Dirección</th><th>Nro. Calle</th><th>Nro. Casa</th><th>Problemática Actual</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
@@ -3991,7 +3790,7 @@ function printComite() {
     const d = datosComiteFila(item);
     const muted = item.asignado ? '' : 'color:#64748b;font-style:italic;';
     return '<tr style="'+muted+'">'+
-      '<td>'+item.nro+'</td><td><b>'+esc(item.comunidad)+'</b></td><td><b>'+esc(item.estado)+'</b></td><td class="mono">'+esc(d.ci)+'</td>'+
+      '<td>'+item.nro+'</td><td><b>'+esc(item.comunidad)+'</b></td><td><b>'+esc(item.cargo)+'</b></td><td><b>'+esc(item.estado)+'</b></td><td class="mono">'+esc(d.ci)+'</td>'+
       '<td>'+esc(d.pa)+'</td><td>'+esc(d.sa)+'</td><td>'+esc(d.pn)+'</td><td>'+esc(d.sn)+'</td><td>'+esc(d.edad)+'</td><td>'+esc(d.sexo)+'</td><td class="mono">'+esc(d.fn)+'</td>'+
       '<td>'+esc(d.cv)+'</td><td>'+esc(d.munPar)+'</td><td class="mono">'+esc(d.tel)+'</td><td>'+esc(d.dir)+'</td><td>'+esc(d.nroCalle)+'</td><td>'+esc(d.nroCasa)+'</td><td>'+esc(d.problematica)+'</td></tr>';
   }).join('');
