@@ -1,0 +1,21 @@
+name: Index JavaScript Syntax Check
+on:
+  push:
+    branches: [audit/hardening-2026-09-19]
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract inline JavaScript
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const h=fs.readFileSync('index.html','utf8');
+          const scripts=[...h.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)].map(m=>m[1]);
+          if(!scripts.length) throw new Error('No inline script found');
+          fs.writeFileSync('/tmp/index-inline.js',scripts.join('\n'));
+          console.log('scripts:',scripts.length);
+          NODE
+      - name: Check syntax
+        run: node --check /tmp/index-inline.js
