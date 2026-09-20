@@ -1,0 +1,120 @@
+name: production-auth-smoke-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production_smoke:
+        description: "Type RUN-PRODUCTION-SMOKE to authorize the production smoke test"
+        required: true
+        default: ""
+        type: string
+      base_url:
+        description: "Production URL"
+        required: false
+        default: "https://gestion-erp-electoral.vercel.app"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_URL: ${{ inputs.base_url || 'https://gestion-erp-electoral.vercel.app' }}
+      LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
+      LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
+      LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
+      LOAD_TEST_CENTRO: ${{ secrets.LOAD_TEST_CENTRO }}
+      LOAD_TEST_CEDULA: ${{ secrets.LOAD_TEST_CEDULA }}
+      LOAD_TEST_MESA: ${{ secrets.LOAD_TEST_MESA }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Verify prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm_production_smoke }}" = "RUN-PRODUCTION-SMOKE"
+          test -n "$LOGIN_USER"
+          test -n "$LOGIN_PASSWORD"
+          test -n "$LOGIN_ROLE"
+          test -n "$LOAD_TEST_CENTRO"
+          test -n "$LOAD_TEST_CEDULA"
+          test -n "$LOAD_TEST_MESA"
+          echo "Commit: $(git rev-parse HEAD)"
+          echo "Production: $BASE_URL"
+
+      - name: Production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 15 "$BASE_URL/api/health"
+
+      - name: Authenticated electoral smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL="$BASE_URL" LOGIN_USER="$LOGIN_USER" LOGIN_PASSWORD="$LOGIN_PASSWORD" LOGIN_ROLE="$LOGIN_ROLE" LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node <<'NODE'
+          const base = process.env.BASE_URL.replace(/\/$/, "");
+          const required = ["LOGIN_USER","LOGIN_PASSWORD","LOGIN_ROLE","LOAD_TEST_CENTRO","LOAD_TEST_CEDULA","LOAD_TEST_MESA"];
+          for (const k of required) if (!process.env[k]) throw new Error("Missing " + k);
+
+          async function request(path, options = {}) {
+            const r = await fetch(base + path, {
+              ...options,
+              headers: {
+                accept: "application/json",
+                ...(options.body ? {"content-type":"application/json"} : {}),
+                ...(options.headers || {})
+              }
+            });
+            const text = await r.text();
+            let json = null;
+            try { json = JSON.parse(text); } catch {}
+            return {r, text, json};
+          }
+
+          const login = await request("/api/auth/login", {
+            method: "POST",
+            body: JSON.stringify({
+              usuario: process.env.LOGIN_USER,
+              clave: process.env.LOGIN_PASSWORD,
+              rol: process.env.LOGIN_ROLE
+            })
+          });
+          console.log("LOGIN_STATUS=" + login.r.status);
+          if (!login.r.ok) throw new Error("Login failed: HTTP " + login.r.status);
+          const setCookie = login.r.headers.get("set-cookie") || "";
+          const match = setCookie.match(/(?:^|,\s*)erp_session=([^;,]+)/);
+          if (!match) throw new Error("erp_session cookie not returned");
+          const cookie = "erp_session=" + match[1];
+          console.log("LOGIN_COOKIE_OK=true");
+
+          const session = await request("/api/auth/session", {headers:{cookie}});
+          console.log("SESSION_STATUS=" + session.r.status);
+          if (!session.r.ok) throw new Error("Session validation failed: HTTP " + session.r.status);
+
+          const tests = [
+            ["/api/mesas/miembros", "MESAS_MIEMBROS"],
+            ["/api/cortes", "CORTES"],
+            ["/api/actas", "ACTAS"],
+            ["/api/verificaciones", "VERIFICACIONES"]
+          ];
+
+          for (const [path, label] of tests) {
+            const out = await request(path, {headers:{cookie}});
+            console.log(label + "_STATUS=" + out.r.status);
+            if (!out.r.ok) throw new Error(label + " failed: HTTP " + out.r.status + " body=" + out.text.slice(0,300));
+          }
+
+          console.log("FIXTURE_CENTRO=" + process.env.LOAD_TEST_CENTRO);
+          console.log("FIXTURE_MESA=" + process.env.LOAD_TEST_MESA);
+          console.log("AUTHENTICATED_SMOKE_OK=true");
+          NODE
