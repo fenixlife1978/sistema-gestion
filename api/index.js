@@ -4,26 +4,27 @@
 // The health route is intentionally inline so it can validate the Vercel runtime
 // without loading the application/DB module graph first.
 
-// Static imports ensure Vercel's function bundler includes every handler.
+// Keep requires static for Vercel bundling, but lazy so /api/health
+// cannot crash because an unrelated handler has a dependency problem.
 const handlers = {
-  "auth/login": require("./auth/login"),
-  "auth/session": require("./auth/session"),
-  "auth/logout": require("./auth/logout"),
-  "bootstrap": require("./bootstrap"),
-  "duplicidades/autorizar": require("./duplicidades/autorizar"),
-  "personas/registrar": require("./personas/registrar"),
-  "personas/asignar-cargo": require("./personas/asignar-cargo"),
-  "comite/gestionar": require("./comite/gestionar"),
-  "mesas/miembros": require("./mesas/miembros"),
-  "verificaciones": require("./verificaciones"),
-  "actas": require("./actas"),
-  "cortes": require("./cortes"),
-  "usuarios/gestionar": require("./usuarios/gestionar"),
-  "sistema/vaciar": require("./sistema/vaciar"),
-  "centros/gestionar": require("./centros/gestionar"),
-  "padron/gestionar": require("./padron/gestionar"),
-  "direccion/gestionar": require("./direccion/gestionar"),
-  "auditar": require("./auditar"),
+  "auth/login": () => require("./auth/login"),
+  "auth/session": () => require("./auth/session"),
+  "auth/logout": () => require("./auth/logout"),
+  "bootstrap": () => require("./bootstrap"),
+  "duplicidades/autorizar": () => require("./duplicidades/autorizar"),
+  "personas/registrar": () => require("./personas/registrar"),
+  "personas/asignar-cargo": () => require("./personas/asignar-cargo"),
+  "comite/gestionar": () => require("./comite/gestionar"),
+  "mesas/miembros": () => require("./mesas/miembros"),
+  "verificaciones": () => require("./verificaciones"),
+  "actas": () => require("./actas"),
+  "cortes": () => require("./cortes"),
+  "usuarios/gestionar": () => require("./usuarios/gestionar"),
+  "sistema/vaciar": () => require("./sistema/vaciar"),
+  "centros/gestionar": () => require("./centros/gestionar"),
+  "padron/gestionar": () => require("./padron/gestionar"),
+  "direccion/gestionar": () => require("./direccion/gestionar"),
+  "auditar": () => require("./auditar"),
 };
 
 function resolveRoute(req) {
@@ -111,12 +112,12 @@ module.exports = async function handler(req, res) {
       return await health(res);
     }
 
-    const modulePath = handlers[route];
-    if (!modulePath) {
+    const handlerFactory = handlers[route];
+    if (!handlerFactory) {
       return res.status(404).json({ error: "API route not found" });
     }
 
-    const target = modulePath;
+    const target = handlerFactory();
     if (typeof target !== "function") {
       return res.status(500).json({ error: "API handler is not callable" });
     }
