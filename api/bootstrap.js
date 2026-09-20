@@ -346,7 +346,14 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
+const BOOTSTRAP_VERSION = '2026-09-20-b1';
+
 async function execSchema() {
+  // El bootstrap debe ser idempotente y rápido en cada carga. Si la versión
+  // ya fue aplicada, no volvemos a ejecutar todas las migraciones contra Turso.
+  const meta=rowsFrom(await turso([{q:"SELECT version FROM erp_bootstrap_meta WHERE id=1 LIMIT 1",params:[]}]));
+  if(String(meta[0]?.version||'')===BOOTSTRAP_VERSION) return;
+
   const existing=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal' LIMIT 1",params:[]}]));
   if(existing.length) await migrateComiteRoles();
   const dirCols=rowsFrom(await turso([{q:'PRAGMA table_info(direccion_ejecutiva)',params:[]}]));
@@ -413,12 +420,24 @@ async function execSchema() {
     'Coordinador de Movilización',
     'Coordinador de Juventud'
   ];
-  const centrosParaCargos=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo IS NOT NULL',params:[]}]));
-  for(const centroRow of centrosParaCargos){
-    for(const cargo of CENTROS_CARGOS_PREDETERMINADOS){
-      await turso([{q:'INSERT INTO centro_cargos(centro_codigo,cargo) SELECT ?,? WHERE NOT EXISTS (SELECT 1 FROM centro_cargos WHERE centro_codigo=? AND cargo=?)',params:[centroRow.codigo,cargo,centroRow.codigo,cargo]}]);
-    }
-  }
+  // Una sola sentencia cubre todos los centros y los seis cargos, evitando
+  // cientos/miles de round-trips a Turso durante la inicialización.
+  await turso([{q:`WITH cargos(cargo) AS (
+    VALUES ('Coordinador del Centro'),
+           ('Coordinador de Organización'),
+           ('Coordinador de Logística'),
+           ('Coordinador Electoral'),
+           ('Coordinador de Movilización'),
+           ('Coordinador de Juventud')
+  )
+  INSERT INTO centro_cargos(centro_codigo,cargo)
+  SELECT c.codigo, cargos.cargo
+  FROM centros c CROSS JOIN cargos
+  WHERE c.codigo IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM centro_cargos cc
+      WHERE cc.centro_codigo=c.codigo AND cc.cargo=cargos.cargo
+    )`,params:[]}]);
 
   try{
     const actCols=rowsFrom(await turso([{q:'PRAGMA table_info(actas_mesa)',params:[]}]));
@@ -441,7 +460,7 @@ async function execSchema() {
     for(const [u,p,n,r,c] of seeds) await turso([{q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:[u,modernHash(p),n,r,c]}]);
   }
   await turso([{q:"CREATE TABLE IF NOT EXISTS erp_bootstrap_meta (id INTEGER PRIMARY KEY CHECK(id=1), version TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT (datetime('now')))",params:[]}]);
-  await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:["2026-09-19-h1"]}]);
+  await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:[BOOTSTRAP_VERSION]}]);
 }
 
 module.exports=async function handler(req,res){
