@@ -74,6 +74,8 @@ module.exports=async function(req,res){
       if(titularPresente) return fail(res,409,'El titular de ese cargo fue ratificado; el reemplazo accidental solo procede cuando el titular no se presenta');
       const dup=rowsFrom(await turso([{q:'SELECT id FROM mesa_miembros WHERE mesa_operativa_id=? AND cedula=? AND cargo=? LIMIT 1',params:[mesaId,cedula,cargo]}]));
       if(dup.length) return fail(res,409,'El reemplazo ya está registrado en esta mesa');
+      const yaReemplazado=rowsFrom(await turso([{q:'SELECT id FROM mesa_miembros WHERE mesa_operativa_id=? AND cargo=? AND tipo=? LIMIT 1',params:[mesaId,cargo,'ACCIDENTAL']}]))
+      if(yaReemplazado.length) return fail(res,409,'Ese cargo ya tiene un reemplazo accidental registrado');
       const now=new Date().toISOString();
       await turso([
         {q:'INSERT INTO autorizaciones_duplicidad_persona(cedula,contexto_origen,contexto_destino,detalle_duplicidad,motivo,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?)',params:[cedula,'CARGO DE CENTRO','MESA', 'Reemplazo de '+cargo+' en centro '+centro+' mesa '+mesa,'Reemplazo accidental de mesa',au.id,now,session.uid]},
