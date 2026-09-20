@@ -457,6 +457,7 @@ module.exports=async function handler(req,res){
   if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
   try{
     await execSchema();
+    if(req.internalBootstrap===true) return {ok:true,ready:true};
     const rows=rowsFrom(await turso([{q:'SELECT COUNT(*) AS n FROM padron',params:[]}]));
     return res.status(200).json({ok:true,ready:true,padron_count:Number(rows[0]?.n||0)});
   }catch(e){
