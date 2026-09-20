@@ -8,6 +8,7 @@ module.exports=async function(req,res){
   const b=parseBody(req), action=String(b.action||''), codigo=String(b.codigo||'').trim();
   try{
     if(action==='actualizar_mesas'){
+      if(!['J','A'].includes(s.rol)) return res.status(403).json({error:'Se requiere Jefe o Administrador'});
       const mesas=Number(b.mesas);
       if(!codigo||!Number.isInteger(mesas)||mesas<1||mesas>999) return res.status(400).json({error:'Cantidad de mesas inválida'});
       const cen=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo=? LIMIT 1',params:[codigo]}]))[0];
@@ -16,6 +17,7 @@ module.exports=async function(req,res){
       return res.json({ok:true});
     }
     if(action==='eliminar_cargo'){
+      if(!['J','A'].includes(s.rol)) return res.status(403).json({error:'Se requiere Jefe o Administrador'});
       const id=Number(b.id);
       if(!id) return res.status(400).json({error:'Cargo inválido'});
       const row=rowsFrom(await turso([{q:'SELECT id,centro_codigo,cargo,cedula FROM centro_cargos WHERE id=? LIMIT 1',params:[id]}]))[0];
