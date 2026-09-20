@@ -7,12 +7,13 @@ on:
     paths:
       - .github/workflows/authenticated-load-test.yml
       - scripts/load-test.mjs
+      - scripts/create-load-test-sessions.mjs
   workflow_dispatch:
     inputs:
       base_url:
-        description: "Vercel URL to test"
+        description: "Vercel production URL to test"
         required: false
-        default: "https://sistema-gestion-q70bhn7tw-fenixlife.vercel.app"
+        default: "https://gestion-erp-electoral.vercel.app"
         type: string
       duration:
         description: "Seconds per load level"
@@ -22,21 +23,24 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   load:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
-      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-q70bhn7tw-fenixlife.vercel.app' }}
+      # Stable production alias. Unlike a deployment-specific *.vercel.app
+      # URL, this follows the current production deployment automatically.
+      BASE_URL: ${{ inputs.base_url || 'https://gestion-erp-electoral.vercel.app' }}
       LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
       LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
       LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
+      LOAD_TEST_USERS_JSON: ${{ secrets.LOAD_TEST_USERS_JSON }}
       LOAD_TEST_CENTRO: ${{ secrets.LOAD_TEST_CENTRO }}
       LOAD_TEST_CEDULA: ${{ secrets.LOAD_TEST_CEDULA }}
       LOAD_TEST_MESA: ${{ secrets.LOAD_TEST_MESA }}
       DURATION: ${{ inputs.duration || '120' }}
+      SESSION_COOKIES_FILE: load-test-sessions.json
     steps:
       - name: Checkout target commit
         uses: actions/checkout@v4
@@ -52,62 +56,55 @@ jobs:
           test -n "$LOGIN_ROLE"
           node --version
           echo "Testing commit: $(git rev-parse HEAD)"
-          echo "Target URL: $BASE_URL"
+          echo "Target production URL: $BASE_URL"
 
-      - name: Login and obtain runtime session
+      - name: Wait for current production deployment
         shell: bash
         run: |
-          COOKIE="$(node -e '
-          (async()=>{
-            const url=process.env.BASE_URL.replace(/\/$/,"")+"/api/auth/login";
-            const r=await fetch(url,{
-              method:"POST",
-              headers:{"content-type":"application/json","accept":"application/json"},
-              body:JSON.stringify({
-                usuario:process.env.LOGIN_USER,
-                clave:process.env.LOGIN_PASSWORD,
-                rol:process.env.LOGIN_ROLE
-              })
-            });
-            if(!r.ok){
-              console.error("LOGIN_HTTP_STATUS="+r.status);
-              const body=await r.text();
-              console.error("LOGIN_RESPONSE="+body.slice(0,500));
-              process.exit(1);
-            }
-            const sc=r.headers.get("set-cookie")||"";
-            const m=sc.match(/(?:^|,\s*)(erp_session=[^;,]+)/);
-            if(!m){console.error("LOGIN_COOKIE_NOT_FOUND");process.exit(1);}
-            process.stdout.write(m[1]);
-          })().catch(e=>{console.error("LOGIN_ERROR="+e.message);process.exit(1);});
-          ')"
-          test -n "$COOKIE"
-          echo "::add-mask::$COOKIE"
-          echo "SESSION_COOKIE=$COOKIE" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 "$BASE_URL/api/health" >/tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Production deployment not ready yet (attempt $i/30)"
+            sleep 10
+          done
+          echo "Production health endpoint did not become ready in 5 minutes"
+          exit 1
+
+      - name: Create 400 independent authenticated sessions
+        shell: bash
+        run: |
+          rm -f "$SESSION_COOKIES_FILE"
+          USERS=400 BASE_URL="$BASE_URL" LOGIN_USER="$LOGIN_USER" LOGIN_PASSWORD="$LOGIN_PASSWORD" LOGIN_ROLE="$LOGIN_ROLE" LOAD_TEST_USERS_JSON="$LOAD_TEST_USERS_JSON" SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" node scripts/create-load-test-sessions.mjs
+          test -s "$SESSION_COOKIES_FILE"
+          COUNT="$(node -e 'const fs=require("fs"); console.log(JSON.parse(fs.readFileSync(process.env.SESSION_COOKIES_FILE,"utf8")).length)' )"
+          test "$COUNT" -ge 400
+          echo "Independent authenticated sessions created: $COUNT"
 
       - name: Load 50 users
         run: |
-          USERS=50 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-50.log
+          USERS=50 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-50.log
 
       - name: Load 100 users
         run: |
-          USERS=100 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-100.log
+          USERS=100 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-100.log
 
       - name: Load 150 users
         run: |
-          USERS=150 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-150.log
+          USERS=150 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-150.log
 
       - name: Load 200 users
         run: |
-          USERS=200 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-200.log
+          USERS=200 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-200.log
 
       - name: Load 300 users
         run: |
-          USERS=300 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-300.log
+          USERS=300 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-300.log
 
       - name: Load 400 users
         run: |
-          USERS=400 SESSION_COOKIE="$SESSION_COOKIE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-400.log
+          USERS=400 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-400.log
 
       - name: Upload load-test results
         if: always()
