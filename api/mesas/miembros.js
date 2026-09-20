@@ -17,7 +17,7 @@ module.exports=async function(req,res){
     if(!cen.length) return fail(res,404,'Centro electoral no encontrado');
     const mo=rowsFrom(await turso([{q:'SELECT id,estado,estado_maquina,observacion_maquina,hora_cierre FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
     let mesaId=mo[0]?.id;
-    if(mo[0]?.estado==='CERRADA' && accion!=='cerrar') return fail(res,409,'La mesa ya está cerrada y no admite modificaciones');
+    if(mo[0]?.estado==='CERRADA' && !['cerrar','historial_maquina'].includes(accion)) return fail(res,409,'La mesa ya está cerrada y no admite modificaciones');
     if(accion==='historial_maquina'){
       if(!mesaId) return res.status(200).json({ok:true,historial:[]});
       const hist=rowsFrom(await turso([{q:'SELECT h.id,h.estado_anterior,h.estado_nuevo,h.observacion,h.cambiado_en,h.cambiado_por,u.nombre AS operador_nom FROM mesa_maquina_historial h LEFT JOIN usuarios u ON u.id=h.cambiado_por WHERE h.mesa_operativa_id=? ORDER BY h.cambiado_en ASC,h.id ASC',params:[mesaId]}]));
@@ -61,7 +61,8 @@ module.exports=async function(req,res){
       }
       if(!mesaId) return fail(res,500,'No se pudo identificar la mesa constituida');
       const histPrev=mo[0]?.estado_maquina||null;
-      if(!histPrev || histPrev!==maquina){ await turso([{q:'INSERT INTO mesa_maquina_historial(mesa_operativa_id,estado_anterior,estado_nuevo,observacion,cambiado_en,cambiado_por) VALUES(?,?,?,?,?,?)',params:[mesaId,histPrev,maquina,observacionMaquina||null,new Date().toISOString(),session.uid]}]); }
+      const histCount=rowsFrom(await turso([{q:'SELECT id FROM mesa_maquina_historial WHERE mesa_operativa_id=? LIMIT 1',params:[mesaId]}])).length;
+      if(!histCount || histPrev!==maquina){ await turso([{q:'INSERT INTO mesa_maquina_historial(mesa_operativa_id,estado_anterior,estado_nuevo,observacion,cambiado_en,cambiado_por) VALUES(?,?,?,?,?,?)',params:[mesaId,histPrev,maquina,observacionMaquina||null,new Date().toISOString(),session.uid]}]); }
 
       await turso([{q:'DELETE FROM mesa_miembros WHERE mesa_operativa_id=? AND tipo=?',params:[mesaId,'AFECTO']}]);
       for(const s of selected) await turso([{q:'INSERT OR IGNORE INTO mesa_miembros(mesa_operativa_id,cedula,cargo,tipo,origen,autorizado,registrado_por) VALUES(?,?,?,?,?,?,?)',params:[mesaId,s.cedula,s.cargo,'AFECTO','CENTRO',1,session.uid]}]);
