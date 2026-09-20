@@ -3,14 +3,27 @@
   "cleanUrls": false,
   "trailingSlash": false,
   "builds": [
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "icono.png", "use": "@vercel/static" },
-    { "src": "api/index.js", "use": "@vercel/node" }
-  ],
-  "rewrites": [
     {
-      "source": "/api/:route*",
-      "destination": "/api/index?route=:route*"
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "icono.png",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "^/api$",
+      "dest": "/api"
+    },
+    {
+      "src": "^/api/(.*)$",
+      "dest": "/api?route=$1"
     }
   ]
 }
