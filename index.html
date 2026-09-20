@@ -2000,7 +2000,7 @@ function applyImp() {
       document.body.appendChild(progDiv);
       const setProg = (msg, pct) => { progDiv.innerHTML = '<div class="spinner" style="width:44px;height:44px;border:4px solid rgba(255,255,255,.25);border-top-color:#ffca28;border-radius:50%;animation:spin 1s linear infinite"></div><p style="margin-top:16px;font-size:15px;font-weight:600">' + msg + '</p><div style="width:280px;height:8px;background:rgba(255,255,255,.2);border-radius:4px;margin-top:12px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:#ffca28;border-radius:4px;transition:width .3s"></div></div>' };
       closeModal();
-      let centroids = Object.values(cenMap).filter(c => !cenBy(c.cvCod));
+      let centroids = Object.values(cenMap).filter(c => !cenBy(c.cvCod)).map(c => ({ codigo: c.cvCod, nombre: c.cvNom, municipio: c.mun, parroquia: c.par, estado: c.estado, mesas: 1, cod_estado: c.codEst, cod_municipio: c.codMun, cod_parroquia: c.codPar }));
       if (centroids.length) {
         setProg('Centros electorales...', 0);
         for (let i = 0; i < centroids.length; i += CHUNK) {
