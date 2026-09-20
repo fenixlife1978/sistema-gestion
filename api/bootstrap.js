@@ -184,6 +184,18 @@ const SCHEMA = [
   `ALTER TABLE mesa_operativa ADD COLUMN cierre_por INTEGER`,
   `ALTER TABLE mesa_operativa ADD COLUMN resultados_cierre_json TEXT`,
   `CREATE INDEX IF NOT EXISTS idx_mesa_operativa_centro ON mesa_operativa(centro_codigo)`,
+  `CREATE TABLE IF NOT EXISTS mesa_maquina_historial (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mesa_operativa_id INTEGER NOT NULL,
+    estado_anterior TEXT,
+    estado_nuevo TEXT NOT NULL CHECK(estado_nuevo IN ('OPERATIVA','DEFECTUOSA','DAÑADA','EN REPARACIÓN','REEMPLAZADA','OTRO')),
+    observacion TEXT,
+    cambiado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    cambiado_por INTEGER,
+    FOREIGN KEY(mesa_operativa_id) REFERENCES mesa_operativa(id) ON DELETE CASCADE,
+    FOREIGN KEY(cambiado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_mesa_maquina_hist_mesa ON mesa_maquina_historial(mesa_operativa_id, cambiado_en)`,
   `CREATE TABLE IF NOT EXISTS mesa_miembros (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     mesa_operativa_id INTEGER NOT NULL,
