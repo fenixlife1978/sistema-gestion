@@ -86,26 +86,32 @@ jobs:
 
       - name: Load 50 users
         run: |
+          set -o pipefail
           USERS=50 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-50.log
 
       - name: Load 100 users
         run: |
+          set -o pipefail
           USERS=100 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-100.log
 
       - name: Load 150 users
         run: |
+          set -o pipefail
           USERS=150 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-150.log
 
       - name: Load 200 users
         run: |
+          set -o pipefail
           USERS=200 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-200.log
 
       - name: Load 300 users
         run: |
+          set -o pipefail
           USERS=300 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-300.log
 
       - name: Load 400 users
         run: |
+          set -o pipefail
           USERS=400 SESSION_COOKIES_FILE="$SESSION_COOKIES_FILE" BASE_URL="$BASE_URL" DURATION="$DURATION" SCENARIO=election LOAD_TEST_CENTRO="$LOAD_TEST_CENTRO" LOAD_TEST_CEDULA="$LOAD_TEST_CEDULA" LOAD_TEST_MESA="$LOAD_TEST_MESA" node scripts/load-test.mjs | tee load-400.log
 
       - name: Upload load-test results
