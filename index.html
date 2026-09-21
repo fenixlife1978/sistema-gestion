@@ -2928,6 +2928,9 @@ function renderControlElectoral() {
   ).join('');
 
   const mesaHtml = mesaRows.map(x => {
+    const mo = mesaOperativa(centro.codigo,x.mesa) || {};
+    const constituida = !!mo.hora_constitucion;
+    const cerrada = mo.estado === 'CERRADA';
     let estado = '<span class="chip chip-y">PENDIENTE ACTA</span>';
     if (x.diff !== null) estado = x.diff === 0
       ? '<span class="chip chip-g">CONCILIADO</span>'
@@ -2938,8 +2941,14 @@ function renderControlElectoral() {
       '<td>' + (x.acta ? x.acta.votos_partido : '—') + '</td>' +
       '<td>' + (x.diff === null ? '—' : x.diff) + '</td>' +
       '<td>' + estado + '</td>' +
-      '<td>' + (mesaOperativa(centro.codigo,x.mesa) ? (mesaOperativa(centro.codigo,x.mesa).estado==='CERRADA' ? '<span class="chip chip-b">CERRADA</span>' : '<span class="chip chip-g">CONSTITUIDA</span>') : '<span class="chip chip-y">SIN CONSTITUIR</span>') + '</td>' +
-      '<td><button class="btn btn-navy btn-xs" onclick="abrirConstitucionMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Constitución</button> <button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
+      '<td><label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="mesaConstituida_' + esc(x.mesa) + '" ' + (constituida?'checked':'') + ' ' + (cerrada?'disabled':'') + '> <b>Constituida</b></label>' +
+        '<input class="inp mono" style="margin-top:5px;max-width:125px;padding:5px 7px" type="time" id="mesaHora_' + esc(x.mesa) + '" value="' + esc(mo.hora_constitucion||'') + '" ' + (cerrada?'disabled':'') + ' title="Hora manual de constitución">' +
+      '</td>' +
+      '<td><label style="display:flex;gap:5px;align-items:center"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="SI" ' + (Number(mo.testigos_asistieron||0)===1?'checked':'') + ' ' + (cerrada?'disabled':'') + '> SI</label>' +
+        '<label style="display:flex;gap:5px;align-items:center;margin-top:4px"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="NO" ' + (Number(mo.testigos_asistieron||0)!==1?'checked':'') + ' ' + (cerrada?'disabled':'') + '> NO</label>' +
+      '</td>' +
+      '<td><button class="btn btn-g btn-xs" ' + (cerrada?'disabled':'') + ' onclick="guardarControlMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Guardar</button> ' +
+        '<button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
     '</tr>';
   }).join('');
 
@@ -2995,7 +3004,7 @@ function renderControlElectoral() {
       + '</div>' +
 
       '<div class="panel"><div class="panel-h">' + ic('chart',15) + ' Control por mesa</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
-        '<thead><tr><th>Mesa</th><th>Verificados</th><th>Votos del partido (acta CNE)</th><th>Diferencia</th><th>Conciliación</th><th>Constitución</th><th>Acciones</th></tr></thead>' +
+        '<thead><tr><th>Mesa</th><th>Verificados</th><th>Votos del partido (acta CNE)</th><th>Diferencia</th><th>Conciliación</th><th>Constitución de mesa</th><th>Testigos</th><th>Acciones</th></tr></thead>' +
         '<tbody>' + mesaHtml + '</tbody></table></div></div></div>' +
 
       renderCortesPanel(centro.codigo) +
@@ -3085,6 +3094,20 @@ async function guardarVerificacion(cedula) {
     console.error(e);
     toast('No se pudo guardar la verificación: '+e.message,'err',8000);
   }
+}
+
+async function guardarControlMesa(codigo,mesa){
+  const chk=$('mesaConstituida_'+mesa), hora=$('mesaHora_'+mesa);
+  const test=document.querySelector('input[name="mesaTestigos_'+mesa+'"]:checked');
+  const constituida=!!chk?.checked, hc=hora?.value||'';
+  if(constituida&&!hc) return toast('Seleccione manualmente la hora de constitución','err');
+  if(!constituida&&hc){ if(hora) hora.value=''; return toast('Si la mesa no está constituida, no debe registrar hora','err'); }
+  try{
+    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'control',centro_codigo:codigo,mesa:String(mesa),constituida:constituida?'SI':'NO',hora_constitucion:hc,testigos_asistieron:test?.value||'NO'})});
+    const d=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(d.error||'No se pudo guardar el control de mesa');
+    await refreshAll(); renderControlElectoral();
+    toast('Control de Mesa guardado','ok');
+  }catch(e){toast('Error guardando control de mesa: '+e.message,'err',8000);}
 }
 
 function mesaOperativa(codigo, mesa) {
