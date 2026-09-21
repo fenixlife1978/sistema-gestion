@@ -2935,6 +2935,7 @@ function renderControlElectoral() {
     const mo = mesaOperativa(centro.codigo,x.mesa) || {};
     const constituida = !!mo.hora_constitucion;
     const cerrada = mo.estado === 'CERRADA';
+    const locked = constituida || cerrada;
     let estado = '<span class="chip chip-y">PENDIENTE ACTA</span>';
     if (x.diff !== null) estado = x.diff === 0
       ? '<span class="chip chip-g">CONCILIADO</span>'
@@ -2945,13 +2946,13 @@ function renderControlElectoral() {
       '<td>' + (x.acta ? x.acta.votos_partido : '—') + '</td>' +
       '<td>' + (x.diff === null ? '—' : x.diff) + '</td>' +
       '<td>' + estado + '</td>' +
-      '<td><label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="mesaConstituida_' + esc(x.mesa) + '" ' + (constituida?'checked':'') + ' ' + (cerrada?'disabled':'') + '> <b>Constituida</b></label>' +
+      '<td><label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="mesaConstituida_' + esc(x.mesa) + '" ' + (constituida?'checked':'') + ' ' + (locked?'disabled':'') + '> <b>Constituida</b></label>' +
         '<input class="inp mono" style="margin-top:5px;max-width:125px;padding:5px 7px" type="time" id="mesaHora_' + esc(x.mesa) + '" value="' + esc(mo.hora_constitucion||'') + '" ' + (cerrada?'disabled':'') + ' title="Hora manual de constitución">' +
       '</td>' +
-      '<td><label style="display:flex;gap:5px;align-items:center"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="SI" ' + (Number(mo.testigos_asistieron||0)===1?'checked':'') + ' ' + (cerrada?'disabled':'') + '> SI</label>' +
-        '<label style="display:flex;gap:5px;align-items:center;margin-top:4px"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="NO" ' + (Number(mo.testigos_asistieron||0)!==1?'checked':'') + ' ' + (cerrada?'disabled':'') + '> NO</label>' +
+      '<td><label style="display:flex;gap:5px;align-items:center"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="SI" ' + (Number(mo.testigos_asistieron||0)===1?'checked':'') + ' ' + (locked?'disabled':'') + '> SI</label>' +
+        '<label style="display:flex;gap:5px;align-items:center;margin-top:4px"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="NO" ' + (Number(mo.testigos_asistieron||0)!==1?'checked':'') + ' ' + (locked?'disabled':'') + '> NO</label>' +
       '</td>' +
-      '<td><button class="btn btn-g btn-xs" ' + (cerrada?'disabled':'') + ' onclick="guardarControlMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Guardar</button> ' +
+      '<td><button class="btn btn-g btn-xs" ' + (locked?'disabled':'') + ' onclick="guardarControlMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Guardar</button> ' +
         '<button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
     '</tr>';
   }).join('');
@@ -3106,6 +3107,8 @@ async function guardarControlMesa(codigo,mesa){
   const chk=$('mesaConstituida_'+mesa), hora=$('mesaHora_'+mesa);
   const test=document.querySelector('input[name="mesaTestigos_'+mesa+'"]:checked');
   const constituida=!!chk?.checked, hc=hora?.value||'';
+  const actual=mesaOperativa(codigo,mesa);
+  if(actual?.hora_constitucion) return toast('La constitución de esta mesa ya fue guardada y no puede modificarse','err');
   if(constituida&&!hc) return toast('Seleccione manualmente la hora de constitución','err');
   if(!constituida&&hc){ if(hora) hora.value=''; return toast('Si la mesa no está constituida, no debe registrar hora','err'); }
   try{
