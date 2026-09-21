@@ -3056,7 +3056,9 @@ function filtrarControlElectoral() {
   }).join('') : '<div class="alert warn"><div class="a-ic">!</div><div><b>No encontrado</b>No hay una persona con cargo o función registrada y asociada a este centro que coincida con la búsqueda.</div></div>';
 }
 function abrirVerificacion(cedula) {
-  const persona=controlPersonasCentro(controlCentroActual()?.codigo||'').find(x=>normC(x.l.cedula)===normC(cedula));
+  const centro=controlCentroActual();
+  if(!centro) return toast('Seleccione un centro válido', 'err');
+  const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
   if(!persona) return toast('La persona no tiene un cargo o función registrada en este centro', 'err');
   const p=persona.p||{}, v=controlVerif(cedula, centro.codigo);
   win(ic('check',18)+' Verificación de asistencia',
