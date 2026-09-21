@@ -3086,7 +3086,7 @@ async function guardarVerificacion(cedula) {
   if(!mesa) return toast('Ingrese el número de Mesa', 'err');
 
   const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
-  if(!persona) return toast('La persona no tiene un cargo o función registrada en este centro', 'err');
+  if(!persona) return toast('La persona no aparece en el padrón CNE del centro seleccionado', 'err');
 
   try {
     const r=await fetch('/api/verificaciones', {
