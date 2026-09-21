@@ -56,6 +56,7 @@ module.exports=async function(req,res){
       return res.status(200).json({ok:true,constituida,hora_constitucion:constituida?hc:null,testigos_asistieron:testigos});
     }
     if(accion==='constituir'){
+      if(mo[0]?.hora_constitucion) return fail(res,409,'La mesa ya fue constituida y guardada; no se permite modificar su constitución');
       const hc=clean(b.hora_constitucion,10), hi=clean(b.hora_inicio_votacion,10), test=Number(b.testigos_asistieron), maquina=clean(b.estado_maquina,30).toUpperCase(), observacionMaquina=clean(b.observacion_maquina,500);
       const estadosMaquina=ESTADOS_MAQUINA;
       if((hc&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hc))||(hi&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hi))||!Number.isInteger(test)||test<0||!estadosMaquina.includes(maquina)) return fail(res,400,'Datos de constitución inválidos');
