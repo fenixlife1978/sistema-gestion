@@ -44,7 +44,7 @@ module.exports=async function(req,res){
       const constituida=String(b.constituida||'').toLowerCase()==='si';
       const hc=clean(b.hora_constitucion,10);
       const testigos=String(b.testigos_asistieron||'').toLowerCase()==='si' ? 1 : 0;
-      if(constituida && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(hc)) return fail(res,400,'Debe indicar la hora de constitución cuando la mesa está constituida');
+      if(constituida && !/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(hc)) return fail(res,400,'Debe indicar la hora de constitución cuando la mesa está constituida');
       if(!constituida && hc) return fail(res,400,'No debe indicar hora de constitución si la mesa no está constituida');
       const now=new Date().toISOString();
       if(mesaId){
