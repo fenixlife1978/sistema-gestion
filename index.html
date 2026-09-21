@@ -2855,34 +2855,56 @@ function origenRegistroPersona(cedula) {
 
 function datosUltimaVerificacion(cedula) {
   const c = normC(cedula);
-  const p = padBy(c) || {};
+  const pad = padBy(c);
   const candidatos = [];
+  const personas = [];
 
+  if (pad) personas.push(pad);
+
+  // 1×10 tiene prioridad absoluta y se presenta como Comprometido.
   for (const rr of (CACHE.recl || [])) {
-    if ((rr.lista || []).some(x => normC(x.cedula) === c)) {
+    const a = (rr.lista || []).find(x => normC(x.cedula) === c);
+    if (a) {
       candidatos.push('Comprometido');
+      personas.push(a, padBy(rr.cedula) || rr);
       break;
     }
   }
 
   if (!candidatos.length) {
     for (const cc of (CACHE.cargos || [])) {
-      if (normC(cc.cedula) === c && cc.cargo) candidatos.push(String(cc.cargo));
+      if (normC(cc.cedula) === c) {
+        if (cc.cargo) candidatos.push(String(cc.cargo));
+        personas.push(cc);
+      }
     }
     for (const d of (CACHE.direccion || [])) {
-      if (normC(d.cedula) === c && d.cargo) candidatos.push(String(d.cargo));
+      if (normC(d.cedula) === c) {
+        if (d.cargo) candidatos.push(String(d.cargo));
+        personas.push(d);
+      }
     }
     for (const cv of (CACHE.comite || [])) {
-      if (normC(cv.cedula) === c) candidatos.push('Comité Vecinal' + (cv.comunidad ? ' • ' + String(cv.comunidad) : ''));
+      if (normC(cv.cedula) === c) {
+        candidatos.push('Comité Vecinal' + (cv.comunidad ? ' • ' + String(cv.comunidad) : ''));
+        personas.push(cv);
+      }
     }
     for (const r of (CACHE.recl || [])) {
-      if (normC(r.cedula) === c) candidatos.push('Movilizador');
+      if (normC(r.cedula) === c) {
+        candidatos.push('Movilizador');
+        personas.push(r);
+      }
     }
   }
 
   const cargo = candidatos.length
     ? candidatos[Math.floor(Math.random() * candidatos.length)]
     : 'Adicional';
+
+  const p = personas.find(x =>
+    x && ((x.p_nombre || x.p_apellido || x.s_apellido || x.s_nombre) || x.letra)
+  ) || pad || {};
 
   return { p, cargo };
 }
