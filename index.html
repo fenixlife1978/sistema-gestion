@@ -2760,12 +2760,14 @@ function controlPersonasCentro(codigo) {
       p: p || { cedula: ced },
       reclutador: meta.reclutador || null,
       posicion: meta.posicion || null,
-      origen: meta.origen || 'CARGO',
+      origen: meta.origen || 'PADRÓN CNE',
       cargo: meta.cargo || ''
     });
   };
 
-  // 1×10: movilizadores y sus comprometidos.
+  // Las funciones/cargos son metadatos de la persona, no un requisito
+  // para poder verificarla. Primero incorporamos quienes ya tienen
+  // estructura registrada para conservar su origen/cargo en pantalla.
   for (const r of CACHE.recl || []) {
     const pr = padBy(r.cedula) || r;
     agregar(r.cedula, pr, {
@@ -2785,7 +2787,6 @@ function controlPersonasCentro(codigo) {
     }
   }
 
-  // Dirección Ejecutiva.
   for (const d of CACHE.direccion || []) {
     const p = padBy(d.cedula) || d;
     agregar(d.cedula, p, {
@@ -2794,7 +2795,6 @@ function controlPersonasCentro(codigo) {
     });
   }
 
-  // Comités Vecinales.
   for (const cv of CACHE.comite || []) {
     const p = padBy(cv.cedula) || cv;
     agregar(cv.cedula, p, {
@@ -2803,13 +2803,23 @@ function controlPersonasCentro(codigo) {
     });
   }
 
-  // Cargos asignados directamente a un centro.
   for (const cc of CACHE.cargos || []) {
     if (String(cc.centro_codigo) !== String(codigo)) continue;
     const p = padBy(cc.cedula) || cc;
     agregar(cc.cedula, p, {
       origen: 'CARGO DE CENTRO',
       cargo: cc.cargo || 'Cargo de centro'
+    });
+  }
+
+  // Regla única de Verificación Electoral: todo elector que figure en el
+  // padrón CNE del centro seleccionado puede ser buscado y verificado,
+  // tenga o no tenga un cargo/función registrado en el sistema.
+  for (const p of CACHE.pad || []) {
+    if (!coincideCentro(p)) continue;
+    agregar(p.cedula, p, {
+      origen: 'PADRÓN CNE',
+      cargo: ''
     });
   }
 
@@ -2978,7 +2988,7 @@ function renderControlElectoral() {
     panel(
       'Control Electoral • Verificación de asistencia',
       '<div class="grid g4" style="margin-bottom:14px">' +
-        kc('Personas con cargo / estructura', personas.length, 'asociadas a este centro') +
+        kc('Electores del padrón CNE', personas.length, 'asociados al centro seleccionado') +
         kc('VOTARON / verificados', verificados.length, 'registro individual confirmado', pct, verificados.length === personas.length && personas.length > 0) +
         kc('Pendientes', pendientes, 'sin verificación individual') +
         kc('Avance', pct.toFixed(1) + '%', 'del universo del centro', pct, pct === 100) +
@@ -3054,13 +3064,13 @@ function filtrarControlElectoral() {
       (v ? '<span class="chip chip-g">✓ VOTÓ • MESA '+esc(v.mesa)+'</span><button class="btn btn-w btn-xs" onclick="abrirVerificacion(\''+esc(x.l.cedula)+'\')">Corregir mesa</button>' :
            '<button class="btn btn-navy btn-xs" onclick="abrirVerificacion(\''+esc(x.l.cedula)+'\')">'+ic('check',12)+' Verificar asistencia</button>') +
     '</div>';
-  }).join('') : '<div class="alert warn"><div class="a-ic">!</div><div><b>No encontrado</b>No hay una persona con cargo o función registrada y asociada a este centro que coincida con la búsqueda.</div></div>';
+  }).join('') : '<div class="alert warn"><div class="a-ic">!</div><div><b>No encontrado</b>No hay una persona del padrón CNE del centro seleccionado que coincida con la búsqueda.</div></div>';
 }
 function abrirVerificacion(cedula) {
   const centro=controlCentroActual();
   if(!centro) return toast('Seleccione un centro válido', 'err');
   const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
-  if(!persona) return toast('La persona no tiene un cargo o función registrada en este centro', 'err');
+  if(!persona) return toast('La persona no aparece en el padrón CNE del centro seleccionado', 'err');
   const p=persona.p||{}, v=controlVerif(cedula, centro.codigo);
   win(ic('check',18)+' Verificación de asistencia',
     '<div class="alert ok" style="margin-top:0"><span class="uava">'+ini(apeP(p)+' '+nomP(p))+'</span><div><b>'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono">'+esc(fC(p.letra||'V',cedula))+'</div></div></div>' +
