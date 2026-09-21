@@ -3061,7 +3061,7 @@ function filtrarControlElectoral() {
     const p=x.p||{}, v=controlVerif(x.l.cedula, centro.codigo), nombre=apeP(p)+', '+nomP(p);
     return '<div class="kcard" style="margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
       '<div style="flex:1;min-width:220px"><b style="font-size:14px;color:var(--navy)">'+esc(nombre)+'</b><div class="mono" style="font-size:11px;color:var(--mut)">'+esc(fC(p.letra||'V',x.l.cedula))+' • '+esc(p.nombre_cv||p.centro_votacion||'')+' • '+esc(x.origen||'')+(x.cargo?' • '+esc(x.cargo):'')+(x.reclutador?' • Movilizador: '+esc(nomP(padBy(x.reclutador.cedula)||x.reclutador))+(x.posicion?' • Pos. '+x.posicion:''):'')+'</div></div>' +
-      (v ? '<span class="chip chip-g">✓ VOTÓ • MESA '+esc(v.mesa)+'</span><button class="btn btn-w btn-xs" onclick="abrirVerificacion(\''+esc(x.l.cedula)+'\')">Corregir mesa</button>' :
+      (v ? '<span class="chip chip-g">✓ VOTÓ • MESA '+esc(v.mesa)+'</span>' :
            '<button class="btn btn-navy btn-xs" onclick="abrirVerificacion(\''+esc(x.l.cedula)+'\')">'+ic('check',12)+' Verificar asistencia</button>') +
     '</div>';
   }).join('') : '<div class="alert warn"><div class="a-ic">!</div><div><b>No encontrado</b>No hay una persona del padrón CNE del centro seleccionado que coincida con la búsqueda.</div></div>';
@@ -3071,7 +3071,9 @@ function abrirVerificacion(cedula) {
   if(!centro) return toast('Seleccione un centro válido', 'err');
   const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
   if(!persona) return toast('La persona no aparece en el padrón CNE del centro seleccionado', 'err');
-  const p=persona.p||{}, v=controlVerif(cedula, centro.codigo);
+  const v=controlVerif(cedula, centro.codigo);
+  if(v) return toast('La persona ya aparece como VOTÓ en este centro • Mesa '+v.mesa, 'err');
+  const p=persona.p||{};
   win(ic('check',18)+' Verificación de asistencia',
     '<div class="alert ok" style="margin-top:0"><span class="uava">'+ini(apeP(p)+' '+nomP(p))+'</span><div><b>'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono">'+esc(fC(p.letra||'V',cedula))+'</div></div></div>' +
     '<div style="margin-top:14px"><label class="fl" style="font-size:14px">MESA <span style="color:var(--red)">*</span></label><input class="inp mono" id="ctlMesaInput" value="'+esc(v?v.mesa:'')+'" placeholder="Escriba el número de mesa" inputmode="text" autofocus></div>' +
