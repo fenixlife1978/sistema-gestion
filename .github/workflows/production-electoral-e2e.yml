@@ -136,6 +136,65 @@ jobs:
             check(String(before.center) === String(centroCodigo), "contexto de centro correcto");
             console.log("BEFORE=" + JSON.stringify(before));
 
+            // Constitution smoke test: selecting a valid time and saving must
+            // persist it and permanently lock the constitution controls.
+            const constitutionState = await page.evaluate((m) => {
+              const chk = document.querySelector('#mesaConstituida_' + m);
+              const hora = document.querySelector('#mesaHora_' + m);
+              return { checked: !!chk?.checked, hora: hora?.value || '' };
+            }, mesa);
+
+            if (!constitutionState.checked) {
+              await page.locator('#mesaConstituida_' + mesa).check();
+              await page.locator('#mesaHora_' + mesa).fill('10:00');
+              await page.locator('#mesaConstituida_' + mesa).locator('xpath=ancestor::tr').getByRole('button', { name: 'Guardar' }).click();
+              await page.waitForTimeout(1200);
+              const savedLock = await page.evaluate((m) => {
+                const chk = document.querySelector('#mesaConstituida_' + m);
+                const hora = document.querySelector('#mesaHora_' + m);
+                const tr = chk?.closest('tr');
+                const btn = tr?.querySelector('button[onclick*="guardarControlMesa"]');
+                return { checked: !!chk?.checked, hora: hora?.value || '', disabled: !!chk?.disabled && !!hora?.disabled && !!btn?.disabled };
+              }, mesa);
+              check(savedLock.checked, "mesa queda marcada como constituida");
+              check(savedLock.hora === "10:00", "hora de constitución queda guardada");
+              check(savedLock.disabled, "constitución, hora y botón quedan bloqueados después de guardar");
+            } else {
+              const lockedExisting = await page.evaluate((m) => {
+                const chk = document.querySelector('#mesaConstituida_' + m);
+                const hora = document.querySelector('#mesaHora_' + m);
+                const tr = chk?.closest('tr');
+                const btn = tr?.querySelector('button[onclick*="guardarControlMesa"]');
+                return { hora: hora?.value || '', disabled: !!chk?.disabled && !!hora?.disabled && !!btn?.disabled };
+              }, mesa);
+              check(lockedExisting.disabled, "mesa ya constituida permanece bloqueada");
+            }
+
+            // Server-side immutability: even a crafted request cannot change
+            // the saved constitution once hora_constitucion exists.
+            const immutability = await page.evaluate(async (m) => {
+              const chk = document.querySelector('#mesaConstituida_' + m);
+              const hora = document.querySelector('#mesaHora_' + m);
+              const current = hora?.value || '';
+              const alternate = current === '10:00' ? '10:01' : '10:00';
+              const r = await fetch('/api/mesas/miembros', {
+                method: 'POST', credentials: 'include',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  accion:'control',
+                  centro_codigo: window.controlCentroActual()?.codigo,
+                  mesa:String(m),
+                  constituida:'SI',
+                  hora_constitucion:alternate,
+                  testigos_asistieron:'NO'
+                })
+              });
+              const d = await r.json().catch(() => ({}));
+              return { status:r.status, error:d.error||'', current };
+            }, mesa);
+            check(immutability.status === 409, "backend rechaza modificar una constitución ya guardada");
+            console.log("CONSTITUTION_IMMUTABILITY=" + JSON.stringify(immutability));
+
             // Search and select the real fixture through the rendered UI.
             await page.locator('#ctlSearch').fill(cedula);
             await page.waitForFunction(() => {
