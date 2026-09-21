@@ -40,6 +40,7 @@ module.exports=async function(req,res){
       return res.status(200).json({ok:true,estado_maquina:maquina,observacion_maquina:observacion,cambiado_en:now});
     }
     if(accion==='control'){
+      if(mo[0]?.hora_constitucion) return fail(res,409,'La constitución de la mesa ya fue guardada y no puede modificarse');
       const constituida=String(b.constituida||'').toLowerCase()==='si';
       const hc=clean(b.hora_constitucion,10);
       const testigos=String(b.testigos_asistieron||'').toLowerCase()==='si' ? 1 : 0;
