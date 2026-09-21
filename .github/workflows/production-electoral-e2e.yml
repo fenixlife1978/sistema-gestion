@@ -1,0 +1,273 @@
+name: production-electoral-e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production_e2e:
+        description: "Type RUN-PRODUCTION-E2E to authorize the real production test"
+        required: true
+        type: string
+      base_url:
+        description: "Production URL"
+        required: false
+        default: "https://sistema-gestion-fenixlife.vercel.app"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-fenixlife.vercel.app' }}
+      LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
+      LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
+      LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
+      TEST_CENTRO: ${{ secrets.LOAD_TEST_CENTRO }}
+      TEST_CEDULA: ${{ secrets.LOAD_TEST_CEDULA }}
+      TEST_MESA: ${{ secrets.LOAD_TEST_MESA }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+
+      - name: Verify secrets and production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm_production_e2e }}" = "RUN-PRODUCTION-E2E"
+          test -n "$LOGIN_USER"
+          test -n "$LOGIN_PASSWORD"
+          test -n "$LOGIN_ROLE"
+          test -n "$TEST_CENTRO"
+          test -n "$TEST_CEDULA"
+          test -n "$TEST_MESA"
+          curl --fail-with-body --silent --show-error --max-time 20 "$BASE_URL/api/health" >/tmp/health.json
+          cat /tmp/health.json
+          echo "PRODUCTION_E2E_PREREQUISITES_OK=true"
+
+      - name: Run authenticated electoral flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { chromium } = require('playwright');
+
+          const base = process.env.BASE_URL.replace(/\/$/, '');
+          const user = process.env.LOGIN_USER;
+          const password = process.env.LOGIN_PASSWORD;
+          const role = process.env.LOGIN_ROLE;
+          const centroCodigo = process.env.TEST_CENTRO;
+          const cedula = process.env.TEST_CEDULA;
+          const mesa = String(process.env.TEST_MESA);
+
+          const browser = await chromium.launch({ headless: true });
+          const context = await browser.newContext();
+          const page = await context.newPage();
+
+          const failures = [];
+          const check = (condition, message) => {
+            if (!condition) {
+              failures.push(message);
+              throw new Error(message);
+            }
+            console.log("PASS: " + message);
+          };
+
+          page.on('console', msg => {
+            if (msg.type() === 'error') console.log("BROWSER_CONSOLE_ERROR: " + msg.text());
+          });
+          page.on('pageerror', err => console.log("BROWSER_PAGE_ERROR: " + err.message));
+
+          try {
+            console.log("OPEN " + base);
+            await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await page.waitForTimeout(1500);
+
+            await page.locator('#lgU').fill(user);
+            await page.locator('#lgP').fill(password);
+            await page.locator('#lgR').selectOption(role);
+            await page.getByRole('button', { name: /Ingresar al sistema/i }).click();
+
+            await page.waitForFunction(() => {
+              const app = document.querySelector('#vApp');
+              const login = document.querySelector('#vLogin');
+              return app && getComputedStyle(app).display !== 'none' &&
+                     (!login || getComputedStyle(login).display === 'none');
+            }, null, { timeout: 20000 });
+
+            const loggedRole = await page.locator('#hdrInfo').innerText();
+            check(/Operador|Usuario:/i.test(loggedRole), "sesión autenticada y aplicación visible");
+
+            await page.evaluate(() => window.go('control'));
+            await page.waitForSelector('#ctlCentro', { timeout: 20000 });
+            await page.waitForSelector('#ctlSearch', { timeout: 20000 });
+
+            await page.locator('#ctlCentro').selectOption(centroCodigo);
+            await page.waitForTimeout(300);
+            const selected = await page.locator('#ctlCentro').inputValue();
+            check(String(selected) === String(centroCodigo), "centro de prueba seleccionado");
+
+            // Snapshot before mutation. This makes reruns safe: an existing
+            // verification is updated rather than creating another one.
+            const before = await page.evaluate((ci) => {
+              const centro = window.controlCentroActual();
+              const v = window.controlVerif(ci, centro?.codigo);
+              const persons = window.controlPersonasCentro(centro?.codigo || '');
+              return {
+                center: centro?.codigo || '',
+                exists: !!v,
+                mesa: v ? String(v.mesa) : '',
+                total: persons.length,
+                verified: persons.filter(x => !!window.controlVerif(x.l.cedula, centro?.codigo)).length
+              };
+            }, cedula);
+            check(String(before.center) === String(centroCodigo), "contexto de centro correcto");
+            console.log("BEFORE=" + JSON.stringify(before));
+
+            // Search and select the real fixture through the rendered UI.
+            await page.locator('#ctlSearch').fill(cedula);
+            await page.waitForFunction(() => {
+              const box = document.querySelector('#ctlResults');
+              return box && /Verificar asistencia|Corregir mesa/i.test(box.innerText);
+            }, null, { timeout: 10000 });
+
+            const result = page.locator('#ctlResults').getByRole('button', { name: /Verificar asistencia|Corregir mesa/i }).first();
+            check(await result.count() === 1, "persona encontrada en el centro");
+            await result.click();
+
+            await page.locator('#ctlMesaInput').fill(mesa);
+            await page.getByRole('button', { name: /Marcar VOTÓ|Actualizar verificación/i }).click();
+
+            await page.waitForFunction(() => {
+              const modal = document.querySelector('#mOv');
+              return !modal || getComputedStyle(modal).display === 'none';
+            }, null, { timeout: 20000 });
+
+            await page.waitForFunction((args) => {
+              const c = window.controlCentroActual();
+              const v = window.controlVerif(args.ci, c?.codigo);
+              return !!v && String(v.mesa) === String(args.mesa);
+            }, { ci: cedula, mesa }, { timeout: 20000 });
+
+            const afterSave = await page.evaluate((ci) => {
+              const c = window.controlCentroActual();
+              const people = window.controlPersonasCentro(c?.codigo || '');
+              const matching = people.filter(x => window.controlVerif(x.l.cedula, c?.codigo));
+              const v = window.controlVerif(ci, c?.codigo);
+              return {
+                center: c?.codigo || '',
+                exists: !!v,
+                mesa: v ? String(v.mesa) : '',
+                verified: matching.length,
+                latest: document.querySelector('#sec-control')?.innerText.includes(String(ci))
+              };
+            }, cedula);
+
+            check(afterSave.exists, "verificación existe inmediatamente después de guardar");
+            check(afterSave.mesa === mesa, "mesa guardada correctamente");
+            check(afterSave.verified >= before.verified, "métrica de verificados no retrocede");
+            console.log("AFTER_SAVE=" + JSON.stringify(afterSave));
+
+            // Full browser refresh: this specifically tests persistence outside
+            // the in-memory refreshAll() path.
+            await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+            await page.waitForFunction(() => {
+              const app = document.querySelector('#vApp');
+              return app && getComputedStyle(app).display !== 'none';
+            }, null, { timeout: 20000 });
+            await page.evaluate(() => window.go('control'));
+            await page.waitForSelector('#ctlCentro', { timeout: 20000 });
+            await page.locator('#ctlCentro').selectOption(centroCodigo);
+            await page.waitForTimeout(500);
+
+            const persisted = await page.evaluate((ci) => {
+              const c = window.controlCentroActual();
+              const v = window.controlVerif(ci, c?.codigo);
+              return { center: c?.codigo || '', exists: !!v, mesa: v ? String(v.mesa) : '' };
+            }, cedula);
+            check(persisted.exists, "verificación sobrevive a refresh completo");
+            check(persisted.mesa === mesa, "mesa correcta después del refresh");
+
+            // Change center and verify isolation. We deliberately choose a
+            // different available center, without inventing a code.
+            const alternate = await page.locator('#ctlCentro option').evaluateAll((opts, original) => {
+              const o = opts.find(x => x.value && x.value !== original);
+              return o ? o.value : '';
+            }, centroCodigo);
+
+            if (alternate) {
+              await page.locator('#ctlCentro').selectOption(alternate);
+              await page.waitForTimeout(400);
+              const isolated = await page.evaluate((ci) => {
+                const c = window.controlCentroActual();
+                return {
+                  center: c?.codigo || '',
+                  verification: window.controlVerif(ci, c?.codigo) || null
+                };
+              }, cedula);
+              check(String(isolated.center) === String(alternate), "cambio real a un segundo centro");
+              check(!isolated.verification, "verificación aislada y no visible en otro centro");
+
+              await page.locator('#ctlCentro').selectOption(centroCodigo);
+              await page.waitForTimeout(400);
+              const returned = await page.evaluate((ci) => {
+                const c = window.controlCentroActual();
+                const v = window.controlVerif(ci, c?.codigo);
+                return { center: c?.codigo || '', exists: !!v, mesa: v ? String(v.mesa) : '' };
+              }, cedula);
+              check(String(returned.center) === String(centroCodigo), "regreso al centro original");
+              check(returned.exists && returned.mesa === mesa, "registro permanece al regresar al centro original");
+            } else {
+              console.log("INFO: solo existe un centro; aislamiento entre centros no pudo ejercitarse");
+            }
+
+            // Duplicate protection: search the same cédula again and save the
+            // same mesa. The backend should update the existing verification.
+            await page.locator('#ctlSearch').fill(cedula);
+            await page.waitForTimeout(300);
+            const correction = page.locator('#ctlResults').getByRole('button', { name: /Corregir mesa|Verificar asistencia/i }).first();
+            check(await correction.count() === 1, "persona sigue encontrándose tras persistencia");
+            await correction.click();
+            await page.locator('#ctlMesaInput').fill(mesa);
+            await page.getByRole('button', { name: /Marcar VOTÓ|Actualizar verificación/i }).click();
+            await page.waitForTimeout(1200);
+
+            const duplicateCheck = await page.evaluate((ci) => {
+              const c = window.controlCentroActual();
+              const rows = (window.CACHE?.verificacion || []).filter(v =>
+                String(v.cedula).replace(/\D/g,'') === String(ci).replace(/\D/g,'') &&
+                String(v.centro_codigo) === String(c?.codigo)
+              );
+              return { count: rows.length, ids: rows.map(x => x.id), mesa: rows[0]?.mesa ? String(rows[0].mesa) : '' };
+            }, cedula);
+
+            check(duplicateCheck.count === 1, "la misma cédula no se duplica");
+            check(duplicateCheck.mesa === mesa, "la verificación duplicada conserva la mesa");
+            console.log("DUPLICATE_CHECK=" + JSON.stringify(duplicateCheck));
+
+            console.log("PRODUCTION_ELECTORAL_E2E_OK=true");
+          } finally {
+            await page.screenshot({ path: 'production-electoral-e2e.png', fullPage: true }).catch(() => {});
+            await browser.close();
+          }
+          NODE
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-electoral-e2e-evidence
+          path: production-electoral-e2e.png
+          if-no-files-found: ignore
