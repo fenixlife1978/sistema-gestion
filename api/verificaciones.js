@@ -49,6 +49,8 @@ module.exports=async function(req,res){
 
     if(existing.length){
       const v=existing[0];
+      if(String(v.centro_codigo)!==String(centro))
+        return fail(res,409,'La cédula ya tiene una verificación registrada en otro centro electoral');
       await turso([
         {q:'UPDATE verificaciones_votacion SET centro_codigo=?,mesa=?,estado=?,verificado_en=datetime(\'now\'),verificado_por=? WHERE id=?',params:[centro,mesa,'VOTO_VERIFICADO',session.uid,v.id]},
         {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['voto','Verificación individual actualizada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]}
