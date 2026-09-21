@@ -2815,8 +2815,12 @@ function controlPersonasCentro(codigo) {
 
   return rows;
 }
-function controlVerif(cedula) {
-  return (CACHE.verificacion || []).find(v => normC(v.cedula) === normC(cedula)) || null;
+function controlVerif(cedula, centroCodigo) {
+  const c = centroCodigo == null ? '' : String(centroCodigo);
+  return (CACHE.verificacion || []).find(v =>
+    normC(v.cedula) === normC(cedula) &&
+    (!c || String(v.centro_codigo || '') === c)
+  ) || null;
 }
 function controlMesaTexto(v) {
   return v ? String(v.mesa || '') : '';
@@ -2842,7 +2846,7 @@ function metricasCorteCentro(codigo) {
   const centro = cenBy(codigo);
   if (!centro) return null;
   const personas = controlPersonasCentro(codigo);
-  const verificados = personas.filter(x => !!controlVerif(x.l.cedula));
+  const verificados = personas.filter(x => !!controlVerif(x.l.cedula, codigo));
   const mM = personas.filter(x => x.p.sexo === 'M').length;
   const mF = personas.filter(x => x.p.sexo === 'F').length;
   const vM = verificados.filter(x => x.p.sexo === 'M').length;
@@ -2851,7 +2855,7 @@ function metricasCorteCentro(codigo) {
   const detalle = [];
   for (let i=1;i<=mesas;i++) {
     const mesa=String(i);
-    const vv=verificados.filter(x => controlMesaTexto(controlVerif(x.l.cedula))===mesa).length;
+    const vv=verificados.filter(x => controlMesaTexto(controlVerif(x.l.cedula, codigo))===mesa).length;
     const acta=(CACHE.actasMesa||[]).find(a=>a.centro_codigo===codigo && String(a.mesa)===mesa);
     detalle.push({mesa, verificados:vv, votos_partido:acta ? Number(acta.votos_partido||0) : null, diferencia:acta ? vv-Number(acta.votos_partido||0) : null});
   }
@@ -2898,7 +2902,7 @@ function renderControlElectoral() {
   if (!CONTROL_ELECTORAL.centro) CONTROL_ELECTORAL.centro = centro.codigo;
 
   const personas = controlPersonasCentro(centro.codigo);
-  const verificados = personas.filter(x => !!controlVerif(x.l.cedula));
+  const verificados = personas.filter(x => !!controlVerif(x.l.cedula, centro.codigo));
   const pendientes = Math.max(0, personas.length - verificados.length);
   const pct = personas.length ? (verificados.length / personas.length * 100) : 0;
 
@@ -2911,7 +2915,7 @@ function renderControlElectoral() {
   const mesaRows = [];
   for (let i = 1; i <= mesas; i++) {
     const mesa = String(i);
-    const vv = verificados.filter(x => controlMesaTexto(controlVerif(x.l.cedula)) === mesa).length;
+    const vv = verificados.filter(x => controlMesaTexto(controlVerif(x.l.cedula, centro.codigo)) === mesa).length;
     const acta = (CACHE.actasMesa || []).find(a => a.centro_codigo === centro.codigo && String(a.mesa) === mesa);
     const votosPartido = acta ? Number(acta.votos_partido || 0) : null;
     const diff = acta ? vv - votosPartido : null;
@@ -3043,7 +3047,7 @@ function filtrarControlElectoral() {
     return ci.includes(normC(qv)) || nombre.includes(qv);
   }).slice(0,25);
   box.innerHTML=rows.length ? rows.map(x=>{
-    const p=x.p||{}, v=controlVerif(x.l.cedula), nombre=apeP(p)+', '+nomP(p);
+    const p=x.p||{}, v=controlVerif(x.l.cedula, centro.codigo), nombre=apeP(p)+', '+nomP(p);
     return '<div class="kcard" style="margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
       '<div style="flex:1;min-width:220px"><b style="font-size:14px;color:var(--navy)">'+esc(nombre)+'</b><div class="mono" style="font-size:11px;color:var(--mut)">'+esc(fC(p.letra||'V',x.l.cedula))+' • '+esc(p.nombre_cv||p.centro_votacion||'')+' • '+esc(x.origen||'')+(x.cargo?' • '+esc(x.cargo):'')+(x.reclutador?' • Movilizador: '+esc(nomP(padBy(x.reclutador.cedula)||x.reclutador))+(x.posicion?' • Pos. '+x.posicion:''):'')+'</div></div>' +
       (v ? '<span class="chip chip-g">✓ VOTÓ • MESA '+esc(v.mesa)+'</span><button class="btn btn-w btn-xs" onclick="abrirVerificacion(\''+esc(x.l.cedula)+'\')">Corregir mesa</button>' :
@@ -3054,7 +3058,7 @@ function filtrarControlElectoral() {
 function abrirVerificacion(cedula) {
   const persona=controlPersonasCentro(controlCentroActual()?.codigo||'').find(x=>normC(x.l.cedula)===normC(cedula));
   if(!persona) return toast('La persona no tiene un cargo o función registrada en este centro', 'err');
-  const p=persona.p||{}, v=controlVerif(cedula);
+  const p=persona.p||{}, v=controlVerif(cedula, centro.codigo);
   win(ic('check',18)+' Verificación de asistencia',
     '<div class="alert ok" style="margin-top:0"><span class="uava">'+ini(apeP(p)+' '+nomP(p))+'</span><div><b>'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono">'+esc(fC(p.letra||'V',cedula))+'</div></div></div>' +
     '<div style="margin-top:14px"><label class="fl" style="font-size:14px">MESA <span style="color:var(--red)">*</span></label><input class="inp mono" id="ctlMesaInput" value="'+esc(v?v.mesa:'')+'" placeholder="Escriba el número de mesa" inputmode="text" autofocus></div>' +
