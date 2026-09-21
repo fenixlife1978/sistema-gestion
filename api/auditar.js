@@ -1,2 +1,2 @@
-const {parseBody,turso,verify,getCookie}=require('../../lib/auth');
+const {parseBody,turso,verify,getCookie}=require('../lib/auth');
 module.exports=async(req,res)=>{if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});const s=verify(getCookie(req,'erp_session'));if(!s)return res.status(401).json({error:'Sesión requerida'});const b=parseBody(req),tipo=String(b.tipo||'user').slice(0,30),texto=String(b.texto||'').slice(0,1000);if(!texto)return res.status(400).json({error:'Texto requerido'});try{await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:[tipo,texto,s.uid]}]);return res.json({ok:true})}catch(e){return res.status(500).json({error:e.message||'No se pudo registrar auditoría'})}};
