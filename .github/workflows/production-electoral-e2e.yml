@@ -61,8 +61,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node <<'NODE'
-          const { chromium } = require('playwright');
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
 
           const base = process.env.BASE_URL.replace(/\/$/, '');
           const user = process.env.LOGIN_USER;
