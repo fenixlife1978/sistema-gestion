@@ -51,12 +51,7 @@ module.exports=async function(req,res){
     }]));
 
     if(existing.length){
-      const v=existing[0];
-      await turso([
-        {q:'UPDATE verificaciones_votacion SET mesa=?,estado=?,verificado_en=datetime(\'now\'),verificado_por=? WHERE id=?',params:[mesa,'VOTO_VERIFICADO',session.uid,v.id]},
-        {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['voto','Verificación individual actualizada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]}
-      ]);
-      return res.status(200).json({ok:true,accion:'actualizada',id:v.id,centro_codigo:centro,mesa});
+      return fail(res,409,'La persona ya aparece como VOTÓ en este centro');
     }
 
     try{
