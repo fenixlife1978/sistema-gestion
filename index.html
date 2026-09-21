@@ -2852,6 +2852,41 @@ function origenRegistroPersona(cedula) {
   return padBy(c) ? 'Padrón CNE' : 'Registro existente';
 }
 
+
+function datosUltimaVerificacion(cedula) {
+  const c = normC(cedula);
+  const p = padBy(c) || {};
+  const candidatos = [];
+
+  for (const rr of (CACHE.recl || [])) {
+    if ((rr.lista || []).some(x => normC(x.cedula) === c)) {
+      candidatos.push('Comprometido');
+      break;
+    }
+  }
+
+  if (!candidatos.length) {
+    for (const cc of (CACHE.cargos || [])) {
+      if (normC(cc.cedula) === c && cc.cargo) candidatos.push(String(cc.cargo));
+    }
+    for (const d of (CACHE.direccion || [])) {
+      if (normC(d.cedula) === c && d.cargo) candidatos.push(String(d.cargo));
+    }
+    for (const cv of (CACHE.comite || [])) {
+      if (normC(cv.cedula) === c) candidatos.push('Comité Vecinal' + (cv.comunidad ? ' • ' + String(cv.comunidad) : ''));
+    }
+    for (const r of (CACHE.recl || [])) {
+      if (normC(r.cedula) === c) candidatos.push('Movilizador');
+    }
+  }
+
+  const cargo = candidatos.length
+    ? candidatos[Math.floor(Math.random() * candidatos.length)]
+    : 'Adicional';
+
+  return { p, cargo };
+}
+
 function metricasCorteCentro(codigo) {
   const centro = cenBy(codigo);
   if (!centro) return null;
@@ -2967,19 +3002,20 @@ function renderControlElectoral() {
     '</tr>';
   }).join('');
 
+
   const ultimas = verificados.slice().sort((a,b) => String(b.verificado_en||'').localeCompare(String(a.verificado_en||''))).slice(0, 30).map(x => {
-    const p = (x.p_nombre || x.p_apellido) ? x : (padBy(x.cedula) || {});
-    const nombre = ((p.p_apellido || '') + ' ' + (p.s_apellido || '') + ', ' + (p.p_nombre || '') + ' ' + (p.s_nombre || '')).replace(/^\s*,\s*|,\s*$/g,'').trim() || 'Persona no encontrada';
+    const datos = datosUltimaVerificacion(x.cedula);
+    const p = datos.p || {};
+    const nombre = ((p.p_apellido || '') + ' ' + (p.s_apellido || '') + ', ' + (p.p_nombre || '') + ' ' + (p.s_nombre || '')).replace(/^\s*,\s*|,\s*$/g,'').trim() || String(x.nombre || '').trim() || 'Persona no encontrada';
     const ci = normC(x.cedula);
     const fecha = horaVE(x.verificado_en);
     const operador = x.operador_nom || ((CACHE.users || []).find(u => Number(u.id) === Number(x.verificado_por)) || {}).nombre || (USER ? USER.nombre : 'Operador actual');
     return '<tr>' +
       '<td class="mono"><b>' + esc(fecha) + '</b></td>' +
       '<td>' + esc(nombre) + '</td>' +
-      '<td class="mono">' + esc(fC(p.letra || 'V', ci || '')) + '</td>' +
+      '<td class="mono">' + esc(fC(p.letra || x.letra || 'V', ci || '')) + '</td>' +
       '<td><b>' + esc(x.mesa || '') + '</b></td>' +
-      '<td>' + esc(origenRegistroPersona(ci)) + '</td>' +
-      '<td>' + esc(x.cargo || origenRegistroPersona(ci)) + '</td>' +
+      '<td>' + esc(datos.cargo) + '</td>' +
       '<td><b>' + esc(operador) + '</b></td>' +
     '</tr>';
   }).join('');
@@ -3025,8 +3061,8 @@ function renderControlElectoral() {
       renderCortesPanel(centro.codigo) +
 
       '<div class="panel"><div class="panel-h">' + ic('users',15) + ' Últimas verificaciones</div><div class="panel-b"><div class="tbl-wrap"><table class="tbl">' +
-        '<thead><tr><th>Hora</th><th>Persona</th><th>C.I.</th><th>Mesa</th><th>Origen</th><th>Cargo / función</th><th>Operador</th></tr></thead>' +
-        '<tbody>' + (ultimas || '<tr><td colspan="7" class="empty">Todavía no hay verificaciones.</td></tr>') + '</tbody>' +
+        '<thead><tr><th>Hora</th><th>Persona</th><th>C.I.</th><th>Mesa</th><th>Cargo / función</th><th>Operador</th></tr></thead>' +
+        '<tbody>' + (ultimas || '<tr><td colspan="6" class="empty">Todavía no hay verificaciones.</td></tr>') + '</tbody>' +
       '</table></div></div></div>',
       900
     );
