@@ -15,7 +15,7 @@ module.exports=async function(req,res){
     if(!centro||!mesa) return fail(res,400,'Centro y mesa son obligatorios');
     const cen=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo=? LIMIT 1',params:[centro]}]));
     if(!cen.length) return fail(res,404,'Centro electoral no encontrado');
-    const mo=rowsFrom(await turso([{q:'SELECT id,estado,estado_maquina,observacion_maquina,hora_cierre FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
+    const mo=rowsFrom(await turso([{q:'SELECT id,estado,estado_maquina,observacion_maquina,hora_constitucion,testigos_asistieron,hora_cierre FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
     let mesaId=mo[0]?.id;
     if(mo[0]?.estado==='CERRADA' && !['cerrar','historial_maquina'].includes(accion)) return fail(res,409,'La mesa ya está cerrada y no admite modificaciones');
     if(accion==='historial_maquina'){
@@ -38,6 +38,21 @@ module.exports=async function(req,res){
         {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Cambio de estado de máquina • Centro '+centro+' • Mesa '+mesa+' • '+anterior+' → '+maquina+(observacion?' • '+observacion:''),session.uid]}
       ]);
       return res.status(200).json({ok:true,estado_maquina:maquina,observacion_maquina:observacion,cambiado_en:now});
+    }
+    if(accion==='control'){
+      const constituida=String(b.constituida||'').toLowerCase()==='si';
+      const hc=clean(b.hora_constitucion,10);
+      const testigos=String(b.testigos_asistieron||'').toLowerCase()==='si' ? 1 : 0;
+      if(constituida && !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(hc)) return fail(res,400,'Debe indicar la hora de constitución cuando la mesa está constituida');
+      if(!constituida && hc) return fail(res,400,'No debe indicar hora de constitución si la mesa no está constituida');
+      const now=new Date().toISOString();
+      if(mesaId){
+        await turso([{q:'UPDATE mesa_operativa SET hora_constitucion=?,testigos_asistieron=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:[constituida?hc:null,testigos,now,session.uid,mesaId]},{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Control de Mesa '+mesa+' • Centro '+centro+' • Constituida '+(constituida?'SI':'NO')+' • Hora '+(constituida?hc:'N/D')+' • Testigos '+(testigos?'SI':'NO'),session.uid]}]);
+      } else {
+        const ins=await turso([{q:'INSERT INTO mesa_operativa(centro_codigo,mesa,hora_constitucion,hora_inicio_votacion,testigos_asistieron,estado_maquina,actualizado_por) VALUES(?,?,?,?,?,?,?)',params:[centro,mesa,constituida?hc:null,null,testigos,'OPERATIVA',session.uid]}]);
+        await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['mesa','Control de Mesa '+mesa+' • Centro '+centro+' • Constituida '+(constituida?'SI':'NO')+' • Hora '+(constituida?hc:'N/D')+' • Testigos '+(testigos?'SI':'NO'),session.uid]}]);
+      }
+      return res.status(200).json({ok:true,constituida,hora_constitucion:constituida?hc:null,testigos_asistieron:testigos});
     }
     if(accion==='constituir'){
       const hc=clean(b.hora_constitucion,10), hi=clean(b.hora_inicio_votacion,10), test=Number(b.testigos_asistieron), maquina=clean(b.estado_maquina,30).toUpperCase(), observacionMaquina=clean(b.observacion_maquina,500);
