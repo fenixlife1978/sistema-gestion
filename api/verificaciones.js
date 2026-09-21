@@ -33,26 +33,27 @@ module.exports=async function(req,res){
     if(maxMesas>0 && (nMesa<1 || nMesa>maxMesas))
       return fail(res,409,'La mesa indicada no pertenece al centro seleccionado');
 
-    const validacion=await turso([
-      {q:'SELECT cedula FROM centro_cargos WHERE centro_codigo=? AND cedula=? LIMIT 1',params:[centro,cedula]},
-      {q:'SELECT p.cedula FROM padron p WHERE p.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
-      {q:'SELECT a.cedula FROM asignaciones a JOIN padron p ON p.cedula=a.cedula WHERE a.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
-      {q:'SELECT r.cedula FROM reclutadores r JOIN padron p ON p.cedula=r.cedula WHERE r.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
-      {q:'SELECT d.cedula FROM direccion_ejecutiva d JOIN padron p ON p.cedula=d.cedula WHERE d.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
-      {q:'SELECT cv.cedula FROM comite_vecinal cv JOIN padron p ON p.cedula=cv.cedula WHERE cv.cedula=? AND (p.centro_votacion=? OR p.nombre_cv=?) LIMIT 1',params:[cedula,centro,c.nombre||'']},
-      {q:'SELECT id,centro_codigo,mesa,estado FROM verificaciones_votacion WHERE cedula=? LIMIT 1',params:[cedula]}
-    ]);
-    const personas=validacion.slice(0,6).flatMap(x=>rowsFrom(x));
-    if(!personas.length) return fail(res,409,'La persona no tiene un cargo o función registrada en este centro');
+    // La verificación electoral se basa exclusivamente en el padrón CNE
+    // del centro seleccionado. Tener o no tener cargos/funciones en el
+    // sistema no es un requisito para marcar VOTÓ.
+    const padronCentro=rowsFrom(await turso([{
+      q:'SELECT cedula FROM padron WHERE cedula=? AND (centro_votacion=? OR nombre_cv=?) LIMIT 1',
+      params:[cedula,centro,c.nombre||'']
+    }]));
+    if(!padronCentro.length)
+      return fail(res,409,'La persona no aparece en el padrón CNE del centro seleccionado');
 
-    const existing=rowsFrom(validacion[6] || {});
+    // Solo una verificación VOTÓ existente en este mismo centro bloquea
+    // una nueva marcación. Los cargos/funciones del sistema no intervienen.
+    const existing=rowsFrom(await turso([{
+      q:'SELECT id,centro_codigo,mesa,estado FROM verificaciones_votacion WHERE cedula=? AND centro_codigo=? AND estado=? LIMIT 1',
+      params:[cedula,centro,'VOTO_VERIFICADO']
+    }]));
 
     if(existing.length){
       const v=existing[0];
-      if(String(v.centro_codigo)!==String(centro))
-        return fail(res,409,'La cédula ya tiene una verificación registrada en otro centro electoral');
       await turso([
-        {q:'UPDATE verificaciones_votacion SET centro_codigo=?,mesa=?,estado=?,verificado_en=datetime(\'now\'),verificado_por=? WHERE id=?',params:[centro,mesa,'VOTO_VERIFICADO',session.uid,v.id]},
+        {q:'UPDATE verificaciones_votacion SET mesa=?,estado=?,verificado_en=datetime(\'now\'),verificado_por=? WHERE id=?',params:[mesa,'VOTO_VERIFICADO',session.uid,v.id]},
         {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['voto','Verificación individual actualizada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]}
       ]);
       return res.status(200).json({ok:true,accion:'actualizada',id:v.id,centro_codigo:centro,mesa});
@@ -64,13 +65,16 @@ module.exports=async function(req,res){
         params:[cedula,centro,mesa,'VOTO_VERIFICADO',session.uid]
       }]);
     }catch(e){
-      const race=rowsFrom(await turso([{q:'SELECT id,centro_codigo,mesa FROM verificaciones_votacion WHERE cedula=? LIMIT 1',params:[cedula]}]));
-      if(race.length) return fail(res,409,'La cédula ya tiene una verificación registrada');
+      const race=rowsFrom(await turso([{
+        q:'SELECT id,centro_codigo,mesa,estado FROM verificaciones_votacion WHERE cedula=? AND centro_codigo=? AND estado=? LIMIT 1',
+        params:[cedula,centro,'VOTO_VERIFICADO']
+      }]));
+      if(race.length) return fail(res,409,'La persona ya aparece como VOTÓ en este centro');
       throw e;
     }
 
     const post=await turso([
-      {q:'SELECT id FROM verificaciones_votacion WHERE cedula=? LIMIT 1',params:[cedula]},
+      {q:'SELECT id FROM verificaciones_votacion WHERE cedula=? AND centro_codigo=? LIMIT 1',params:[cedula,centro]},
       {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['voto','Verificación individual registrada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]}
     ]);
     const inserted=rowsFrom(post[0] || {});
