@@ -26,30 +26,39 @@ module.exports=async function(req,res){
     // El código de centro llega desde la misma selección de Control Electoral.
     // Normalizamos espacios para evitar que una representación visual del código
     // provoque falsamente "Centro electoral no encontrado".
+    console.log('[ACTAS_DEBUG] entrada', { centro, centroNombre, mesa, votos });
     const pre=await turso([
       {q:'SELECT codigo,nombre,mesas FROM centros WHERE TRIM(codigo)=? LIMIT 1',params:[centro]},
       {q:'SELECT estado FROM mesa_operativa WHERE TRIM(centro_codigo)=? AND mesa=? LIMIT 1',params:[centro,mesa]},
       {q:'SELECT id,votos_partido FROM actas_mesa WHERE TRIM(centro_codigo)=? AND mesa=? LIMIT 1',params:[centro,mesa]}
     ]);
+    console.log('[ACTAS_DEBUG] consultas_pre', { r0: rowsFrom(pre[0] || {}), r1: rowsFrom(pre[1] || {}), r2: rowsFrom(pre[2] || {}) });
     let c=rowsFrom(pre[0] || {})[0];
     // Los códigos CNE pueden conservar ceros a la izquierda en la tabla. Si la
     // selección del frontend los transporta como número/string equivalente,
     // el cotejo textual anterior no encuentra el centro aunque sea el mismo.
     if(!c){
+      console.log('[ACTAS_DEBUG] fallback_numerico', { centro });
       const alt=await turso([{
         q:'SELECT codigo,nombre,mesas FROM centros WHERE CAST(TRIM(codigo) AS INTEGER)=CAST(? AS INTEGER) LIMIT 1',
         params:[centro]
       }]);
       c=rowsFrom(alt[0] || {})[0];
+      console.log('[ACTAS_DEBUG] resultado_numerico', { c });
     }
     if(!c && centroNombre){
+      console.log('[ACTAS_DEBUG] fallback_nombre', { centroNombre });
       const altNombre=await turso([{
         q:'SELECT codigo,nombre,mesas FROM centros WHERE TRIM(nombre)=TRIM(?) LIMIT 1',
         params:[centroNombre]
       }]);
       c=rowsFrom(altNombre[0] || {})[0];
+      console.log('[ACTAS_DEBUG] resultado_nombre', { c });
     }
-    if(!c) return fail(res,404,'Centro electoral no encontrado');
+    if(!c){
+      console.error('[ACTAS_DEBUG] CENTRO_NO_ENCONTRADO', { centro, centroNombre, mesa });
+      return fail(res,404,'Centro electoral no encontrado');
+    }
 
     const centroReal=String(c.codigo).trim();
     const maxMesas=Number(c.mesas||0);
