@@ -632,7 +632,7 @@ async function refreshAll() {
     { q: 'SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100' },
     { q: 'SELECT * FROM usuarios ORDER BY rol, nombre' },
     { q: 'SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id' },
-    { q: 'SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC' },
+    { q: 'SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, d.numero_calle, d.numero_casa, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC' },
     { q: 'SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC' },
     { q: 'SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id' },
     { q: 'SELECT cp.comite_id, cp.problema_id, c.categoria, c.nombre AS problema_nombre FROM comite_problemas cp JOIN catalogo_problemas c ON c.id = cp.problema_id ORDER BY cp.comite_id, c.orden, c.id' },
@@ -1074,7 +1074,7 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
   return null;
 }
 
-async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
+async async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
   window.__dupAuthEncontrados = encontrados || [];
   const nombres = (encontrados || []).map(x => x.tipo + ': ' + x.detalle).join('<br>');
   const motivo = 'Duplicidad controlada de persona: ' + (encontrados || []).map(x => x.tipo).join(', ') + ' → ' + destino;
@@ -2339,7 +2339,9 @@ function dirBuscarCedula() {
       '</div>' +
       '<div class="grid g2" style="gap:10px">' +
         '<div><label class="fl">Teléfono (opcional)</label><input class="inp mono" id="dirTel" placeholder="0412-2232523" maxlength="12"></div>' +
-        '<div><label class="fl">Dirección (opcional)</label><input class="inp" id="dirDir" placeholder="Urbanización, calle, casa..."></div>' +
+        '<div><label class="fl">Número de calle</label><input class="inp" id="dirNroCalle" placeholder="Ej. 5"></div>' +
+        '<div><label class="fl">Número de casa</label><input class="inp" id="dirNroCasa" placeholder="Ej. 12"></div>' +
+        '<div><label class="fl">Dirección (opcional)</label><input class="inp" id="dirDir" placeholder="Urbanización, sector, referencia..."></div>' +
       '</div>' +
       '<div style="margin-top:14px;text-align:right">' +
         '<button class="btn btn-navy" onclick="saveDirAuto(\'' + p.cedula + '\')">Guardar y Asignar Cargo ➜</button>' +
@@ -2367,6 +2369,8 @@ async function saveDirAuto(cedula) {
   }
   const tel = ($('dirTel') ? $('dirTel').value : '').trim();
   const dir = ($('dirDir') ? $('dirDir').value : '').trim();
+  const nroCalle = ($('dirNroCalle') ? $('dirNroCalle').value : '').trim();
+  const nroCasa = ($('dirNroCasa') ? $('dirNroCasa').value : '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
@@ -2377,7 +2381,7 @@ async function saveDirAuto(cedula) {
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
   try {
-    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',direccion:dir})});
+    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',numero_calle:nroCalle,numero_casa:nroCasa,direccion:dir})});
     const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
     await registrarAct('user', 'Asignado a Dirección Ejecutiva: ' + nomComp + ' ➔ ' + cargo, USER.id);
     await refreshAll();
@@ -2413,7 +2417,9 @@ function openDirManualForm(ced) {
     '</div>' +
     '<div class="grid g2" style="gap:10px;margin-top:10px">' +
       '<div><label class="fl">TELÉFONO</label><input class="inp mono" id="dmTel" placeholder="0412-2232523" maxlength="12"></div>' +
-      '<div><label class="fl">DIRECCIÓN</label><input class="inp" id="dmDir" placeholder="Urbanización, calle, casa..."></div>' +
+      '<div><label class="fl">NÚMERO DE CALLE</label><input class="inp" id="dmNroCalle" placeholder="Ej. 5"></div>' +
+      '<div><label class="fl">NÚMERO DE CASA</label><input class="inp" id="dmNroCasa" placeholder="Ej. 12"></div>' +
+      '<div style="grid-column:1/-1"><label class="fl">DIRECCIÓN</label><input class="inp" id="dmDir" placeholder="Urbanización, sector, referencia..."></div>' +
     '</div>' +
     '<div style="margin-top:14px;text-align:right">' +
       '<button class="btn btn-navy" onclick="saveDirManualFull()">' + ic('check', 14) + ' Guardar y Registrar ➜</button>' +
@@ -2435,6 +2441,8 @@ async function saveDirManualFull() {
   const cvCod = $('dmCv').value;
   const tel = ($('dmTel') ? $('dmTel').value : '').trim();
   const dir = ($('dmDir') ? $('dmDir').value : '').trim();
+  const nroCalle = ($('dmNroCalle') ? $('dmNroCalle').value : '').trim();
+  const nroCasa = ($('dmNroCasa') ? $('dmNroCasa').value : '').trim();
 
   if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
   if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
@@ -2453,7 +2461,7 @@ async function saveDirManualFull() {
 
   try {
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
-    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula:ced,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',direccion:dir,padron:{cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,edad,codigo_estado:cv.cod_estado,codigo_municipio:cv.cod_municipio,codigo_parroquia:cv.cod_parroquia,estado:cv.estado,municipio:cv.municipio,parroquia:cv.parroquia,centro_votacion:cv.codigo,nombre_cv:cv.nombre}})});
+    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'direccion',cedula:ced,cargo,nombre:nomComp,telefono:tel?normTel(tel):'',numero_calle:nroCalle,numero_casa:nroCasa,direccion:dir,padron:{cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,edad,codigo_estado:cv.cod_estado,codigo_municipio:cv.cod_municipio,codigo_parroquia:cv.cod_parroquia,estado:cv.estado,municipio:cv.municipio,parroquia:cv.parroquia,centro_votacion:cv.codigo,nombre_cv:cv.nombre}})});
     const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
 
     await registrarAct('user', 'Alta manual Dirección Ejecutiva: ' + fC(letra, ced) + ' ➔ ' + cargo, USER.id);
@@ -2486,8 +2494,12 @@ function openDirEdit(id) {
     '<div style="margin-bottom:10px;font-size:12px;color:var(--navy)">' +
       '<b>Cargo:</b> ' + esc(reg.cargo || '') + ' &nbsp;&bull;&nbsp; <b>Persona:</b> ' + esc(reg.nombre || (apeP(p) + ', ' + nomP(p))) + ' &nbsp;&bull;&nbsp; <b>C.I.:</b> ' + fC(p.letra || 'V', reg.cedula) +
     '</div>' +
-    '<label class="fl">Teléfono</label><input class="inp mono" id="dirETel" value="' + esc(reg.telefono || '') + '" placeholder="0412-2232523" maxlength="12">' +
-    '<div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="dirEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, calle..."></div>',
+    '<div class="grid g2" style="gap:10px">' +
+    '<div><label class="fl">Teléfono</label><input class="inp mono" id="dirETel" value="' + esc(reg.telefono || '') + '" placeholder="0412-2232523" maxlength="12"></div>' +
+    '<div><label class="fl">Número de calle</label><input class="inp" id="dirENroCalle" value="' + esc(reg.numero_calle || '') + '" placeholder="Ej. 5"></div>' +
+    '<div><label class="fl">Número de casa</label><input class="inp" id="dirENroCasa" value="' + esc(reg.numero_casa || '') + '" placeholder="Ej. 12"></div>' +
+    '<div><label class="fl">Dirección</label><input class="inp" id="dirEDir" value="' + esc(reg.direccion || '') + '" placeholder="Urbanización, sector, referencia..."></div>' +
+    '</div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveDirEdit(' + id + ')">Guardar cambios ➜</button>', 550
   );
   setTimeout(() => { const el = $('dirETel'); if (el) el.focus(); }, 200);
@@ -2495,10 +2507,12 @@ function openDirEdit(id) {
 
 async function saveDirEdit(id) {
   const tel = $('dirETel').value.trim(), dir = $('dirEDir').value.trim();
+  const nroCalle = ($('dirENroCalle') ? $('dirENroCalle').value : '').trim();
+  const nroCasa = ($('dirENroCasa') ? $('dirENroCasa').value : '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel, {origen:'DIRECCIÓN EJECUTIVA', id}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    const rr=await fetch('/api/direccion/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'editar',id,cargo,telefono:tel,direccion:dir})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar');
+    const rr=await fetch('/api/direccion/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'editar',id,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion:dir})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo actualizar');
     await refreshAll(); renderDireccion(); closeModal(); toast('Actualizado con éxito', 'ok');
   } catch (e) { toast('Error: ' + e.message, 'err'); }
 }
