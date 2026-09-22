@@ -3463,6 +3463,7 @@ async function guardarActaMesa(codigo, mesa) {
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         centro_codigo:codigo,
+        centro_nombre:((CACHE.centros||[]).find(x=>String(x.codigo)===String(codigo))?.nombre||''),
         mesa:String(mesa),
         votos_partido:val
       })
