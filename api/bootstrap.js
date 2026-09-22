@@ -346,7 +346,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-09-20-b1';
+const BOOTSTRAP_VERSION = '2026-09-22-b2';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -418,6 +418,17 @@ async function execSchema() {
     catch(e){if(isBenign(e))warnings.push(String(e.message||e));else throw e;}
   }
   await migrateComiteRoles();
+
+  // Reparar datos históricos de verificaciones que pudieran haber sido
+  // creados antes de que la tabla tuviera la restricción UNIQUE(cedula).
+  // Conservamos el registro más antiguo por cédula y eliminamos solamente
+  // duplicados exactos de la misma persona. Luego dejamos una restricción
+  // única real para impedir que vuelvan a aparecer.
+  await turso([{q:`DELETE FROM verificaciones_votacion
+    WHERE id NOT IN (
+      SELECT MIN(id) FROM verificaciones_votacion GROUP BY cedula
+    )`,params:[]}]);
+  await turso([{q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_verificaciones_cedula ON verificaciones_votacion(cedula)',params:[]}]);
 
   // Garantizar que cada centro tenga todos los cargos predeterminados.
   // No sobrescribe asignaciones existentes ni crea personas ficticias.
