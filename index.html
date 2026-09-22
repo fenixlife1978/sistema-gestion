@@ -3753,7 +3753,7 @@ async function saveComiteAuto(cedula) {
   const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
 
   try {
-    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:(p&&p.centro_votacion)||'' ,letra:(p&&p.letra)||'V',p_apellido:(p&&p.p_apellido)||'',s_apellido:(p&&p.s_apellido)||'',p_nombre:(p&&p.p_nombre)||'',s_nombre:(p&&p.s_nombre)||'',sexo:(p&&p.sexo)||'',fecha_nac:(p&&p.fecha_nac)||''})});
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion:dir,problematica,centro_codigo:(p&&p.centro_votacion)||'' ,letra:(p&&p.letra)||'V',p_apellido:(p&&p.p_apellido)||'',s_apellido:(p&&p.s_apellido)||'',p_nombre:(p&&p.p_nombre)||'',s_nombre:(p&&p.s_nombre)||'',sexo:(p&&p.sexo)||'',fecha_nac:(p&&p.fecha_nac)||''})});
     const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo asignar el comité');
     if(rd.id) await guardarProblemasComite(rd.id, problemas);
     await refreshAll();
