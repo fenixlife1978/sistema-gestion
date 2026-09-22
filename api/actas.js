@@ -30,7 +30,17 @@ module.exports=async function(req,res){
       {q:'SELECT estado FROM mesa_operativa WHERE TRIM(centro_codigo)=? AND mesa=? LIMIT 1',params:[centro,mesa]},
       {q:'SELECT id,votos_partido FROM actas_mesa WHERE TRIM(centro_codigo)=? AND mesa=? LIMIT 1',params:[centro,mesa]}
     ]);
-    const c=rowsFrom(pre[0] || {})[0];
+    let c=rowsFrom(pre[0] || {})[0];
+    // Los códigos CNE pueden conservar ceros a la izquierda en la tabla. Si la
+    // selección del frontend los transporta como número/string equivalente,
+    // el cotejo textual anterior no encuentra el centro aunque sea el mismo.
+    if(!c){
+      const alt=await turso([{
+        q:'SELECT codigo,nombre,mesas FROM centros WHERE CAST(TRIM(codigo) AS INTEGER)=CAST(? AS INTEGER) LIMIT 1',
+        params:[centro]
+      }]);
+      c=rowsFrom(alt[0] || {})[0];
+    }
     if(!c) return fail(res,404,'Centro electoral no encontrado');
 
     const centroReal=String(c.codigo).trim();
