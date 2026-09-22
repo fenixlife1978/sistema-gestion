@@ -106,6 +106,8 @@ const SCHEMA = [
   `ALTER TABLE direccion_ejecutiva ADD COLUMN telefono TEXT`,
   `ALTER TABLE direccion_ejecutiva ADD COLUMN estructura TEXT`,
   `ALTER TABLE direccion_ejecutiva ADD COLUMN direccion TEXT`,
+  `ALTER TABLE direccion_ejecutiva ADD COLUMN numero_calle TEXT`,
+  `ALTER TABLE direccion_ejecutiva ADD COLUMN numero_casa TEXT`,
   `ALTER TABLE direccion_ejecutiva ADD COLUMN creado TEXT`,
   `CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)`,
   `CREATE TABLE IF NOT EXISTS comite_vecinal (
