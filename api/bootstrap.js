@@ -365,6 +365,32 @@ async function execSchema() {
   const meta=rowsFrom(await turso([{q:"SELECT version FROM erp_bootstrap_meta WHERE id=1 LIMIT 1",params:[]}]));
   if(String(meta[0]?.version||'')===BOOTSTRAP_VERSION) return;
 
+  // Bases existentes ya funcionales no deben volver a ejecutar todo SCHEMA.
+  // Eso implicaba decenas de round-trips a Turso y podía dejar el arranque
+  // esperando indefinidamente. Solo aplicamos las migraciones pendientes.
+  const base=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name IN ('usuarios','centros','padron')",params:[]}]));
+  if(base.length>=3){
+    const dir=rowsFrom(await turso([{q:'PRAGMA table_info(direccion_ejecutiva)',params:[]}]));
+    if(dir.length){
+      if(!dir.some(x=>x.name==='numero_calle')) await turso([{q:'ALTER TABLE direccion_ejecutiva ADD COLUMN numero_calle TEXT',params:[]}]);
+      if(!dir.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE direccion_ejecutiva ADD COLUMN numero_casa TEXT',params:[]}]);
+    }
+    const asig=rowsFrom(await turso([{q:'PRAGMA table_info(asignaciones)',params:[]}]));
+    if(asig.length){
+      if(!asig.some(x=>x.name==='numero_calle')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN numero_calle TEXT',params:[]}]);
+      if(!asig.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN numero_casa TEXT',params:[]}]);
+      if(!asig.some(x=>x.name==='direccion')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN direccion TEXT',params:[]}]);
+    }
+    const com=rowsFrom(await turso([{q:'PRAGMA table_info(comite_vecinal)',params:[]}]));
+    if(com.length){
+      if(!com.some(x=>x.name==='numero_calle')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN numero_calle TEXT',params:[]}]);
+      if(!com.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN numero_casa TEXT',params:[]}]);
+      if(!com.some(x=>x.name==='direccion')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN direccion TEXT',params:[]}]);
+    }
+    await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:[BOOTSTRAP_VERSION]}]);
+    return;
+  }
+
   const existing=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal' LIMIT 1",params:[]}]));
   if(existing.length) await migrateComiteRoles();
   const dirCols=rowsFrom(await turso([{q:'PRAGMA table_info(direccion_ejecutiva)',params:[]}]));
