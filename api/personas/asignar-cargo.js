@@ -10,7 +10,7 @@ module.exports=async function(req,res){
     const session=verify(getCookie(req,'erp_session')); if(!session) return fail(res,401,'Sesión no válida o expirada');
     if(!['J','A','O'].includes(session.rol)) return fail(res,403,'Rol de sesión no permitido');
     const b=parseBody(req), tipo=st(b.tipo,20).toLowerCase(), cedula=ci(b.cedula), cargo=st(b.cargo,120), centro=st(b.centro_codigo,80);
-    const telefono=tel(b.telefono), direccion=st(b.direccion,500), nombre=st(b.nombre,250), padron=b.padron&&typeof b.padron==='object'?b.padron:null;
+    const telefono=tel(b.telefono), numero_calle=st(b.numero_calle,80), numero_casa=st(b.numero_casa,80), direccion=st(b.direccion,500), nombre=st(b.nombre,250), padron=b.padron&&typeof b.padron==='object'?b.padron:null;
     if(!['direccion','centro'].includes(tipo)||!/^[0-9]{5,9}$/.test(cedula)||!cargo) return fail(res,400,'Datos de asignación inválidos');
     if(tipo==='centro'&&!centro) return fail(res,400,'Centro electoral obligatorio');
     if(telefono&&!/^0[0-9]{10}$/.test(telefono)) return fail(res,400,'Teléfono inválido');
@@ -61,9 +61,9 @@ module.exports=async function(req,res){
       }
       statements.push({q:'DELETE FROM direccion_ejecutiva WHERE cargo=?'+guard,params:[cargo,...guardParams]});
       if(autorizacionId){
-        statements.push({q:'INSERT INTO direccion_ejecutiva(cargo,cedula,nombre,telefono,direccion) SELECT ?,?,?,?,? WHERE EXISTS (SELECT 1 FROM autorizaciones_duplicidad_persona WHERE id=? AND consumida_en=? AND consumida_por=?)',params:[cargo,cedula,nombre||cedula,telefono||null,direccion||null,autorizacionId,now,session.uid]});
+        statements.push({q:'INSERT INTO direccion_ejecutiva(cargo,cedula,nombre,telefono,numero_calle,numero_casa,direccion) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM autorizaciones_duplicidad_persona WHERE id=? AND consumida_en=? AND consumida_por=?)',params:[cargo,cedula,nombre||cedula,telefono||null,numero_calle||null,numero_casa||null,direccion||null,autorizacionId,now,session.uid]});
       }else{
-        statements.push({q:'INSERT INTO direccion_ejecutiva(cargo,cedula,nombre,telefono,direccion) VALUES(?,?,?,?,?)',params:[cargo,cedula,nombre||cedula,telefono||null,direccion||null]});
+        statements.push({q:'INSERT INTO direccion_ejecutiva(cargo,cedula,nombre,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)',params:[cargo,cedula,nombre||cedula,telefono||null,numero_calle||null,numero_casa||null,direccion||null]});
       }
       if(autorizacionId){
         statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) SELECT ?,?,? WHERE EXISTS (SELECT 1 FROM autorizaciones_duplicidad_persona WHERE id=? AND consumida_en=? AND consumida_por=?)',params:['user','Dirección Ejecutiva asignada: C.I. '+cedula+' → '+cargo+' • autorización #'+autorizacionId+' consumida',session.uid,autorizacionId,now,session.uid]});
