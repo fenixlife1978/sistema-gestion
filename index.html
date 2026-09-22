@@ -3019,7 +3019,7 @@ function renderControlElectoral() {
       '<td><label style="display:flex;gap:5px;align-items:center"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="SI" ' + (Number(mo.testigos_asistieron||0)===1?'checked':'') + ' ' + (locked?'disabled':'') + '> SI</label>' +
         '<label style="display:flex;gap:5px;align-items:center;margin-top:4px"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="NO" ' + (Number(mo.testigos_asistieron||0)!==1?'checked':'') + ' ' + (locked?'disabled':'') + '> NO</label>' +
       '</td>' +
-      '<td><button class="btn btn-g btn-xs" ' + (locked?'disabled':'') + ' onclick="guardarControlMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Guardar</button> ' +
+      '<td><button id="mesaGuardar_' + esc(x.mesa) + '" class="btn btn-g btn-xs" ' + (locked?'disabled':'') + ' onclick="guardarControlMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Guardar</button> ' +
         '<button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
     '</tr>';
   }).join('');
@@ -3184,6 +3184,13 @@ async function guardarControlMesa(codigo,mesa){
   try{
     const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'control',centro_codigo:codigo,mesa:String(mesa),constituida:constituida?'SI':'NO',hora_constitucion:hc,testigos_asistieron:test?.value||'NO'})});
     const d=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(d.error||'No se pudo guardar el control de mesa');
+    // Bloqueo inmediato en pantalla: la constitución es irreversible desde el
+    // momento en que el backend confirma el guardado, sin esperar a refreshAll().
+    if (chk) chk.disabled = true;
+    if (hora) hora.disabled = true;
+    document.querySelectorAll('input[name="mesaTestigos_'+mesa+'"]').forEach(el => { el.disabled = true; });
+    const btn = $('mesaGuardar_'+mesa);
+    if (btn) btn.disabled = true;
     await refreshAll(); renderControlElectoral();
     toast('Control de Mesa guardado','ok');
   }catch(e){toast('Error guardando control de mesa: '+e.message,'err',8000);}
