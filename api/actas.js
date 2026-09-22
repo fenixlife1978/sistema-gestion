@@ -16,6 +16,7 @@ module.exports=async function(req,res){
 
     const b=parseBody(req);
     const centro=normCentro(st(b.centro_codigo,80));
+    const centroNombre=st(b.centro_nombre,180);
     const mesa=st(b.mesa,30);
     const votos=Number(b.votos_partido);
 
@@ -40,6 +41,13 @@ module.exports=async function(req,res){
         params:[centro]
       }]);
       c=rowsFrom(alt[0] || {})[0];
+    }
+    if(!c && centroNombre){
+      const altNombre=await turso([{
+        q:'SELECT codigo,nombre,mesas FROM centros WHERE TRIM(nombre)=TRIM(?) LIMIT 1',
+        params:[centroNombre]
+      }]);
+      c=rowsFrom(altNombre[0] || {})[0];
     }
     if(!c) return fail(res,404,'Centro electoral no encontrado');
 
