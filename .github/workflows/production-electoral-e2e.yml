@@ -10,7 +10,7 @@ on:
       base_url:
         description: "Production URL"
         required: false
-        default: "https://sistema-gestion-fenixlife.vercel.app"
+        default: "https://sistema-gestion-beta.vercel.app"
         type: string
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-fenixlife.vercel.app' }}
+      BASE_URL: ${{ inputs.base_url || 'https://sistema-gestion-beta.vercel.app' }}
       LOGIN_USER: ${{ secrets.LOAD_TEST_USER }}
       LOGIN_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
       LOGIN_ROLE: ${{ secrets.LOAD_TEST_ROLE }}
