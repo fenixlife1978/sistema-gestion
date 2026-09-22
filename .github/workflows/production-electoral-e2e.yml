@@ -304,15 +304,10 @@ jobs:
               console.log("INFO: solo existe un centro; aislamiento entre centros no pudo ejercitarse");
             }
 
-            // Duplicate protection: search the same cédula again and save the
-            // same mesa. The backend should update the existing verification.
+            // Duplicate protection: una segunda escritura para la misma
+            // cédula y centro debe ser rechazada por el backend (409).
             await page.locator('#ctlSearch').fill(cedula);
             await page.waitForTimeout(300);
-            // La UI actual muestra una verificación ya existente como chip
-            // "VOTÓ • MESA X" y no ofrece un botón de re-guardado. Para la
-            // prueba de duplicados no debemos exigir un botón que la interfaz
-            // deliberadamente no renderiza. Verificamos que la persona siga
-            // apareciendo y que el registro persistido continúe siendo único.
             await page.waitForFunction((ci) => {
               const box = document.querySelector('#ctlResults');
               if (!box) return false;
@@ -323,6 +318,29 @@ jobs:
             const searchResultText = await page.locator('#ctlResults').innerText();
             check(/VOTÓ/i.test(searchResultText), "persona sigue encontrándose tras persistencia");
 
+            const duplicateAttempt = await page.evaluate(async ({ci, mesa}) => {
+              const c = window.controlCentroActual();
+              if (!c?.codigo) return { status: 0, error: 'sin centro' };
+              const r = await fetch('/api/verificaciones', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({cedula: String(ci).replace(/\D/g,''), centro_codigo: c.codigo, mesa: String(mesa)})
+              });
+              let data = {};
+              try { data = await r.json(); } catch (_) {}
+              return { status: r.status, error: data.error || '' };
+            }, {ci: cedula, mesa});
+
+            check(duplicateAttempt.status === 409, "la misma cédula no se duplica");
+            console.log("DUPLICATE_ATTEMPT=" + JSON.stringify(duplicateAttempt));
+
+            await page.evaluate(async () => {
+              if (typeof window.refreshAll === 'function') await window.refreshAll();
+              if (typeof window.renderControlElectoral === 'function') window.renderControlElectoral();
+            });
+            await page.waitForTimeout(300);
+
             const duplicateCheck = await page.evaluate((ci) => {
               const c = window.controlCentroActual();
               const rows = (window.CACHE?.verificacion || []).filter(v =>
@@ -332,7 +350,7 @@ jobs:
               return { count: rows.length, ids: rows.map(x => x.id), mesa: rows[0]?.mesa ? String(rows[0].mesa) : '' };
             }, cedula);
 
-            check(duplicateCheck.count === 1, "la misma cédula no se duplica");
+            check(duplicateCheck.count === 1, "la misma cédula conserva un solo registro");
             check(duplicateCheck.mesa === mesa, "la verificación persistida conserva la mesa");
             console.log("DUPLICATE_CHECK=" + JSON.stringify(duplicateCheck));
 
