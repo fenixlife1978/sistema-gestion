@@ -199,26 +199,38 @@ jobs:
             await page.locator('#ctlSearch').fill(cedula);
             await page.waitForFunction(() => {
               const box = document.querySelector('#ctlResults');
-              return box && /Verificar asistencia|Corregir mesa/i.test(box.innerText);
+              return box && /Verificar asistencia|VOTÓ|Corregir mesa/i.test(box.innerText);
             }, null, { timeout: 10000 });
 
             const result = page.locator('#ctlResults').getByRole('button', { name: /Verificar asistencia|Corregir mesa/i }).first();
-            check(await result.count() === 1, "persona encontrada en el centro");
-            await result.click();
 
-            await page.locator('#ctlMesaInput').fill(mesa);
-            await page.getByRole('button', { name: /Marcar VOTÓ|Actualizar verificación/i }).click();
+            if (!before.exists) {
+              check(await result.count() === 1, "persona encontrada en el centro");
+              await result.click();
 
-            await page.waitForFunction(() => {
-              const modal = document.querySelector('#mOv');
-              return !modal || getComputedStyle(modal).display === 'none';
-            }, null, { timeout: 20000 });
+              await page.locator('#ctlMesaInput').fill(mesa);
+              await page.getByRole('button', { name: /Marcar VOTÓ|Actualizar verificación/i }).click();
 
-            await page.waitForFunction((args) => {
-              const c = window.controlCentroActual();
-              const v = window.controlVerif(args.ci, c?.codigo);
-              return !!v && String(v.mesa) === String(args.mesa);
-            }, { ci: cedula, mesa }, { timeout: 20000 });
+              await page.waitForFunction(() => {
+                const modal = document.querySelector('#mOv');
+                return !modal || getComputedStyle(modal).display === 'none';
+              }, null, { timeout: 20000 });
+
+              await page.waitForFunction((args) => {
+                const c = window.controlCentroActual();
+                const v = window.controlVerif(args.ci, c?.codigo);
+                return !!v && String(v.mesa) === String(args.mesa);
+              }, { ci: cedula, mesa }, { timeout: 20000 });
+            } else {
+              const resultText = await page.locator('#ctlResults').innerText();
+              check(/VOTÓ/i.test(resultText), "persona encontrada en el centro con verificación persistida");
+              const existingMesa = await page.evaluate((ci) => {
+                const c = window.controlCentroActual();
+                const v = window.controlVerif(ci, c?.codigo);
+                return v ? String(v.mesa) : '';
+              }, cedula);
+              check(existingMesa === mesa, "verificación existente conserva la mesa");
+            }
 
             const afterSave = await page.evaluate((ci) => {
               const c = window.controlCentroActual();
