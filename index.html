@@ -2898,9 +2898,10 @@ function datosUltimaVerificacion(cedula) {
     }
   }
 
-  const cargo = candidatos.length
-    ? candidatos[Math.floor(Math.random() * candidatos.length)]
-    : 'Adicional';
+  // La función debe ser determinista: nunca seleccionar un cargo al azar.
+  // Prioridad: 1×10 (Comprometido) > cargo de centro > Dirección Ejecutiva >
+  // Comité Vecinal > Movilizador > Adicional.
+  const cargo = candidatos.length ? candidatos[0] : 'Adicional';
 
   const p = personas.find(x =>
     x && ((x.p_nombre || x.p_apellido || x.s_apellido || x.s_nombre) || x.letra)
