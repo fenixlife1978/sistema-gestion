@@ -343,7 +343,7 @@ jobs:
 
             const duplicateCheck = await page.evaluate((ci) => {
               const c = window.controlCentroActual();
-              const rows = (window.CACHE?.verificacion || []).filter(v =>
+              const rows = (typeof CACHE !== 'undefined' ? (CACHE.verificacion || []) : []).filter(v =>
                 String(v.cedula).replace(/\D/g,'') === String(ci).replace(/\D/g,'') &&
                 String(v.centro_codigo) === String(c?.codigo)
               );
