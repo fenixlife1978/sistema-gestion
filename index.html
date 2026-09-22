@@ -143,6 +143,10 @@ label.fl{color:var(--navy);font-weight:700;font-size:12.5px;display:block;margin
 @media print{#toolbar,#tabs,.hdr-r,#toasts,#mOv{display:none!important}body{background:#fff}#main{padding:0}.panel{box-shadow:none;border:1px solid #ddd;break-inside:avoid}.panel-h{background:var(--navy)!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tbl{width:100%;border-collapse:collapse}.tbl th,.tbl td{border:1px solid #ccc;padding:6px 8px;font-size:11px}.tbl th{background:var(--navy)!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.kcard{border:1px solid #ddd;break-inside:avoid}.empty{display:none!important}.btn{display:none!important}.chip{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @media print{.print-only{display:block!important}.no-print{display:none!important}}
 .print-only{display:none}
+.com-suggestion{width:100%;display:flex;align-items:center;gap:8px;padding:9px 11px;border:0;border-bottom:1px solid var(--line2);background:#fff;color:var(--txt);text-align:left;cursor:pointer;font:13px Roboto}
+.com-suggestion:last-child{border-bottom:0}
+.com-suggestion:hover{background:#eef4fa;color:var(--navy)}
+.com-suggestion span{font-weight:500}
 .pdf-header{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--navy);padding-bottom:12px;margin-bottom:16px}
 .pdf-header h1{font-size:18px;color:var(--navy);flex:1}
 .pdf-header .meta{font-size:10px;color:#666;text-align:right}
@@ -2712,13 +2716,68 @@ function getComunidadesCatalogo() {
   return comunidades.slice();
 }
 
+function normalizarBusquedaComunidad(v) {
+  return String(v || '')
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function comunidadCoincide(comunidad, consulta) {
+  const base = normalizarBusquedaComunidad(comunidad);
+  const q = normalizarBusquedaComunidad(consulta);
+  if (!q) return true;
+  // Cada palabra escrita debe existir en el nombre, sin importar mayúsculas,
+  // minúsculas, acentos ni el orden en que fueron introducidas.
+  return q.split(/\\s+/).filter(Boolean).every(token => base.includes(token));
+}
+
+function seleccionarComunidadBusqueda(comunidad) {
+  COMITE_FILTER.comunidad = comunidad;
+  const input = $('comSearch');
+  if (input) {
+    input.value = comunidad;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+  filterComiteCards();
+}
+
+function renderComunidadSugerencias() {
+  const box = $('comSearchSuggestions');
+  if (!box) return;
+  const consulta = COMITE_FILTER.comunidad || '';
+  const comunidades = getComunidadesCatalogo();
+  const q = normalizarBusquedaComunidad(consulta);
+  const matches = q
+    ? comunidades.filter(c => comunidadCoincide(c, consulta)).slice(0, 10)
+    : [];
+
+  if (!q || !matches.length) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+    return;
+  }
+
+  box.innerHTML = matches.map(c =>
+    '<button type="button" class="com-suggestion" onclick="seleccionarComunidadBusqueda(\\'' +
+      esc(c).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'") +
+    '\\')">' +
+      ic('search', 12) + '<span>' + esc(c) + '</span>' +
+    '</button>'
+  ).join('');
+  box.style.display = 'block';
+}
+
 function filterComiteCards() {
   const elCom=$('comSearch'); if(elCom) COMITE_FILTER.comunidad=elCom.value;
   const el=$('comTxt'); if(el) COMITE_FILTER.txt=el.value;
+  renderComunidadSugerencias();
   const comList=CACHE.comite||[], comunidades=getComunidadesCatalogo();
-  const fCom=(COMITE_FILTER.comunidad||'').trim().toLowerCase(), fTxt=(COMITE_FILTER.txt||'').trim().toLowerCase();
+  const fCom=COMITE_FILTER.comunidad||'', fTxt=(COMITE_FILTER.txt||'').trim().toLowerCase();
   const cargos=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
-  const visual=fCom?comunidades.filter(c=>c.toLowerCase().includes(fCom)):comunidades;
+  const visual=fCom?comunidades.filter(c=>comunidadCoincide(c,fCom)):comunidades;
   const cardsHtml=visual.map(comNom=>{
     const rows=cargos.map(cargo=>{
       const asig=comList.find(x=>String(x.comunidad||'').trim().toUpperCase()===comNom && String(x.cargo||'').trim().toUpperCase()===cargo);
@@ -3508,9 +3567,10 @@ function renderComite() {
       kc('Cobertura Territorial', pctCobertura + '%', 'de comunidades cubiertas', pctCobertura, true) +
     '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--bg2);padding:10px;border-radius:8px;border:1px solid var(--line2)">' +
-      '<div style="flex:1;min-width:180px">' +
+      '<div style="flex:1;min-width:180px;position:relative">' +
         '<label class="fl">Buscar comunidad</label>' +
-        '<input class="inp" id="comSearch" placeholder="Escriba el nombre de la comunidad..." value="' + esc(COMITE_FILTER.comunidad || '') + '" oninput="filterComiteCards()">' +
+        '<input class="inp" id="comSearch" autocomplete="off" placeholder="Escriba nombre o palabras clave de la comunidad..." value="' + esc(COMITE_FILTER.comunidad || '') + '" oninput="filterComiteCards()" onfocus="renderComunidadSugerencias()">' +
+        '<div id="comSearchSuggestions" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:80;margin-top:4px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 24px rgba(15,40,70,.18);max-height:280px;overflow:auto"></div>' +
       '</div>' +
       '<div style="flex:1;min-width:180px">' +
         '<label class="fl">Buscar responsable / cédula</label>' +
