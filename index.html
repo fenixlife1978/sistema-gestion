@@ -2761,9 +2761,7 @@ function renderComunidadSugerencias() {
   }
 
   box.innerHTML = matches.map(c =>
-    '<button type="button" class="com-suggestion" onclick="seleccionarComunidadBusqueda(\\'' +
-      esc(c).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'") +
-    '\\')">' +
+    '<button type="button" class="com-suggestion" data-comunidad="' + esc(c) + '" onclick="seleccionarComunidadBusqueda(this.dataset.comunidad)">' +
       ic('search', 12) + '<span>' + esc(c) + '</span>' +
     '</button>'
   ).join('');
