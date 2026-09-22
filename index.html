@@ -3025,22 +3025,33 @@ function renderControlElectoral() {
   }).join('');
 
 
-  const ultimas = verificados.slice().sort((a,b) => String(b.verificado_en||'').localeCompare(String(a.verificado_en||''))).slice(0, 30).map(x => {
-    const datos = datosUltimaVerificacion(x.cedula);
-    const p = datos.p || {};
-    const nombre = ((p.p_apellido || '') + ' ' + (p.s_apellido || '') + ', ' + (p.p_nombre || '') + ' ' + (p.s_nombre || '')).replace(/^\s*,\s*|,\s*$/g,'').trim() || String(x.nombre || '').trim() || 'Persona no encontrada';
-    const ci = normC(x.cedula);
-    const fecha = horaVE(x.verificado_en);
-    const operador = x.operador_nom || ((CACHE.users || []).find(u => Number(u.id) === Number(x.verificado_por)) || {}).nombre || (USER ? USER.nombre : 'Operador actual');
-    return '<tr>' +
-      '<td class="mono"><b>' + esc(fecha) + '</b></td>' +
-      '<td>' + esc(nombre) + '</td>' +
-      '<td class="mono">' + esc(fC(p.letra || x.letra || 'V', ci || '')) + '</td>' +
-      '<td><b>' + esc(x.mesa || '') + '</b></td>' +
-      '<td>' + esc(datos.cargo) + '</td>' +
-      '<td><b>' + esc(operador) + '</b></td>' +
-    '</tr>';
-  }).join('');
+  const ultimas = verificados
+    .map(persona => {
+      const cedula = normC(persona?.l?.cedula || persona?.cedula || '');
+      const v = controlVerif(cedula, centro.codigo);
+      return { persona, v };
+    })
+    .filter(x => x.v)
+    .sort((a,b) => String(b.v.verificado_en || '').localeCompare(String(a.v.verificado_en || '')))
+    .slice(0, 30)
+    .map(({persona, v}) => {
+      const cedula = normC(v.cedula || persona?.l?.cedula || persona?.cedula || '');
+      const datos = datosUltimaVerificacion(cedula);
+      const p = datos.p || padBy(cedula) || {};
+      const nombre = ((p.p_apellido || '') + ' ' + (p.s_apellido || '') + ', ' + (p.p_nombre || '') + ' ' + (p.s_nombre || ''))
+        .replace(/^\s*,\s*|,\s*$/g,'').trim() || String(persona?.nombre || '').trim() || 'Persona no encontrada';
+      const ci = cedula;
+      const fecha = horaVE(v.verificado_en || v.fecha_verificacion || v.creado);
+      const operador = v.operador_nom || ((CACHE.users || []).find(u => Number(u.id) === Number(v.verificado_por)) || {}).nombre || (USER ? USER.nombre : 'Operador actual');
+      return '<tr>' +
+        '<td class="mono"><b>' + esc(fecha) + '</b></td>' +
+        '<td>' + esc(nombre) + '</td>' +
+        '<td class="mono">' + esc(fC(p.letra || 'V', ci || '')) + '</td>' +
+        '<td><b>' + esc(String(v.mesa || '')) + '</b></td>' +
+        '<td>' + esc(datos.cargo || 'Adicional') + '</td>' +
+        '<td><b>' + esc(operador) + '</b></td>' +
+      '</tr>';
+    }).join('');
 
   $('sec-control').innerHTML =
     panel(
