@@ -32,8 +32,10 @@ module.exports=async function(req,res){
       {q:'SELECT estado FROM mesa_operativa WHERE TRIM(centro_codigo)=? AND mesa=? LIMIT 1',params:[centro,mesa]},
       {q:'SELECT id,votos_partido FROM actas_mesa WHERE TRIM(centro_codigo)=? AND mesa=? LIMIT 1',params:[centro,mesa]}
     ]);
-    console.log('[ACTAS_DEBUG] consultas_pre', { r0: rowsFrom(pre[0] || {}), r1: rowsFrom(pre[1] || {}), r2: rowsFrom(pre[2] || {}) });
-    let c=rowsFrom(pre[0] || {})[0];
+    const preStatements = Array.isArray(pre) ? pre : (pre?.statements || []);
+    const preRows = i => rowsFrom(preStatements[i] || {});
+    console.log('[ACTAS_DEBUG] consultas_pre', { r0: preRows(0), r1: preRows(1), r2: preRows(2) });
+    let c=preRows(0)[0];
     // Los códigos CNE pueden conservar ceros a la izquierda en la tabla. Si la
     // selección del frontend los transporta como número/string equivalente,
     // el cotejo textual anterior no encuentra el centro aunque sea el mismo.
@@ -43,7 +45,7 @@ module.exports=async function(req,res){
         q:'SELECT codigo,nombre,mesas FROM centros WHERE CAST(TRIM(codigo) AS INTEGER)=CAST(? AS INTEGER) LIMIT 1',
         params:[centro]
       }]);
-      c=rowsFrom(alt[0] || {})[0];
+      c=rowsFrom(alt)[0];
       console.log('[ACTAS_DEBUG] resultado_numerico', { c });
     }
     if(!c && centroNombre){
@@ -52,7 +54,7 @@ module.exports=async function(req,res){
         q:'SELECT codigo,nombre,mesas FROM centros WHERE TRIM(nombre)=TRIM(?) LIMIT 1',
         params:[centroNombre]
       }]);
-      c=rowsFrom(altNombre[0] || {})[0];
+      c=rowsFrom(altNombre)[0];
       console.log('[ACTAS_DEBUG] resultado_nombre', { c });
     }
     if(!c){
@@ -63,12 +65,12 @@ module.exports=async function(req,res){
     const centroReal=String(c.codigo).trim();
     const maxMesas=Number(c.mesas||0);
     const nMesa=Number(mesa);
-    const mesaEstado=rowsFrom(pre[1] || {})[0];
+    const mesaEstado=preRows(1)[0];
     if(mesaEstado?.estado==='CERRADA') return fail(res,409,'La mesa está cerrada; no se pueden modificar sus resultados');
     if(maxMesas>0&&(nMesa<1||nMesa>maxMesas))
       return fail(res,409,'La mesa indicada no pertenece al centro seleccionado');
 
-    const existente=rowsFrom(pre[2] || {});
+    const existente=preRows(2);
 
     const now=new Date().toISOString();
     if(existente.length){
@@ -94,7 +96,8 @@ module.exports=async function(req,res){
       {q:'SELECT id FROM actas_mesa WHERE TRIM(centro_codigo)=? AND mesa=? LIMIT 1',params:[centroReal,mesa]},
       {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['acta','Acta CNE registrada: votos del partido • Centro '+centroReal+' • Mesa '+mesa+' • '+votos,session.uid]}
     ]);
-    const inserted=rowsFrom(post[0] || {});
+    const postStatements = Array.isArray(post) ? post : (post?.statements || []);
+    const inserted=rowsFrom(postStatements[0] || {});
 
     return res.status(201).json({ok:true,accion:'registrada',id:inserted[0]?.id||null,centro_codigo:centroReal,mesa,votos_partido:votos});
   }catch(e){
