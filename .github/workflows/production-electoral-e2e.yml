@@ -153,7 +153,7 @@ jobs:
                 const chk = document.querySelector('#mesaConstituida_' + m);
                 const hora = document.querySelector('#mesaHora_' + m);
                 const tr = chk?.closest('tr');
-                const btn = tr?.querySelector('button[onclick*="guardarControlMesa"]');
+                const btn = document.querySelector('#mesaGuardar_' + m);
                 return { checked: !!chk?.checked, hora: hora?.value || '', disabled: !!chk?.disabled && !!hora?.disabled && !!btn?.disabled };
               }, mesa);
               check(savedLock.checked, "mesa queda marcada como constituida");
@@ -164,7 +164,7 @@ jobs:
                 const chk = document.querySelector('#mesaConstituida_' + m);
                 const hora = document.querySelector('#mesaHora_' + m);
                 const tr = chk?.closest('tr');
-                const btn = tr?.querySelector('button[onclick*="guardarControlMesa"]');
+                const btn = document.querySelector('#mesaGuardar_' + m);
                 return { hora: hora?.value || '', disabled: !!chk?.disabled && !!hora?.disabled && !!btn?.disabled };
               }, mesa);
               check(lockedExisting.disabled, "mesa ya constituida permanece bloqueada");
