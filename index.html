@@ -3839,7 +3839,7 @@ async function saveComiteManualFull() {
 
   try {
     const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
-    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion,problematica,centro_codigo:cvCod})});
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion:dir,problematica,centro_codigo:cvCod})});
     const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo registrar el comité');
     if(rd.id) await guardarProblemasComite(rd.id, problemas);
     await refreshAll();
