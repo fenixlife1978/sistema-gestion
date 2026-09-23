@@ -1467,7 +1467,7 @@ function openNewRecl() {
   window._nrSel = null;
   win(ic('users', 18) + ' Nuevo movilizador',
     '<label class="fl">Paso 1 • Ubicar en el padrón CNE (Turso)</label><div style="display:flex;gap:8px"><input class="inp" id="nrQ" placeholder="Cédula o nombre" onkeydown="if(event.key===\'Enter\')nrSearch()"><button class="btn btn-navy" onclick="nrSearch()">Buscar</button></div><div id="nrRes" style="margin-top:10px;display:grid;gap:7px"></div>' +
-    '<div id="nrForm" style="display:none;margin-top:14px;border-top:1px solid var(--line2);padding-top:14px"><label class="fl">Paso 2 • Datos del responsable</label><div id="nrCard" style="margin-bottom:10px"></div><div class="grid g2" style="gap:12px"><div><label class="fl">Teléfono</label><input class="inp mono" id="nrTel" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)"></div><div><label class="fl">Estructura</label><input class="inp" id="nrEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div></div><div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="nrDir" placeholder="Urbanizacin, calle, casa..."></div></div>',
+    '<div id="nrForm" style="display:none;margin-top:14px;border-top:1px solid var(--line2);padding-top:14px"><label class="fl">Paso 2 • Datos del responsable</label><div id="nrCard" style="margin-bottom:10px"></div><div class="grid g3" style="gap:12px"><div><label class="fl">Teléfono</label><input class="inp mono" id="nrTel" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)"></div><div><label class="fl">Número de calle</label><input class="inp mono" id="nrNroCalle" placeholder="Ej: 12"></div><div><label class="fl">Número de casa</label><input class="inp mono" id="nrNroCasa" placeholder="Ej: 24"></div></div><div class="grid g2" style="gap:12px;margin-top:10px"><div><label class="fl">Estructura</label><input class="inp" id="nrEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div><div><label class="fl">Dirección</label><input class="inp" id="nrDir" placeholder="Urbanización, calle, casa..."></div></div></div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" id="btnNrSave" disabled onclick="nrSave()">Crear</button>', 620);
 }
 function nrSearch() {
@@ -1490,10 +1490,12 @@ async function nrSave() {
   const dupGlobal = await verificarDuplicidadPersona(p.cedula, 'movilizador');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula, dupGlobal), 'err', 8000);
   const tel = $('nrTel').value.trim();
+  const nroCalle = ($('nrNroCalle')?.value || '').trim();
+  const nroCasa = ($('nrNroCasa')?.value || '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
-    const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,telefono:normTel(tel),estructura:$('nrEst').value,direccion:$('nrDir').value})});
+    const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,telefono:normTel(tel),estructura:$('nrEst').value,numero_calle:nroCalle,numero_casa:nroCasa,direccion:$('nrDir').value})});
     const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
     await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
     const nuevo = CACHE.recl.find(r => r.cedula === p.cedula);
@@ -1507,7 +1509,7 @@ function openNrManual() {
     '<div class="grid g3" style="gap:10px"><div><label class="fl">LETRA_CEDULA</label><select class="inp" id="nrmLet"><option>V</option><option>E</option></select></div><div><label class="fl">CDULA *</label><input class="inp mono" id="nrmCed" value="' + c + '" placeholder="12345678"></div><div><label class="fl">SEXO</label><select class="inp" id="nrmSex"><option>F</option><option>M</option></select></div>' +
     '<div><label class="fl">PRIMER APELLIDO *</label><input class="inp" id="nrmPa"></div><div><label class="fl">SEGUNDO APELLIDO</label><input class="inp" id="nrmSa"></div><div><label class="fl">FECHA NACIMIENTO</label><input class="inp" type="date" id="nrmFn"></div>' +
     '<div><label class="fl">PRIMER NOMBRE *</label><input class="inp" id="nrmPn"></div><div><label class="fl">SEGUNDO NOMBRE</label><input class="inp" id="nrmSn"></div><div><label class="fl">CENTRO VOTACIN</label><select class="inp" id="nrmCv">' + CACHE.centros.map(x => '<option value="' + x.codigo + '">' + esc(x.nombre) + '</option>').join('') + '</select></div>' +
-    '</div><div class="grid g2" style="gap:10px;margin-top:10px"><div><label class="fl">TELÉFONO</label><input class="inp mono" id="nrmTel" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)"></div><div><label class="fl">ESTRUCTURA</label><input class="inp" id="nrmEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div></div><div style="margin-top:10px"><label class="fl">DIRECCIN</label><input class="inp" id="nrmDir" placeholder="Urbanizacin, calle, casa..."></div>',
+    '</div><div class="grid g2" style="gap:10px;margin-top:10px"><div><label class="fl">TELÉFONO</label><input class="inp mono" id="nrmTel" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)"></div><div><label class="fl">ESTRUCTURA</label><input class="inp" id="nrmEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div></div><div class="grid g3" style="gap:10px;margin-top:10px"><div><label class="fl">NÚMERO DE CALLE</label><input class="inp mono" id="nrmNroCalle" placeholder="Ej: 12"></div><div><label class="fl">NÚMERO DE CASA</label><input class="inp mono" id="nrmNroCasa" placeholder="Ej: 24"></div><div><label class="fl">DIRECCIÓN</label><input class="inp" id="nrmDir" placeholder="Urbanización, calle, casa..."></div></div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveNrManual()">Crear movilizador</button>', 660);
 }
 async function saveNrManual() {
@@ -1525,6 +1527,7 @@ async function saveNrManual() {
   const fn = $('nrmFn').value; const edad = edadDe(fn);
   const letra = $('nrmLet').value, sexo = $('nrmSex').value;
   const tel = $('nrmTel').value.trim(), est = $('nrmEst').value, dir = $('nrmDir').value.trim();
+  const nroCalle = ($('nrmNroCalle')?.value || '').trim(), nroCasa = ($('nrmNroCasa')?.value || '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   try {
