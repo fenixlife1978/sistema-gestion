@@ -14,6 +14,7 @@ const handlers = {
   "bootstrap": () => require("./bootstrap"),
   "duplicidades/autorizar": () => require("./duplicidades/autorizar"),
   "personas/registrar": () => require("./personas/registrar"),
+  "personas/gestion": () => require("./personas/gestion"),
   "personas/asignar-cargo": () => require("./personas/asignar-cargo"),
   "comite/gestionar": () => require("./comite/gestionar"),
   "mesas/miembros": () => require("./mesas/miembros"),
