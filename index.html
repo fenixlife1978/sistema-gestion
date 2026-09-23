@@ -1076,13 +1076,16 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
 
 async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
   window.__dupAuthEncontrados = encontrados || [];
-  const nombres = (encontrados || []).map(x => x.tipo + ': ' + x.detalle).join('<br>');
+  window.__dupAuthCedula = cedula;
+  window.__dupAuthDestino = destino;
   return await new Promise(resolve => {
     window.__dupAuthResolve = resolve;
-    const body =
+    modal('<div class="win-h">' + ic('lock',18) + ' Autorización requerida' +
+      '<button class="x" onclick="cancelarAutorizacionDuplicidad()">?</button></div>' +
+      '<div class="win-b">' +
       '<div class="alert warn"><div class="a-ic">!</div><div><b>Esta persona ya figura en otra función del sistema.</b><br>' +
       esc(fC('V', cedula)) + ' requiere autorización para registrarse además como <b>' + esc(destino) + '</b>.<br><br>' +
-      '<div style="font-size:12px">' + nombres + '</div>' +
+      '<div style="font-size:12px">' + (encontrados || []).map(x => x.tipo + ': ' + x.detalle).join('<br>') + '</div>' +
       '<div style="margin-top:8px;color:var(--mut)">La excepción queda auditada y no elimina ni modifica el registro original.</div></div></div>' +
       '<div class="panel" style="margin-top:12px"><div class="panel-h">' + ic('lock',15) + ' Datos de autorización</div><div class="panel-b">' +
       '<label class="fl">Usuario autorizante <span style="font-weight:400;color:var(--mut)">(Jefe o Administrador)</span></label>' +
@@ -1091,43 +1094,42 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
       '<input class="inp" id="dupAuthPass" type="password" autocomplete="current-password" placeholder="Clave">' +
       '<label class="fl" style="margin-top:10px">Motivo</label>' +
       '<textarea class="inp" id="dupAuthMotivo" rows="2" placeholder="Indique el motivo de la excepción"></textarea>' +
-      '</div></div>';
-    const footer =
+      '</div></div></div>' +
+      '<div class="win-f">' +
       '<button class="btn btn-w" onclick="cancelarAutorizacionDuplicidad()">Cancelar</button>' +
-      '<button class="btn btn-w" onclick="cancelarAutorizacionDuplicidad()">Cancelar</button>' +
-      '<button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad(\'\'' + esc(cedula) + '\',\'\'' + esc(destino) + '\')">' +
-      ic('check',13) + ' Autorizar y continuar</button>';
-      ic('check',13) + ' Autorizar y continuar</button>';
-    modal('<div class="win-h">' + ic('lock',18) + ' Autorización requerida' +
-      '<button class="x" onclick="cancelarAutorizacionDuplicidad()">?</button></div>' +
-      '<div class="win-b">' + body + '</div><div class="win-f">' + footer + '</div>', 640);
+      '<button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad()">' + ic('check',13) + ' Autorizar y continuar</button>' +
+      '</div>', 640);
     setTimeout(() => { const el = $('dupAuthUser'); if (el) el.focus(); }, 50);
   });
 }
 
 function cancelarAutorizacionDuplicidad() {
-  window.__dupAuthEncontrados = null;
   const resolve = window.__dupAuthResolve;
   window.__dupAuthResolve = null;
+  window.__dupAuthEncontrados = null;
+  window.__dupAuthCedula = null;
+  window.__dupAuthDestino = null;
   $('mOv').classList.remove('on');
   if (resolve) resolve(false);
 }
 
-async function confirmarAutorizacionDuplicidad(cedula, destino) {
+async function confirmarAutorizacionDuplicidad() {
+  const cedula = window.__dupAuthCedula;
+  const destino = window.__dupAuthDestino;
   const encontrados = window.__dupAuthEncontrados || [];
-  const u=String($('dupAuthUser')?.value||'').trim();
-  const p=$('dupAuthPass')?.value||'';
-  const motivo=String($('dupAuthMotivo')?.value||'').trim();
-  if(!u||!p) return toast('Ingrese usuario y clave de autorización','err');
-  if(!motivo) return toast('Indique el motivo de la excepción','err');
+  const u = String($('dupAuthUser')?.value || '').trim();
+  const p = $('dupAuthPass')?.value || '';
+  const motivo = String($('dupAuthMotivo')?.value || '').trim();
+  if (!u || !p) return toast('Ingrese usuario y clave de autorización','err');
+  if (!motivo) return toast('Indique el motivo de la excepción','err');
   try {
-    const r=await fetch('/api/duplicidades/autorizar',{
+    const r = await fetch('/api/duplicidades/autorizar', {
       method:'POST',
       credentials:'include',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         cedula:normC(cedula),
-        destino:String(destino||'').trim().toUpperCase(),
+        destino:String(destino || '').trim().toUpperCase(),
         autorizante_usuario:u,
         autorizante_clave:p,
         motivo,
@@ -1135,18 +1137,19 @@ async function confirmarAutorizacionDuplicidad(cedula, destino) {
         detalles:encontrados.map(x=>x.detalle).filter(Boolean)
       })
     });
-    let data={}; try{data=await r.json()}catch(e){}
-    if(!r.ok) return toast(data.error||'No se pudo validar la autorización','err',7000);
-    const resolve=window.__dupAuthResolve;
-    window.__dupAuthResolve=null;
-    window.__dupAuthEncontrados=null;
+    let data={}; try { data=await r.json(); } catch(e) {}
+    if (!r.ok) return toast(data.error || 'No se pudo validar la autorización','err',7000);
+    const resolve = window.__dupAuthResolve;
+    window.__dupAuthResolve = null;
+    window.__dupAuthEncontrados = null;
+    window.__dupAuthCedula = null;
+    window.__dupAuthDestino = null;
     $('mOv').classList.remove('on');
-    if(resolve) resolve(true);
+    if (resolve) resolve(true);
   } catch(e) {
-    toast('No se pudo registrar la autorización: '+e.message,'err');
+    toast('No se pudo registrar la autorización: ' + e.message,'err');
   }
 }
-
 async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   const tel = String(telefono || '').replace(/\D/g, '');
   if (!tel) return null;
