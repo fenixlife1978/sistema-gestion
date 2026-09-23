@@ -1112,6 +1112,32 @@ async function confirmarAutorizacionDuplicidad(cedula, destino) {
   const encontrados = window.__dupAuthEncontrados || [];
   const u=String($('dupAuthUser')?.value||'').trim(), p=$('dupAuthPass')?.value||'';
   const motivo=String($('dupAuthMotivo')?.value||'').trim();
+  if(!u||!p) return toast('Ingrese usuario y clave de autorización','err');
+  if(!motivo) return toast('Indique el motivo de la excepción','err');
+  try {
+    const r=await fetch('/api/duplicidades/autorizar',{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        cedula:normC(cedula),
+        destino:String(destino||'').trim().toUpperCase(),
+        autorizante_usuario:u,
+        autorizante_clave:p,
+        motivo,
+        origenes:encontrados.map(x=>x.tipo).filter(Boolean),
+        detalles:encontrados.map(x=>x.detalle).filter(Boolean)
+      })
+    });
+    let data={}; try{data=await r.json()}catch(e){}
+    if(!r.ok) return toast(data.error||'No se pudo validar la autorización','err',7000);
+    const resolve=window.__authResolve; window.__authResolve=null; closeModal();
+    if(resolve) resolve(true);
+    window.__dupAuthEncontrados=null;
+  } catch(e) {
+    toast('No se pudo registrar la autorización: '+e.message,'err');
+  }
+}
 async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   const tel = String(telefono || '').replace(/\D/g, '');
   if (!tel) return null;
