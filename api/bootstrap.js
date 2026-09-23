@@ -90,6 +90,8 @@ const SCHEMA = [
   `ALTER TABLE asignaciones ADD COLUMN numero_casa TEXT`,
   `ALTER TABLE asignaciones ADD COLUMN direccion TEXT`,
   `ALTER TABLE reclutadores ADD COLUMN direccion TEXT`,
+  `ALTER TABLE reclutadores ADD COLUMN numero_calle TEXT`,
+  `ALTER TABLE reclutadores ADD COLUMN numero_casa TEXT`,
   `ALTER TABLE centro_cargos ADD COLUMN telefono TEXT`,
   `ALTER TABLE centro_cargos ADD COLUMN direccion TEXT`,
   `CREATE TABLE IF NOT EXISTS direccion_ejecutiva (
