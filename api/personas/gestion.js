@@ -37,7 +37,7 @@ module.exports=async function(req,res){
   const b=parseBody(req), action=s(b.action);
   try{
     if(action==='crear_reclutador'){
-      const ced=s(b.cedula), tel=s(b.telefono), estructura=s(b.estructura), direccion=s(b.direccion);
+      const ced=s(b.cedula), tel=s(b.telefono), estructura=s(b.estructura), numero_calle=s(b.numero_calle), numero_casa=s(b.numero_casa), direccion=s(b.direccion);
       if(!CED.test(ced)) return res.status(400).json({error:'Cédula inválida'});
       if(tel && !TEL.test(tel.replace(/\D/g,''))) return res.status(400).json({error:'Teléfono inválido'});
       const p=rowsFrom(await exec([{q:'SELECT * FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
@@ -46,7 +46,7 @@ module.exports=async function(req,res){
       if(dup) return res.status(409).json({error:'La persona ya es movilizador'});
       const cross=rowsFrom(await exec([{q:'SELECT 1 FROM asignaciones WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
       if(cross) return res.status(409).json({error:'La persona ya está asignada como comprometido'});
-      const r=await exec([{q:'INSERT INTO reclutadores(cedula,telefono,estructura,direccion) VALUES(?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,direccion||null]}]);
+      const r=await exec([{q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,numero_calle||null,numero_casa||null,direccion||null]}]);
       const row=rowsFrom(r)[0]||{};
       await log(a,'Nuevo movilizador creado: '+ced);
       return res.json({ok:true,id:row.id||null});
@@ -54,7 +54,7 @@ module.exports=async function(req,res){
 
     if(action==='crear_reclutador_manual'){
       const ced=s(b.cedula), letra=s(b.letra)||'V', pa=s(b.p_apellido), sa=s(b.s_apellido), pn=s(b.p_nombre), sn=s(b.s_nombre);
-      const sexo=s(b.sexo), fecha=s(b.fecha_nac), tel=s(b.telefono), estructura=s(b.estructura), direccion=s(b.direccion);
+      const sexo=s(b.sexo), fecha=s(b.fecha_nac), tel=s(b.telefono), estructura=s(b.estructura), numero_calle=s(b.numero_calle), numero_casa=s(b.numero_casa), direccion=s(b.direccion);
       const cv= b.centro || {};
       if(!CED.test(ced)||!pa||!pn) return res.status(400).json({error:'Datos personales incompletos'});
       if(!['V','E'].includes(letra)||!['M','F'].includes(sexo)) return res.status(400).json({error:'Datos de identidad inválidos'});
@@ -67,7 +67,7 @@ module.exports=async function(req,res){
       const sql=[
         {q:'INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
          params:[ced,letra,pa,sa,pn,sn,sexo,fecha,edad(fecha),centro.cod_estado,centro.estado,centro.cod_municipio,centro.municipio,centro.cod_parroquia,centro.parroquia,centro.codigo,centro.nombre]},
-        {q:'INSERT INTO reclutadores(cedula,telefono,estructura,direccion) VALUES(?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,direccion||null]}
+        {q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,numero_calle||null,numero_casa||null,direccion||null]}
       ];
       const out=await exec(sql);
       await log(a,'Movilizador creado manual: '+letra+'-'+ced);
