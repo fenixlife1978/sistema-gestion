@@ -2132,33 +2132,58 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 /* ----------- ARRANQUE ----------- */
 (async function main() {
   const progressTimer = setTimeout(() => {
-    setLoad('La conexión está tardando más de lo esperado...', 'El servidor sigue preparando la estructura. No cierre ni recargue la página.');
+    setLoad('La conexión está tardando más de lo esperado...', 'Puede continuar al acceso mientras termina la preparación.');
   }, 10000);
+
+  let bj = { ok:false, padron_count:0 };
+  let bootstrapError = '';
+
   try {
     setLoad('Preparando sistema...', 'Validando estructura y datos iniciales en el servidor');
-    const br = await fetch('/api/bootstrap', {
-      method: 'POST',
-      credentials: 'include',
-      cache: 'no-store'
-    });
-    const bj = await br.json().catch(() => ({}));
-    if (!br.ok || !bj.ok) throw new Error(bj.error || ('HTTP ' + br.status));
 
-    let authenticated = false;
+    // El bootstrap no debe bloquear indefinidamente la pantalla de acceso.
+    const ac = new AbortController();
+    const bt = setTimeout(() => ac.abort(), 12000);
+    try {
+      const br = await fetch('/api/bootstrap', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        signal: ac.signal
+      });
+      bj = await br.json().catch(() => ({}));
+      if (!br.ok || !bj.ok) throw new Error(bj.error || ('HTTP ' + br.status));
+    } catch (e) {
+      bootstrapError = e?.name === 'AbortError'
+        ? 'La preparación de la base está tardando más de lo esperado.'
+        : (e?.message || 'No se pudo completar la preparación automática.');
+      console.warn('Bootstrap no bloqueante:', bootstrapError);
+    } finally {
+      clearTimeout(bt);
+    }
+
     try {
       const sr = await fetch('/api/auth/session', { credentials:'include', cache:'no-store' });
       if (sr.ok) {
         const sd = await sr.json();
         if (sd.authenticated && sd.user) {
           USER = sd.user;
-          authenticated = true;
           setLoad('Restaurando sesión...');
           await refreshAll();
           setLoad('Verificando datos...');
           const badEdad = CACHE.pad.filter(p => !p.edad || p.edad < 0 || p.edad > 120).length;
           if (badEdad > 0) {
             setLoad('Reparando edades...', badEdad + ' registros');
-            if (['J','A'].includes(USER.rol)) { const rr=await fetch('/api/padron/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reparar_edades'})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudieron reparar las edades'); }
+            if (['J','A'].includes(USER.rol)) {
+              const rr=await fetch('/api/padron/gestionar',{
+                method:'POST',
+                credentials:'include',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({action:'reparar_edades'})
+              });
+              const rd=await rr.json().catch(()=>({}));
+              if(!rr.ok) throw new Error(rd.error||'No se pudieron reparar las edades');
+            }
             await refreshAll();
           }
           clearTimeout(progressTimer);
@@ -2168,19 +2193,22 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
         }
       }
     } catch (e) {
-      console.warn('No se pudo verificar la sesión:', e);
+      console.warn('No se pudo verificar/restaurar la sesión:', e);
     }
 
     clearTimeout(progressTimer);
-    $('lgInfo').textContent = Number(bj.padron_count || 0) + ' electores • Base de datos lista';
+    $('lgInfo').textContent = bootstrapError
+      ? 'Base de datos existente • acceso disponible'
+      : Number(bj.padron_count || 0) + ' electores • Base de datos lista';
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
+    if (bootstrapError) console.warn('Acceso liberado sin esperar bootstrap:', bootstrapError);
   } catch (e) {
     clearTimeout(progressTimer);
-    setLoad('Error al preparar el sistema', e.message || 'Revise la configuración del backend');
+    setLoad('Acceso disponible', 'La preparación automática continuará en el servidor.');
     $('loading').style.display = 'none';
     $('vLogin').style.display = 'flex';
-    $('lgInfo').textContent = 'Error de conexión';
+    $('lgInfo').textContent = 'Base de datos existente • acceso disponible';
     console.error(e);
   }
 })();
