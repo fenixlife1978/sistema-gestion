@@ -1088,7 +1088,7 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
       '<label class="fl" style="margin-top:10px">Clave de autorización</label><input class="inp" id="authPass" type="password" autocomplete="current-password" placeholder="Clave">' +
       '<label class="fl" style="margin-top:10px">Motivo</label><textarea class="inp" id="authMotivo" rows="2" placeholder="Indique el motivo de la excepción"></textarea>' +
       '</div></div>',
-      '<button class="btn btn-w" onclick="window.__dupAuthEncontrados=null;closeModal();window.__authResolve&&window.__authResolve(false)">Cancelar</button><button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad(\\'' + esc(cedula) + '\\',\\'' + esc(destino) + '\\')">Autorizar y continuar</button>',640
+      '<button class="btn btn-w" onclick="window.__dupAuthEncontrados=null;closeModal();window.__authResolve&&window.__authResolve(false)">Cancelar</button><button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad(\'' + esc(cedula) + '\',\'' + esc(destino) + '\')">Autorizar y continuar</button>',640
     );
     window.__authResolve=resolve;
     setTimeout(() => { const el = $('authUser'); if (el) el.focus(); }, 50);
@@ -1098,8 +1098,8 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
 
 async function confirmarAutorizacionDuplicidad(cedula, destino) {
   const encontrados = window.__dupAuthEncontrados || [];
-  const u=String($('dupAuthUser')?.value||'').trim(), p=$('dupAuthPass')?.value||'';
-  const motivo=String($('dupAuthMotivo')?.value||'').trim();
+  const u=String($('authUser')?.value||'').trim(), p=$('authPass')?.value||'';
+  const motivo=String($('authMotivo')?.value||'').trim();
   if(!u||!p) return toast('Ingrese usuario y clave de autorización','err');
   if(!motivo) return toast('Indique el motivo de la excepción','err');
   try {
@@ -1126,6 +1126,7 @@ async function confirmarAutorizacionDuplicidad(cedula, destino) {
     toast('No se pudo registrar la autorización: '+e.message,'err');
   }
 }
+
 async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   const tel = String(telefono || '').replace(/\D/g, '');
   if (!tel) return null;
