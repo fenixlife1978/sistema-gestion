@@ -1094,7 +1094,9 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
       '</div></div>';
     const footer =
       '<button class="btn btn-w" onclick="cancelarAutorizacionDuplicidad()">Cancelar</button>' +
-      '<button class="btn btn-w" onclick="window.__dupAuthEncontrados=null;closeModal();window.__authResolve&&window.__authResolve(false)">Cancelar</button><button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad(\'' + esc(cedula) + '\',\'' + esc(destino) + '\')">Autorizar y continuar</button>',640
+      '<button class="btn btn-w" onclick="cancelarAutorizacionDuplicidad()">Cancelar</button>' +
+      '<button class="btn btn-navy" onclick="confirmarAutorizacionDuplicidad(\'\'' + esc(cedula) + '\',\'\'' + esc(destino) + '\')">' +
+      ic('check',13) + ' Autorizar y continuar</button>';
       ic('check',13) + ' Autorizar y continuar</button>';
     modal('<div class="win-h">' + ic('lock',18) + ' Autorización requerida' +
       '<button class="x" onclick="cancelarAutorizacionDuplicidad()">?</button></div>' +
