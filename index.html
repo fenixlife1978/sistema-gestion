@@ -1074,7 +1074,7 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
   return null;
 }
 
-async async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
+async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
   window.__dupAuthEncontrados = encontrados || [];
   const nombres = (encontrados || []).map(x => x.tipo + ': ' + x.detalle).join('<br>');
   const motivo = 'Duplicidad controlada de persona: ' + (encontrados || []).map(x => x.tipo).join(', ') + ' → ' + destino;
