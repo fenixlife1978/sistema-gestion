@@ -14,17 +14,24 @@ module.exports=async function(req,res){
     if(!['direccion','centro'].includes(tipo)||!/^[0-9]{5,9}$/.test(cedula)||!cargo) return fail(res,400,'Datos de asignación inválidos');
     if(tipo==='centro'&&!centro) return fail(res,400,'Centro electoral obligatorio');
     if(telefono&&!/^0[0-9]{10}$/.test(telefono)) return fail(res,400,'Teléfono inválido');
-    const d=rowsFrom(await turso([
-      {q:'SELECT id,cedula FROM reclutadores WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT id,cedula FROM asignaciones WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT id,cargo,cedula FROM direccion_ejecutiva WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT id,comunidad,cedula FROM comite_vecinal WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT id,centro_codigo,cargo,cedula FROM centro_cargos WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[cedula]}
-    ]));
-    const destino=tipo==='direccion'?'DIRECCIÓN EJECUTIVA':'CARGO DE CENTRO', conflicts=[];
-    if(d[0]) conflicts.push('MOVILIZADOR'); if(d[1]) conflicts.push('COMPROMETIDO'); if(d[2]) conflicts.push('DIRECCIÓN EJECUTIVA'); if(d[3]) conflicts.push('COMITÉ VECINAL'); if(d[4]) conflicts.push('CARGO DE CENTRO');
-    const sameTarget=(tipo==='direccion'&&d[2]&&String(d[2].cargo||'')===cargo)||(tipo==='centro'&&d[4]&&String(d[4].centro_codigo||'')===centro&&String(d[4].cargo||'')===cargo);
+    // No usar posiciones de rowsFrom() para representar cada consulta: rowsFrom()
+    // aplana los resultados y una consulta sin filas desplaza las siguientes.
+    const roles=rowsFrom(await turso([{
+      q:`SELECT tipo,id,cargo,centro_codigo FROM (
+        SELECT 'MOVILIZADOR' AS tipo,id,NULL AS cargo,NULL AS centro_codigo FROM reclutadores WHERE cedula=? LIMIT 1
+        UNION ALL SELECT 'COMPROMETIDO',id,NULL,NULL FROM asignaciones WHERE cedula=? LIMIT 1
+        UNION ALL SELECT 'DIRECCIÓN EJECUTIVA',id,cargo,NULL FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
+        UNION ALL SELECT 'COMITÉ VECINAL',id,cargo,NULL FROM comite_vecinal WHERE cedula=? LIMIT 1
+        UNION ALL SELECT 'CARGO DE CENTRO',id,cargo,centro_codigo FROM centro_cargos WHERE cedula=? LIMIT 1
+      )`,params:[cedula,cedula,cedula,cedula,cedula]
+    }]));
+    const padronRows=rowsFrom(await turso([{q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[cedula]}]));
+    const destino=tipo==='direccion'?'DIRECCIÓN EJECUTIVA':'CARGO DE CENTRO';
+    const conflicts=roles.map(x=>String(x.tipo||'')).filter(Boolean);
+    const sameTarget=roles.some(x=>
+      (tipo==='direccion'&&x.tipo==='DIRECCIÓN EJECUTIVA'&&String(x.cargo||'')===cargo) ||
+      (tipo==='centro'&&x.tipo==='CARGO DE CENTRO'&&String(x.centro_codigo||'')===centro&&String(x.cargo||'')===cargo)
+    );
     if(sameTarget) return fail(res,409,'La persona ya ocupa ese cargo');
     if(conflicts.filter(x=>x!==destino).length){
       const a=rowsFrom(await turso([{q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL ORDER BY id DESC LIMIT 1',params:[cedula,destino]}]));
@@ -38,8 +45,8 @@ module.exports=async function(req,res){
       const occupied=rowsFrom(await turso([{q:'SELECT id,cedula FROM direccion_ejecutiva WHERE cargo=? LIMIT 1',params:[cargo]}]));
       if(occupied.length&&String(occupied[0].cedula||'')!==cedula) return fail(res,409,'El cargo de Dirección Ejecutiva ya está ocupado');
     }
-    if(!d[5]&&!padron) return fail(res,409,'La cédula no existe en el padrón; envíe los datos para registro manual');
-    if(!d[5]&&padron){
+    if(!padronRows.length&&!padron) return fail(res,409,'La cédula no existe en el padrón; envíe los datos para registro manual');
+    if(!padronRows.length&&padron){
       const pa=st(padron.p_apellido,80),pn=st(padron.p_nombre,80); if(ci(padron.cedula||cedula)!==cedula||!pa||!pn) return fail(res,400,'Datos de padrón inválidos');
       await turso([{q:'INSERT INTO padron(cedula,letra,p_apellido,s_apellido,p_nombre,s_nombre,sexo,fecha_nac,edad,codigo_estado,estado,codigo_municipio,municipio,codigo_parroquia,parroquia,centro_votacion,nombre_cv,es_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',params:[cedula,st(padron.letra||'V',2),pa,st(padron.s_apellido,80),pn,st(padron.s_nombre,80),st(padron.sexo,1),st(padron.fecha_nac,30),padron.edad??null,st(padron.codigo_estado,30),st(padron.estado,100),st(padron.codigo_municipio,30),st(padron.municipio,120),st(padron.codigo_parroquia,30),st(padron.parroquia,120),st(padron.centro_votacion,80),st(padron.nombre_cv,250)]}]);
     }
