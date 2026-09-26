@@ -1490,7 +1490,7 @@ function nrSearch() {
   }).join('');
 }
 function nrPick(c) { const pp = padBy(c); window._nrSel = c; $('nrForm').style.display = 'block'; $('btnNrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC(pp ? pp.letra : 'V', c) + '</b> seleccionada</div></div>' }
-async function nrSave() {
+async async function nrSave() {
   const p = padBy(window._nrSel); if (!p) return;
   const dupGlobal = await verificarDuplicidadPersona(p.cedula, 'movilizador');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula, dupGlobal), 'err', 8000);
@@ -1502,9 +1502,19 @@ async function nrSave() {
   try {
     const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,telefono:normTel(tel),estructura:$('nrEst').value,numero_calle:nroCalle,numero_casa:nroCasa,direccion:$('nrDir').value})});
     const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
-    await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
+    await refreshAll();
+    closeModal();
     const nuevo = CACHE.recl.find(r => r.cedula === p.cedula);
-    if (nuevo) { REG.rec = nuevo.id; go('registro') }
+    if (CUR === 'recl') {
+      renderRecl();
+      toast('Movilizador creado en Turso y listado actualizado', 'ok');
+    } else if (nuevo) {
+      REG.rec = nuevo.id;
+      go('registro');
+      toast('Movilizador creado en Turso', 'ok');
+    } else {
+      toast('Movilizador creado en Turso', 'ok');
+    }
   } catch (e) { toast(e.message, 'err') }
 }
 function openNrManual() {
