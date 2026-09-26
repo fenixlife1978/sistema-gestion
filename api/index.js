@@ -11,6 +11,7 @@ const handlers = {
   "auth/session": () => require("./auth/session"),
   "auth/logout": () => require("./auth/logout"),
   "turso": () => require("./turso"),
+  "sync": () => require("./sync"),
   "bootstrap": () => require("./bootstrap"),
   "duplicidades/autorizar": () => require("./duplicidades/autorizar"),
   "personas/registrar": () => require("./personas/registrar"),
