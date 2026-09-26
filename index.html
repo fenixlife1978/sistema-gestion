@@ -1490,7 +1490,7 @@ function nrSearch() {
   }).join('');
 }
 function nrPick(c) { const pp = padBy(c); window._nrSel = c; $('nrForm').style.display = 'block'; $('btnNrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC(pp ? pp.letra : 'V', c) + '</b> seleccionada</div></div>' }
-async async function nrSave() {
+async function nrSave() {
   const p = padBy(window._nrSel); if (!p) return;
   const dupGlobal = await verificarDuplicidadPersona(p.cedula, 'movilizador');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula, dupGlobal), 'err', 8000);
@@ -1499,6 +1499,8 @@ async async function nrSave() {
   const nroCasa = ($('nrNroCasa')?.value || '').trim();
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  const saveBtn = $('btnNrSave');
+  if (saveBtn) saveBtn.disabled = true;
   try {
     const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,telefono:normTel(tel),estructura:$('nrEst').value,numero_calle:nroCalle,numero_casa:nroCasa,direccion:$('nrDir').value})});
     const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
@@ -1515,7 +1517,7 @@ async async function nrSave() {
     } else {
       toast('Movilizador creado en Turso', 'ok');
     }
-  } catch (e) { toast(e.message, 'err') }
+  } catch (e) { if (saveBtn) saveBtn.disabled = false; toast(e.message, 'err') }
 }
 function openNrManual() {
   const c = window._nrManC || '';
