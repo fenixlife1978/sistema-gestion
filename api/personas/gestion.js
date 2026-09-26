@@ -44,11 +44,42 @@ module.exports=async function(req,res){
       if(!p) return res.status(404).json({error:'La persona no existe en el padrón'});
       const dup=rowsFrom(await exec([{q:'SELECT id,cedula FROM reclutadores WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
       if(dup) return res.status(409).json({error:'La persona ya es movilizador'});
-      const cross=rowsFrom(await exec([{q:'SELECT 1 FROM asignaciones WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
-      if(cross) return res.status(409).json({error:'La persona ya está asignada como comprometido'});
-      const r=await exec([{q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,numero_calle||null,numero_casa||null,direccion||null]}]);
-      const row=rowsFrom(r)[0]||{};
-      await log(a,'Nuevo movilizador creado: '+ced);
+
+      // Una persona puede ejercer varios cargos simultáneamente. Solo bloqueamos
+      // el nuevo cargo si existe otro cargo y no hay una autorización vigente para
+      // el destino MOVILIZADOR.
+      const cross=rowsFrom(await exec([{
+        q:`SELECT tipo FROM (
+          SELECT 'COMPROMETIDO' AS tipo FROM asignaciones WHERE cedula=? LIMIT 1
+          UNION ALL SELECT 'DIRECCIÓN EJECUTIVA' FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
+          UNION ALL SELECT 'COMITÉ VECINAL' FROM comite_vecinal WHERE cedula=? LIMIT 1
+          UNION ALL SELECT 'CARGO DE CENTRO' FROM centro_cargos WHERE cedula=? LIMIT 1
+        )`,params:[ced,ced,ced,ced]
+      }]));
+      let autorizacionId=null;
+      if(cross.length){
+        const auth=rowsFrom(await exec([{
+          q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL ORDER BY id DESC LIMIT 1',
+          params:[ced,'MOVILIZADOR']
+        }]))[0];
+        if(!auth) return res.status(409).json({error:'La persona ya tiene otro cargo y requiere autorización para ser registrada como movilizador'});
+        autorizacionId=Number(auth.id);
+      }
+
+      const now=new Date().toISOString();
+      const statements=[];
+      if(autorizacionId){
+        statements.push({q:'BEGIN',params:[]});
+        statements.push({q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,a.id,autorizacionId]});
+        statements.push({q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,numero_calle||null,numero_casa||null,direccion||null]});
+        statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida',a.id]});
+        statements.push({q:'COMMIT',params:[]});
+      }else{
+        statements.push({q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,numero_calle||null,numero_casa||null,direccion||null]});
+      }
+      const out=await exec(statements);
+      const row=rowsFrom(out).find(x=>x.id!==undefined)||{};
+      if(!autorizacionId) await log(a,'Nuevo movilizador creado: '+ced);
       return res.json({ok:true,id:row.id||null});
     }
 
