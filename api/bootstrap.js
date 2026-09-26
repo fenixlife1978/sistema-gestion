@@ -350,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-09-22-b3';
+const BOOTSTRAP_VERSION = '2026-09-26-b4';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -382,6 +382,17 @@ async function execSchema() {
       if(!asig.some(x=>x.name==='numero_calle')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN numero_calle TEXT',params:[]}]);
       if(!asig.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN numero_casa TEXT',params:[]}]);
       if(!asig.some(x=>x.name==='direccion')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN direccion TEXT',params:[]}]);
+    }
+    // Migración defensiva de movilizadores: corrige duplicados históricos por cédula.
+    const recl=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='reclutadores' LIMIT 1",params:[]} ]));
+    if(recl.length){
+      await turso([
+        {q:'BEGIN',params:[]},
+        {q:'UPDATE asignaciones SET reclutador_id=(SELECT MIN(r2.id) FROM reclutadores r2 WHERE r2.cedula=(SELECT r3.cedula FROM reclutadores r3 WHERE r3.id=asignaciones.reclutador_id)) WHERE reclutador_id IN (SELECT r.id FROM reclutadores r WHERE r.id<>(SELECT MIN(r2.id) FROM reclutadores r2 WHERE r2.cedula=r.cedula))',params:[]},
+        {q:'DELETE FROM reclutadores WHERE id NOT IN (SELECT MIN(id) FROM reclutadores GROUP BY cedula)',params:[]},
+        {q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_reclutadores_cedula ON reclutadores(cedula)',params:[]},
+        {q:'COMMIT',params:[]}
+      ]);
     }
     const com=rowsFrom(await turso([{q:'PRAGMA table_info(comite_vecinal)',params:[]}]));
     if(com.length){
