@@ -2127,44 +2127,93 @@ async function wipeTurso() {
   });
 }
 
-/* ----------- SYNC EN TIEMPO REAL ----------- */
+/* ----------- SINCRONIZACIÓN AUTOMÁTICA ----------- */
+/*
+ * La tabla actividad funciona como cursor global de cambios.
+ * Cada operación importante del sistema registra una actividad en Turso.
+ * El navegador consulta únicamente el último ID cada 2 segundos y,
+ * cuando detecta un cambio, descarga un snapshot nuevo y actualiza
+ * el módulo visible. No se recarga la página ni se pierde la sesión.
+ */
 let syncT = null;
-document.addEventListener('blur', e => {
-  if (e.target && e.target.matches('input[placeholder*="0412"],input[placeholder*="0XXX"],input#telIn,input#nrTel,input#nrmTel,input#cmTel,input#fuT')) {
-    const v = e.target.value.replace(/\D/g, '');
-    if (v.length === 11 && v.startsWith('0')) e.target.value = v.slice(0, 4) + '-' + v.slice(4);
-    else if (v.length > 0 && v.length !== 11) e.target.style.borderColor = '#e53935';
-    else e.target.style.borderColor = '';
+let syncBusy = false;
+let syncVersion = 0;
+
+async function readSyncVersion() {
+  const r = await fetch('/api/sync?since=' + encodeURIComponent(syncVersion), {
+    method: 'GET',
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache' }
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'Sincronización no disponible');
+  return j;
+}
+
+async function renderCurrentModuleAfterSync() {
+  if (CUR === 'dash') renderDash();
+  else if (CUR === 'registro') renderRegistro(true);
+  else if (CUR === 'recl') renderRecl();
+  else if (CUR === 'padron') renderPadron();
+  else if (CUR === 'centros') renderCentros();
+  else if (CUR === 'rep') renderRep();
+  else if (CUR === 'users') renderUsers();
+  else if (CUR === 'control') renderControlElectoral();
+  else if (CUR === 'comite') renderComite();
+  else if (CUR === 'direccion') renderDireccion();
+  else if (CUR === 'mesas') renderMesas();
+}
+
+async function syncNow(force) {
+  if (!USER || syncBusy) return;
+  syncBusy = true;
+  try {
+    const info = await readSyncVersion();
+
+    if (syncVersion === 0) {
+      syncVersion = Number(info.latest_id || 0);
+      return;
+    }
+
+    if (!force && !info.changed) return;
+
+    const previousVersion = syncVersion;
+    syncVersion = Number(info.latest_id || syncVersion);
+
+    await refreshAll();
+
+    const hi = $('hdrInfo');
+    if (hi && USER) {
+      hi.innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) +
+        ' • <span class="yel">TURSO • ' + CACHE.pad.length +
+        ' electores  ' + CACHE.recl.length + ' movilizadores</span>';
+    }
+
+    await renderCurrentModuleAfterSync();
+
+    // Si hubo una carrera entre lecturas, dejamos el cursor listo para
+    // la siguiente vuelta sin forzar otra recarga completa.
+    if (syncVersion < previousVersion) syncVersion = previousVersion;
+  } catch (e) {
+    // Una caída momentánea de red no rompe la aplicación. La siguiente
+    // vuelta reintentará automáticamente.
+    console.warn('Sincronización automática:', e?.message || e);
+  } finally {
+    syncBusy = false;
   }
-}, true);
-document.addEventListener('blur', e => {
-  if (e.target && e.target.matches('input[placeholder*="0412"],input[placeholder*="0XXX"],input#telIn,input#nrTel,input#nrmTel,input#cmTel,input#fuT')) {
-    const v = e.target.value.replace(/\D/g, '');
-    if (v.length === 11 && v.startsWith('0')) e.target.value = v.slice(0, 4) + '-' + v.slice(4);
-    else if (v.length > 0 && v.length !== 11) e.target.style.borderColor = '#e53935';
-    else e.target.style.borderColor = '';
-  }
-}, true);
+}
+
 function startSync() {
-  if (syncT) return;
-  syncT = setInterval(async () => {
-    if (!USER) return;
-    try {
-      const oldPad = CACHE.pad.length, oldRecl = CACHE.recl.length, oldCentros = CACHE.centros.length;
-      await refreshAll();
-      if (CACHE.pad.length !== oldPad || CACHE.recl.length !== oldRecl || CACHE.centros.length !== oldCentros) {
-        $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' • <span class="yel">TURSO • ' + CACHE.pad.length + ' electores  ' + CACHE.recl.length + ' movilizadores</span>';
-      }
-      if (CUR === 'dash') renderDash();
-      else if (CUR === 'registro') renderRegistro(true);
-      else if (CUR === 'recl') renderRecl();
-      else if (CUR === 'padron') renderPadron();
-      else if (CUR === 'centros') renderCentros();
-      else if (CUR === 'rep') renderRep();
-      else if (CUR === 'users') renderUsers();
-      else if (CUR === 'control') renderControlElectoral();
-    } catch (e) {}
-  }, 15000);
+  if (syncT || !USER) return;
+
+  // Establece el cursor actual antes de comenzar a vigilar cambios.
+  syncNow(true).catch(() => {});
+
+  syncT = setInterval(() => {
+    syncNow(false).catch(() => {});
+  }, 2000);
 }
 
 setInterval(() => { const c = $('clock'); if (c) c.textContent = new Date().toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) }, 1000);
