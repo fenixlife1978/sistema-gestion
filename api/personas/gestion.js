@@ -2,7 +2,7 @@ const {parseBody,turso,rowsFrom,verify,getCookie}=require('../../lib/auth');
 
 const rolesPermitidos=['J','A','O'];
 const CED=/^\d{5,9}$/;
-const TEL=/^0\d{3}-\d{7}$/;
+const TEL=/^0\d{10}$/;
 
 function s(v){ return v===undefined||v===null?'':String(v).trim(); }
 function n(v){ const x=Number(v); return Number.isInteger(x)?x:0; }
