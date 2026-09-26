@@ -27,16 +27,21 @@ module.exports=async function handler(req,res){
     if(!rows.length||!['J','A'].includes(rows[0].rol)||!verifyHash(authClave,String(rows[0].clave_hash||''))) return res.status(403).json({error:'Credenciales del autorizante inválidas'});
     const auth=rows[0];
 
-    const dup=rowsFrom(await turso([
-      {q:'SELECT cedula FROM reclutadores WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT cedula FROM asignaciones WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT cedula FROM direccion_ejecutiva WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT cedula FROM comite_vecinal WHERE cedula=? LIMIT 1',params:[cedula]},
-      {q:'SELECT cedula FROM centro_cargos WHERE cedula=? LIMIT 1',params:[cedula]}
-    ]));
+    // Cada consulta de turso() puede devolver cero filas; rowsFrom() aplana los
+    // resultados y por eso NO se deben interpretar por posición (dup[0], dup[1], ...).
+    // Consultamos explícitamente el tipo de función existente para detectar cualquier
+    // cargo simultáneo de la persona, incluso cuando solo exista uno.
+    const dup=rowsFrom(await turso([{
+      q:`SELECT tipo FROM (
+        SELECT 'MOVILIZADOR' AS tipo FROM reclutadores WHERE cedula=? LIMIT 1
+        UNION ALL SELECT 'COMPROMETIDO' FROM asignaciones WHERE cedula=? LIMIT 1
+        UNION ALL SELECT 'DIRECCIÓN EJECUTIVA' FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
+        UNION ALL SELECT 'COMITÉ VECINAL' FROM comite_vecinal WHERE cedula=? LIMIT 1
+        UNION ALL SELECT 'CARGO DE CENTRO' FROM centro_cargos WHERE cedula=? LIMIT 1
+      )`,params:[cedula,cedula,cedula,cedula,cedula]
+    }]));
     if(!dup.length) return res.status(409).json({error:'No existe una duplicidad verificable para autorizar'});
-    const inferred=[['MOVILIZADOR',0],['COMPROMETIDO',1],['DIRECCIÓN EJECUTIVA',2],['COMITÉ VECINAL',3],['CARGO DE CENTRO',4]]
-      .filter(([t,i])=>dup[i]).map(x=>x[0]).filter(t=>t!==destino);
+    const inferred=dup.map(x=>String(x.tipo||'')).filter(Boolean).filter(t=>t!==destino);
     if(!inferred.length) return res.status(409).json({error:'La persona no tiene una duplicidad incompatible con el destino solicitado'});
 
     const origen=inferred.join(' | ');
