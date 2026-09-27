@@ -223,6 +223,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
   <section class="sec" id="sec-users"></section>
   <section class="sec" id="sec-data"></section>
   <section class="sec" id="sec-direccion"></section>
+  <section class="sec" id="sec-otros"></section>
   <section class="sec" id="sec-comite"></section>
   <section class="sec" id="sec-control"></section>
  </main>
@@ -501,7 +502,7 @@ const kc = (l, v, s, bar, full) => '<div class="kcard"><div class="kl">' + l + '
 /* ----------- ESTADO GLOBAL ----------- */
 let USER = null, CUR = 'dash', REG = { rec: null }, LAST_REC = null;
 let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '' };
-let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [], comite: [], verificacion: [], actasMesa: [], mesasOperativas: [], mesaMiembros: [], cortes: [] };
+let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], otros: [], direccion: [], comite: [], verificacion: [], actasMesa: [], mesasOperativas: [], mesaMiembros: [], cortes: [] };
 let CONTROL_ELECTORAL = { centro: '', search: '' };
 
 /* ----------- ESQUEMA TURSO (AUTO-MIGRACIÓN) ----------- */
@@ -632,6 +633,7 @@ async function refreshAll() {
     { q: 'SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100' },
     { q: 'SELECT * FROM usuarios ORDER BY rol, nombre' },
     { q: 'SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id' },
+    { q: 'SELECT oc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.centro_votacion, p.nombre_cv FROM otros_cargos oc LEFT JOIN padron p ON p.cedula = oc.cedula ORDER BY oc.cargo, oc.id' },
     { q: 'SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, d.numero_calle, d.numero_casa, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC' },
     { q: 'SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC' },
     { q: 'SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id' },
@@ -656,18 +658,19 @@ async function refreshAll() {
   CACHE.act = rows[3] || [];
   CACHE.users = rows[4] || [];
   CACHE.cargos = rows[5] || [];
-  CACHE.direccion = rows[6] || [];
-  CACHE.comite = rows[7] || [];
-  CACHE.catalogoProblemas = rows[8] || [];
-  CACHE.comiteProblemas = rows[9] || [];
-  CACHE.verificacion = rows[10] || [];
-  CACHE.actasMesa = rows[11] || [];
-  CACHE.mesasOperativas = rows[12] || [];
-  CACHE.mesaMiembros = rows[13] || [];
-  CACHE.cortes = rows[14] || [];
+  CACHE.otros = rows[6] || [];
+  CACHE.direccion = rows[7] || [];
+  CACHE.comite = rows[8] || [];
+  CACHE.catalogoProblemas = rows[9] || [];
+  CACHE.comiteProblemas = rows[10] || [];
+  CACHE.verificacion = rows[11] || [];
+  CACHE.actasMesa = rows[12] || [];
+  CACHE.mesasOperativas = rows[13] || [];
+  CACHE.mesaMiembros = rows[14] || [];
+  CACHE.cortes = rows[15] || [];
 
   // Una sola consulta para todas las asignaciones, agrupada en memoria.
-  const asignaciones = rows[15] || [];
+  const asignaciones = rows[16] || [];
   const porReclutador = new Map();
   for (const a of asignaciones) {
     const key = String(a.reclutador_id);
@@ -741,6 +744,7 @@ const MODS = [
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
   { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A', 'O'] },
   { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' },
+  { id: 'otros', l: 'Otros Cargos', i: 'userPlus' },
   { id: 'comite', l: 'Comités Vecinales', i: 'users' },
   { id: 'control', l: 'Control Electoral', i: 'check' }
 ];
@@ -770,7 +774,7 @@ function go(id) {
   const t = $('tb-' + id); if (t) t.classList.add('on');
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
   $('sec-' + id).classList.add('on');
-  ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion, comite: renderComite, control: renderControlElectoral })[id]();
+  ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion, otros: renderOtrosCargos, comite: renderComite, control: renderControlElectoral })[id]();
   window.scrollTo({ top: 0 });
 }
 async function logout() {
@@ -1021,7 +1025,8 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
     q('SELECT a.id, a.cedula, a.reclutador_id, a.posicion, r.cedula AS reclutador_cedula, r.estructura FROM asignaciones a LEFT JOIN reclutadores r ON r.id = a.reclutador_id WHERE a.cedula = ?', [ced]),
     q('SELECT id, cargo, cedula FROM direccion_ejecutiva WHERE cedula = ?', [ced]),
     q('SELECT id, comunidad, cedula FROM comite_vecinal WHERE cedula = ?', [ced]),
-    q('SELECT id, centro_codigo, cargo, cedula FROM centro_cargos WHERE cedula = ?', [ced])
+    q('SELECT id, centro_codigo, cargo, cedula FROM centro_cargos WHERE cedula = ?', [ced]),
+    q('SELECT id, cargo, cedula FROM otros_cargos WHERE cedula = ?', [ced])
   ]);
 
   const encontrados = [];
@@ -1050,6 +1055,10 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
     const cc = consultas[4][0];
     encontrados.push({ tipo: 'CARGO DE CENTRO', detalle: 'ya ocupa el cargo "' + (cc.cargo || '') + '" en el centro "' + (cc.centro_codigo || '') + '".' });
   }
+  if (consultas[5].length) {
+    const oc = consultas[5][0];
+    encontrados.push({ tipo: 'OTRO CARGO', detalle: 'ya ocupa el cargo adicional "' + (oc.cargo || '') + '".' });
+  }
   if (!encontrados.length) return null;
 
   const destino = (() => {
@@ -1058,6 +1067,7 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
     if (c.includes('comprom')) return 'COMPROMETIDO';
     if (c.includes('direccion')) return 'DIRECCIÓN EJECUTIVA';
     if (c.includes('comite')) return 'COMITÉ VECINAL';
+    if (c.includes('otro')) return 'OTRO CARGO';
     if (c.includes('cargo')) return 'CARGO DE CENTRO';
     return String(contexto || 'OTRO').toUpperCase();
   })();
@@ -2163,6 +2173,7 @@ async function renderCurrentModuleAfterSync() {
   else if (CUR === 'control') renderControlElectoral();
   else if (CUR === 'comite') renderComite();
   else if (CUR === 'direccion') renderDireccion();
+  else if (CUR === 'otros') renderOtrosCargos();
 }
 
 async function syncNow(force) {
@@ -2301,6 +2312,65 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
     console.error(e);
   }
 })();
+
+/* ═══════════ OTROS CARGOS ═══════════ */
+function renderOtrosCargos() {
+  const qv = String($('otrosSearch')?.value || '').toLowerCase().trim();
+  const rows = (CACHE.otros || []).filter(x => {
+    const p = padBy(x.cedula);
+    const nm = p ? (nomP(p) + ' ' + apeP(p)) : (x.nombre || x.cedula);
+    return !qv || nm.toLowerCase().includes(qv) || String(x.cargo || '').toLowerCase().includes(qv) || normC(qv) && String(x.cedula).includes(normC(qv));
+  });
+  const groups = {};
+  (CACHE.otros || []).forEach(x => { (groups[x.cargo] ||= 0); groups[x.cargo]++; });
+  $('sec-otros').innerHTML = panel('Otros Cargos <span class="chip chip-b">' + (CACHE.otros || []).length + ' asignaciones</span>',
+    '<div class="grid g4" style="margin-bottom:14px">' +
+      kc('Otros cargos', (CACHE.otros || []).length, 'asignaciones registradas') +
+      kc('Cargos diferentes', Object.keys(groups).length, 'denominaciones') +
+      kc('Con autorización', (CACHE.act || []).filter(a => String(a.tipo) === 'autorizacion' && String(a.texto || '').includes('OTRO CARGO')).length, 'registradas en auditoría') +
+      kc('Comité excluido', 'Sí', 'no puede pasar a OTRO CARGO') +
+    '</div>' +
+    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:1"><label class="fl">Buscar persona o cargo</label><input class="inp" id="otrosSearch" value="' + esc(qv) + '" oninput="renderOtrosCargos()" placeholder="C.I., nombre o cargo..."></div><div style="align-self:end"><button class="btn btn-navy" onclick="openOtroCargo()">' + ic('userPlus',12) + ' Registrar OTRO CARGO</button></div></div>' +
+    '<div id="otrosContent"><div class="grid g3">' + (rows.map(x => {
+      const p = padBy(x.cedula) || x;
+      const nm = (p.p_apellido || p.p_nombre) ? (apeP(p) + ', ' + nomP(p)) : (x.nombre || x.cedula);
+      return '<div class="kcard"><div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase">' + esc(x.cargo) + '</div><div style="font-size:14px;font-weight:700;color:var(--navy);margin-top:4px">' + esc(nm) + '</div><div class="mono" style="font-size:11px;color:var(--mut);margin-top:3px">' + esc(fC(p.letra || 'V', x.cedula)) + '</div><div style="font-size:11px;color:var(--mut);margin-top:6px">' + esc(x.direccion || '') + '</div></div>';
+    }).join('') || '<div class="empty">No hay otros cargos registrados.</div>') + '</div></div>');
+}
+async function openOtroCargo() {
+  win(ic('userPlus',18) + ' Registrar OTRO CARGO',
+    '<div class="alert warn" style="margin-bottom:12px"><b>Regla:</b> una persona puede ejercer OTRO CARGO mediante autorización de Jefe de Comando o Administrador cuando ya tenga otra función. Los cargos de Comité Vecinal están excluidos de esta excepción.</div>' +
+    '<div class="grid g2"><div><label class="fl">C.I. *</label><input class="inp mono" id="otroCed" placeholder="12345678"></div><div><label class="fl">OTRO CARGO *</label><input class="inp" id="otroCargo" placeholder="Ej. Coordinador de Formación"></div></div>' +
+    '<div class="grid g3" style="margin-top:10px"><div><label class="fl">Teléfono</label><input class="inp mono" id="otroTel" placeholder="0412-2232523"></div><div><label class="fl">N° Calle</label><input class="inp" id="otroCalle"></div><div><label class="fl">N° Casa</label><input class="inp" id="otroCasa"></div></div>' +
+    '<div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="otroDir"></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveOtroCargo()">' + ic('check',13) + ' Registrar</button>', 650);
+  setTimeout(() => $('otroCed')?.focus(), 50);
+}
+async function saveOtroCargo() {
+  const ced = normC($('otroCed')?.value || ''), cargo = String($('otroCargo')?.value || '').trim();
+  if (!/^\\d{5,9}$/.test(ced)) return toast('Ingrese una cédula válida', 'err');
+  if (cargo.length < 2) return toast('Indique el OTRO CARGO', 'err');
+  const p = padBy(ced);
+  if (!p) return toast('La persona debe existir en el padrón CNE', 'err');
+  const roles = [];
+  if ((CACHE.recl || []).some(x => String(x.cedula) === ced)) roles.push({tipo:'MOVILIZADOR',detalle:'ya está registrado como movilizador.'});
+  if ((CACHE.recl || []).some(r => (r.lista || []).some(x => String(x.cedula) === ced))) roles.push({tipo:'COMPROMETIDO',detalle:'ya pertenece a una lista de comprometidos.'});
+  if ((CACHE.direccion || []).some(x => String(x.cedula) === ced)) roles.push({tipo:'DIRECCIÓN EJECUTIVA',detalle:'ya ocupa un cargo en Dirección Ejecutiva.'});
+  if ((CACHE.comite || []).some(x => String(x.cedula) === ced)) return toast('⛔ Los cargos de Comité Vecinal no pueden registrarse como OTRO CARGO.', 'err', 8000);
+  if ((CACHE.cargos || []).some(x => String(x.cedula) === ced)) roles.push({tipo:'CARGO DE CENTRO',detalle:'ya ocupa un cargo en un centro electoral.'});
+  if ((CACHE.otros || []).some(x => String(x.cedula) === ced && String(x.cargo || '').trim().toUpperCase() === cargo.toUpperCase())) return toast('La persona ya ocupa ese OTRO CARGO.', 'err');
+  let destino='OTRO CARGO';
+  if (roles.length) {
+    const ok = await autorizarDuplicidadPersona(ced, destino, roles);
+    if (!ok) return;
+  }
+  try {
+    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'otro',cedula:ced,cargo,nombre:(nomP(p)+' '+apeP(p)).trim(),telefono:normTel($('otroTel')?.value||''),numero_calle:$('otroCalle')?.value||'',numero_casa:$('otroCasa')?.value||'',direccion:$('otroDir')?.value||''})});
+    const rd = await rr.json().catch(()=>({}));
+    if (!rr.ok) throw new Error(rd.error || 'No se pudo registrar el OTRO CARGO');
+    await refreshAll(); closeModal(); renderOtrosCargos(); toast('OTRO CARGO registrado y sincronizado', 'ok');
+  } catch(e) { toast(e.message,'err',8000); }
+}
 
 /* ═══════════ DIRECCION EJECUTIVA ═══════════ */
 function renderDireccion() {
