@@ -414,6 +414,20 @@ async function execSchema() {
       if(!com.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN numero_casa TEXT',params:[]}]);
       if(!com.some(x=>x.name==='direccion')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN direccion TEXT',params:[]}]);
     }
+    await turso([{q:`CREATE TABLE IF NOT EXISTS otros_cargos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cargo TEXT NOT NULL,
+      cedula TEXT NOT NULL,
+      nombre TEXT,
+      telefono TEXT,
+      numero_calle TEXT,
+      numero_casa TEXT,
+      direccion TEXT,
+      creado TEXT DEFAULT (datetime('now')),
+      UNIQUE(cargo, cedula)
+    )`,params:[]}]);
+    await turso([{q:'CREATE INDEX IF NOT EXISTS idx_otros_cargos_cedula ON otros_cargos(cedula)',params:[]}]);
+    await turso([{q:'CREATE INDEX IF NOT EXISTS idx_otros_cargos_cargo ON otros_cargos(cargo)',params:[]}]);
     await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:[BOOTSTRAP_VERSION]}]);
     return;
   }
