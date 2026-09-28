@@ -1502,8 +1502,25 @@ async function nrSave() {
   try{
     const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,centro_codigo:centro,telefono:normTel(tel),estructura:$('nrEst').value,numero_calle:nroCalle,numero_casa:nroCasa,direccion:$('nrDir').value})});
     const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
-    await refreshAll(); closeModal();
-    const nuevo=CACHE.recl.find(r=>r.cedula===p.cedula);
+
+    // El backend confirma el registro directamente desde Turso. Lo insertamos
+    // en memoria de inmediato para que la interfaz no dependa de una segunda
+    // lectura que pueda llegar con retraso.
+    const creado=rd.movilizador;
+    if(creado && creado.id){
+      creado.lista=Array.isArray(creado.lista)?creado.lista:[];
+      CACHE.recl=CACHE.recl.filter(r=>String(r.id)!==String(creado.id) && String(r.cedula)!==String(creado.cedula));
+      CACHE.recl.unshift(creado);
+    }
+
+    await refreshAll();
+    // Si la lectura global todavía no refleja el alta, conservamos el registro
+    // confirmado por el backend en la caché local de esta sesión.
+    if(creado && creado.id && !CACHE.recl.some(r=>String(r.id)===String(creado.id))){
+      CACHE.recl.unshift(creado);
+    }
+    closeModal();
+    const nuevo=CACHE.recl.find(r=>String(r.cedula)===String(p.cedula));
     if(CUR==='recl'){ renderRecl(); toast('Movilizador creado y validado contra el Padrón CNE','ok'); }
     else if(nuevo){ REG.rec=nuevo.id; go('registro'); toast('Movilizador creado y validado contra el Padrón CNE','ok'); }
     else toast('Movilizador creado','ok');
