@@ -1090,7 +1090,6 @@ async function confirmarAutorizacionDuplicidad() {
   const p = $('dupAuthPass')?.value || '';
   const motivo = String($('dupAuthMotivo')?.value || '').trim();
   if (!u || !p) return toast('Ingrese usuario y clave de autorización','err');
-  if (!motivo) return toast('Indique el motivo de la excepción','err');
   try {
     const r = await fetch('/api/duplicidades/autorizar', {
       method:'POST',
@@ -1101,7 +1100,6 @@ async function confirmarAutorizacionDuplicidad() {
         destino:String(destino || '').trim().toUpperCase(),
         autorizante_usuario:u,
         autorizante_clave:p,
-        motivo,
         origenes:encontrados.map(x=>x.tipo).filter(Boolean),
         detalles:encontrados.map(x=>x.detalle).filter(Boolean)
       })
