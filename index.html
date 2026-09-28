@@ -1570,6 +1570,42 @@ async function nrSave() {
     toast('Error al registrar movilizador: '+e.message,'err',8000);
   }
 }
+/* ----------- PADRN ----------- */
+function renderPadron() {
+  const prevFocus = _focused();
+  const f = PADF;
+  const all = CACHE.pad.filter(p => {
+    if (f.txt) { const q = f.txt.toLowerCase(), cq = normC(f.txt); if (!((cq.length >= 3 && p.cedula.includes(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(q))) return false }
+    if (f.sexo && p.sexo !== f.sexo) return false;
+    if (f.centro && p.centro_votacion !== f.centro) return false;
+    if (f.e1 && (edadDe(p.fecha_nac) || p.edad || 0) < +f.e1) return false;
+    if (f.e2 && (edadDe(p.fecha_nac) || p.edad || 0) > +f.e2) return false;
+    return true;
+  });
+  const per = 14; const pgs = Math.max(1, Math.ceil(all.length / per)); f.pg = Math.min(f.pg, pgs);
+  const rows = all.slice((f.pg - 1) * per, f.pg * per);
+  $('sec-padron').innerHTML = panel('Padrón CNE / Electores <span class="chip chip-b" style="margin-left:auto">' + all.length + ' registros  Turso</span>',
+    '<div class="filter-bar" style="margin-bottom:14px">' +
+    '<div style="flex:1;min-width:100px"><label class="fl">Buscar</label><input class="inp" id="padFilter" value="' + esc(f.txt) + '" oninput="PADF.txt=this.value;PADF.pg=1;renderPadron()"></div>' +
+    '<div style="min-width:70px"><label class="fl">Sexo</label><select class="inp" onchange="PADF.sexo=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option><option value="M" ' + (f.sexo === 'M' ? 'selected' : '') + '>M</option><option value="F" ' + (f.sexo === 'F' ? 'selected' : '') + '>F</option></select></div>' +
+    '<div style="min-width:80px"><label class="fl">Centro</label><select class="inp" onchange="PADF.centro=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option>' + CACHE.centros.map(c => '<option value="' + c.codigo + '" ' + (f.centro === c.codigo ? 'selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></div>' +
+    '<div style="max-width:70px"><label class="fl">Edad mín.</label><input class="inp" type="number" value="' + f.e1 + '" onchange="PADF.e1=this.value;PADF.pg=1;renderPadron()"></div>' +
+    '<div style="max-width:70px"><label class="fl">Edad máx.</label><input class="inp" type="number" value="' + f.e2 + '" onchange="PADF.e2=this.value;PADF.pg=1;renderPadron()"></div>' +
+    '<div style="align-self:end;display:flex;gap:5px;flex-wrap:wrap">' +
+    '<button class="btn btn-w btn-xs" onclick="expPadron()">' + ic('dl', 12) + ' CSV</button>' +
+    '<button class="btn btn-navy btn-xs" onclick="downloadPDF(\'padronContent\',\'Padrón CNE  Electores\')">' + ic('dl', 12) + ' PDF</button>' +
+    '</div></div>' +
+    '<div id="padronContent"><table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th><th>Centro de votacin</th><th>Municipio / Parroquia</th><th>Estatus compromiso</th></tr></thead><tbody>' +
+    (rows.map(p => { const a = asignDe(p.cedula); const ed = edadDe(p.fecha_nac) || p.edad || '-'; const fnStr = fmtFn(p.fecha_nac); return '<tr><td class="mono" style="font-weight:700">' + fC(p.letra, p.cedula) + (p.es_manual ? ' <span class="chip chip-r">MANUAL</span>' : '') + '</td><td>' + esc(apeP(p)) + '</td><td>' + esc(nomP(p)) + '</td><td>' + ed + '</td><td>' + esc(p.sexo || '') + '</td><td class="mono" style="font-size:11px">' + esc(fnStr) + '</td><td style="max-width:190px">' + esc(p.nombre_cv) + ' <span class="mono" style="font-size:10px;color:var(--mut)">' + p.centro_votacion + '</span></td><td>' + esc(p.municipio) + ' / ' + esc(p.parroquia) + '</td><td>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="openRec(' + a.r.id + ')">#' + a.pos + '</button>') : '<span class="chip chip-gr">LIBRE</span>') + '</td></tr>' }).join('') || '<tr><td colspan="9"><div class="empty">Sin resultados.</div></td></tr>') +
+    '</tbody></table></div><div class="pager">' + Array.from({ length: Math.min(pgs, 20) }, (_, i) => '<button class="pg' + (i + 1 === f.pg ? ' on' : '') + '" onclick="PADF.pg=' + (i + 1) + ';renderPadron()">' + (i + 1) + '</button>').join('') + (pgs > 20 ? '<span style="align-self:center;color:var(--mut);font-size:12px"> ' + pgs + ' pgs</span>' : '') + '</div>');
+  _refocus(prevFocus);
+}
+function expPadron() {
+  const rows = [['Nro', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'EDAD', 'CODIGO_ESTADO', 'ESTADO', 'CODIGO_MUNICIPIO', 'MUNICIPIO', 'CODIGO_PARROQUIA', 'PARROQUIA', 'CENTRO_VOTACION', 'NOMBRE_CV', 'ESTATUS_COMPROMISO']];
+  CACHE.pad.forEach((p, i) => { const a = asignDe(p.cedula); rows.push([i + 1, p.letra, p.cedula, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, fmtFn(p.fecha_nac), edadDe(p.fecha_nac) || p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv, a ? (a.tipo === 'reclutador' ? 'MOVILIZADOR' : 'ASIGNADO #' + a.pos) : 'LIBRE']) });
+  dlCSV('padron_cne_turso.csv', rows); toast('Padrón exportado (' + rows.length + ')', 'ok');
+}
+
 /* ----------- CENTROS ----------- */
 function renderCentros() {
   const munis = [...new Set(CACHE.centros.map(c => c.municipio))].sort();
