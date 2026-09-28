@@ -23,14 +23,14 @@ module.exports=async function(req,res){
         UNION ALL SELECT 'DIRECCIÓN EJECUTIVA',id,cargo,NULL FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
         UNION ALL SELECT 'COMITÉ VECINAL',id,cargo,NULL FROM comite_vecinal WHERE cedula=? LIMIT 1
         UNION ALL SELECT 'CARGO DE CENTRO',id,cargo,centro_codigo FROM centro_cargos WHERE cedula=? LIMIT 1
-      )`,params:[cedula,cedula,cedula,cedula,cedula,cedula]
+      )`,params:[cedula,cedula,cedula,cedula,cedula]
     }]));
     const padronRows=rowsFrom(await turso([{q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[cedula]}]));
     const destino=tipo==='direccion'?'DIRECCIÓN EJECUTIVA':'CARGO DE CENTRO';
     const conflicts=roles.map(x=>String(x.tipo||'')).filter(Boolean);
     const sameTarget=roles.some(x=>
       (tipo==='direccion'&&x.tipo==='DIRECCIÓN EJECUTIVA'&&String(x.cargo||'')===cargo) ||
-      (tipo==='centro'&&x.tipo==='CARGO DE CENTRO'&&String(x.centro_codigo||'')===centro&&String(x.cargo||'')===cargo) ||
+      (tipo==='centro'&&x.tipo==='CARGO DE CENTRO'&&String(x.centro_codigo||'')===centro&&String(x.cargo||'')===cargo)
     );
     if(sameTarget) return fail(res,409,'La persona ya ocupa ese cargo');
     if(conflicts.filter(x=>x!==destino).length){
