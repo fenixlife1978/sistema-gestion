@@ -1514,9 +1514,14 @@ async function nrSave() {
     }
 
     await refreshAll();
-    // Si la lectura global todavía no refleja el alta, conservamos el registro
-    // confirmado por el backend en la caché local de esta sesión.
-    if(creado && creado.id && !CACHE.recl.some(r=>String(r.id)===String(creado.id))){
+    // La respuesta del alta trae la lectura real de reclutadores en Turso.
+    // Igual que los demás módulos, esa lectura pasa a ser la fuente de verdad
+    // para la interfaz y evita que una recarga global o caché intermedia oculte
+    // un movilizador recién creado.
+    if(Array.isArray(rd.movilizadores)){
+      CACHE.recl = rd.movilizadores;
+      for(const r of CACHE.recl) r.lista = r.lista || [];
+    } else if(creado && creado.id && !CACHE.recl.some(r=>String(r.id)===String(creado.id))){
       CACHE.recl.unshift(creado);
     }
     closeModal();
