@@ -2,7 +2,7 @@ const {parseBody,turso,rowsFrom,verifyHash,verify,getCookie}=require('../../lib/
 
 function normC(v){return String(v||'').replace(/\D/g,'').slice(0,20)}
 function clean(v,max){return String(v||'').trim().slice(0,max)}
-function destinoVal(v){return ['MOVILIZADOR','COMPROMETIDO','DIRECCIÓN EJECUTIVA','COMITÉ VECINAL','CARGO DE CENTRO','OTRO CARGO'].includes(v)?v:''}
+function destinoVal(v){return ['MOVILIZADOR','COMPROMETIDO','DIRECCIÓN EJECUTIVA','COMITÉ VECINAL','CARGO DE CENTRO'].includes(v)?v:''}
 
 module.exports=async function handler(req,res){
   res.setHeader('Cache-Control','no-store');
@@ -38,13 +38,9 @@ module.exports=async function handler(req,res){
         UNION ALL SELECT 'DIRECCIÓN EJECUTIVA' FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
         UNION ALL SELECT 'COMITÉ VECINAL' FROM comite_vecinal WHERE cedula=? LIMIT 1
         UNION ALL SELECT 'CARGO DE CENTRO' FROM centro_cargos WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'OTRO CARGO' FROM otros_cargos WHERE cedula=? LIMIT 1
       )`,params:[cedula,cedula,cedula,cedula,cedula,cedula]
     }]));
     if(!dup.length) return res.status(409).json({error:'No existe una duplicidad verificable para autorizar'});
-    if(destino==='OTRO CARGO' && dup.some(x=>String(x.tipo||'')==='COMITÉ VECINAL')) {
-      return res.status(409).json({error:'Los cargos de Comité Vecinal no pueden autorizarse como OTRO CARGO'});
-    }
     const inferred=dup.map(x=>String(x.tipo||'')).filter(Boolean).filter(t=>t!==destino);
     if(!inferred.length) return res.status(409).json({error:'La persona no tiene una duplicidad incompatible con el destino solicitado'});
 
