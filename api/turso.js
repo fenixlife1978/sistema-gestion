@@ -25,7 +25,29 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-        const data = await turso(stmts);
+  try {
+    let body = req.body || {};
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch(e) {}
+    }
+    const statements = body.statements;
+    if (!statements) return res.status(400).json({ error: 'No se enviaron sentencias SQL' });
+
+    const rawStmts = Array.isArray(statements) ? statements : [statements];
+    if (rawStmts.length > 100) return res.status(413).json({ error: 'Demasiadas sentencias en una sola petición' });
+
+    const stmts = rawStmts.map(s => ({ q: s?.q || s?.sql, params: s?.params || s?.args || [] }));
+    if (stmts.some(s => typeof s.q !== 'string' || !s.q.trim())) {
+      return res.status(400).json({ error: 'Cada sentencia debe contener SQL válido' });
+    }
+    if (stmts.some(s => s.q.length > 50000)) {
+      return res.status(413).json({ error: 'Sentencia SQL demasiado grande' });
+    }
+
+    // Usar exactamente el mismo cliente Turso que las demás rutas del sistema.
+    // Así TURSO_URL/TURSO_DATABASE_URL y TURSO_TOKEN/TURSO_AUTH_TOKEN
+    // siempre apuntan al mismo origen de datos.
+    const data = await turso(stmts);
     return res.status(200).json(data);
   } catch (e) {
     return res.status(500).json({ error: e.message });
