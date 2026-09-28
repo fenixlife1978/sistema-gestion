@@ -37,7 +37,7 @@ module.exports=async function(req,res){
   const b=parseBody(req), action=s(b.action);
   try{
     if(action==='crear_reclutador'){
-      const ced=s(b.cedula), tel=s(b.telefono), estructura=s(b.estructura), numero_calle=s(b.numero_calle), numero_casa=s(b.numero_casa), direccion=s(b.direccion);
+      const ced=s(b.cedula), tel=s(b.telefono), estructura=s(b.estructura), numero_calle=s(b.numero_calle), numero_casa=s(b.numero_casa), direccion=s(b.direccion), centro_codigo=s(b.centro_codigo);
       if(!CED.test(ced)) return res.status(400).json({error:'Cédula inválida'});
       if(tel && !TEL.test(tel.replace(/\D/g,''))) return res.status(400).json({error:'Teléfono inválido'});
       const p=rowsFrom(await exec([{q:'SELECT * FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
