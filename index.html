@@ -1443,7 +1443,7 @@ function openNewRecl() {
   win(ic('users', 18) + ' Nuevo movilizador',
     '<div class="alert warn" style="margin-bottom:12px"><b>Regla de registro:</b> primero seleccione el Centro Electoral. Solo después se habilita la búsqueda por cédula o nombre. La persona debe pertenecer exactamente a ese centro en el Padrón CNE.</div>' +
     '<label class="fl">Paso 1 • Seleccionar Centro Electoral *</label>' +
-    '<select class="inp" id="nrCentro" onchange="nrCentroChange()" style="margin-bottom:12px"><option value="">Seleccione un centro electoral...</option>' +
+    '<select class="inp" id="nrCentro" onchange="nrCentroChange()" style="margin-bottom:12px"><option value="">Seleccione un Centro</option>' +
       CACHE.centros.map(x => '<option value="' + esc(x.codigo) + '">' + esc(x.nombre) + ' (' + esc(x.codigo) + ')</option>').join('') +
     '</select>' +
     '<div id="nrSearchWrap" style="opacity:.55;pointer-events:none">' +
@@ -1471,9 +1471,9 @@ function nrSearch() {
   if(!centro) return toast('Seleccione primero el Centro Electoral','err');
   if(!qv) return;
   const cq=normC(qv), ql=qv.toLowerCase();
-  const res=CACHE.pad.filter(p => (cq.length>=3 && p.cedula.startsWith(cq)) || (nomP(p)+' '+apeP(p)).toLowerCase().includes(ql)).slice(0,8);
+  const res=CACHE.pad.filter(p => String(p.centro_votacion||'')===String(centro) && ((cq.length>=3 && p.cedula.startsWith(cq)) || (nomP(p)+' '+apeP(p)).toLowerCase().includes(ql))).slice(0,8);
   if(!res.length){
-    $('nrRes').innerHTML='<div class="alert warn"><div class="a-ic">'+ic('db',22)+'</div><div><b>No se encontró la persona en el Padrón CNE.</b><div style="font-size:12px;color:var(--mut);margin-top:3px">Los movilizadores deben pertenecer al Padrón CNE del centro seleccionado. No se puede registrar una persona fuera del padrón.</div></div></div>';
+    $('nrRes').innerHTML='<div class="alert warn"><div class="a-ic">'+ic('db',22)+'</div><div><b>No se encontró la persona en el Padrón CNE de este Centro Electoral.</b><div style="font-size:12px;color:var(--mut);margin-top:3px">La búsqueda está limitada al centro seleccionado. Solo una persona que figure en el Padrón CNE de ese centro puede registrarse como movilizador.</div></div></div>';
     return;
   }
   $('nrRes').innerHTML=res.map(p=>{
