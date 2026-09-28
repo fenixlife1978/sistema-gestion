@@ -1013,64 +1013,33 @@ function renderRegistro(focus) {
   if (prevFocus) _refocus(prevFocus);
 }
 async function verificarDuplicidadPersona(cedula, contexto = '') {
-  const ced = normC(cedula);
-  if (!ced) return null;
-
-  const consultas = await Promise.all([
+  const ced=normC(cedula);
+  if(!ced) return null;
+  const consultas=await Promise.all([
     q('SELECT id, cedula, estructura, direccion FROM reclutadores WHERE cedula = ?', [ced]),
     q('SELECT a.id, a.cedula, a.reclutador_id, a.posicion, r.cedula AS reclutador_cedula, r.estructura FROM asignaciones a LEFT JOIN reclutadores r ON r.id = a.reclutador_id WHERE a.cedula = ?', [ced]),
     q('SELECT id, cargo, cedula FROM direccion_ejecutiva WHERE cedula = ?', [ced]),
-    q('SELECT id, comunidad, cedula FROM comite_vecinal WHERE cedula = ?', [ced]),
-    q('SELECT id, centro_codigo, cargo, cedula FROM centro_cargos WHERE cedula = ?', [ced]),
+    q('SELECT id, comunidad, cargo, cedula FROM comite_vecinal WHERE cedula = ?', [ced]),
+    q('SELECT id, centro_codigo, cargo, cedula FROM centro_cargos WHERE cedula = ?', [ced])
   ]);
-
-  const encontrados = [];
-  if (consultas[0].length) encontrados.push({ tipo: 'MOVILIZADOR', detalle: 'ya está registrado como movilizador.' });
-  if (consultas[1].length) {
-    const a = consultas[1][0];
-    const pRecl = padBy(a.reclutador_cedula);
-    const nombreRecl = pRecl ? (nomP(pRecl) + ' ' + apeP(pRecl)).trim() : ('C.I. ' + fC('V', a.reclutador_cedula || ''));
-    encontrados.push({
-      tipo: 'COMPROMETIDO',
-      detalle: 'ya pertenece a la lista de Comprometidos del movilizador ' + nombreRecl + '.',
-      reclutador_id: a.reclutador_id,
-      reclutador_nombre: nombreRecl,
-      posicion: a.posicion
-    });
+  const encontrados=[];
+  if(consultas[0].length) encontrados.push({tipo:'MOVILIZADOR',detalle:'ya está registrado como movilizador.'});
+  for(const a of consultas[1]){
+    const pRecl=padBy(a.reclutador_cedula);
+    const nombreRecl=pRecl?(nomP(pRecl)+' '+apeP(pRecl)).trim():('C.I. '+fC('V',a.reclutador_cedula||''));
+    encontrados.push({tipo:'COMPROMETIDO',detalle:'ya pertenece a la lista de Comprometidos del movilizador '+nombreRecl+'.',reclutador_id:a.reclutador_id,reclutador_nombre:nombreRecl,posicion:a.posicion});
   }
-  if (consultas[2].length) {
-    const d = consultas[2][0];
-    encontrados.push({ tipo: 'DIRECCIÓN EJECUTIVA', detalle: 'ya ocupa el cargo "' + (d.cargo || '') + '" en Dirección Ejecutiva.' });
-  }
-  if (consultas[3].length) {
-    const cv = consultas[3][0];
-    encontrados.push({ tipo: 'COMITÉ VECINAL', detalle: 'ya está asignado a la comunidad "' + (cv.comunidad || '') + '".' });
-  }
-  if (consultas[4].length) {
-    const cc = consultas[4][0];
-    encontrados.push({ tipo: 'CARGO DE CENTRO', detalle: 'ya ocupa el cargo "' + (cc.cargo || '') + '" en el centro "' + (cc.centro_codigo || '') + '".' });
-  }
-  if (!encontrados.length) return null;
-
-  const destino = (() => {
-    const c = String(contexto || '').toLowerCase();
-    if (c.includes('moviliz')) return 'MOVILIZADOR';
-    if (c.includes('comprom')) return 'COMPROMETIDO';
-    if (c.includes('direccion')) return 'DIRECCIÓN EJECUTIVA';
-    if (c.includes('comite')) return 'COMITÉ VECINAL';
-    if (c.includes('cargo')) return 'CARGO DE CENTRO';
-    return String(contexto || 'OTRO').toUpperCase();
-  })();
-
-  const incompatibles = encontrados.filter(d => d.tipo !== destino);
-  if (!incompatibles.length) return encontrados[0];
-
-  const detalle = incompatibles.map(d => d.detalle).join(' ');
-  const autorizado = await autorizarDuplicidadPersona(ced, destino, incompatibles);
-  if (!autorizado) return {
-    ...incompatibles[0],
-    detalle: detalle + ' Se requiere autorización de Jefe de Comando o Administrador para registrarla además como ' + destino + '.'
-  };
+  for(const d of consultas[2]) encontrados.push({tipo:'DIRECCIÓN EJECUTIVA',detalle:'ya ocupa el cargo "'+(d.cargo||'')+'" en Dirección Ejecutiva.'});
+  for(const cv of consultas[3]) encontrados.push({tipo:'COMITÉ VECINAL',detalle:'ya está asignado a la comunidad "'+(cv.comunidad||'')+'" en el cargo "'+(cv.cargo||'')+'".'});
+  for(const cc of consultas[4]) encontrados.push({tipo:'CARGO DE CENTRO',detalle:'ya ocupa el cargo "'+(cc.cargo||'')+'" en el centro "'+(cc.centro_codigo||'')+'".'});
+  if(!encontrados.length) return null;
+  const c=String(contexto||'').toLowerCase();
+  const destino=c.includes('moviliz')?'MOVILIZADOR':c.includes('comprom')?'COMPROMETIDO':c.includes('direccion')?'DIRECCIÓN EJECUTIVA':c.includes('comite')?'COMITÉ VECINAL':c.includes('cargo')?'CARGO DE CENTRO':String(contexto||'').toUpperCase();
+  const incompatibles=encontrados.filter(d=>d.tipo!==destino);
+  if(!incompatibles.length) return encontrados[0];
+  const detalle=incompatibles.map(d=>d.detalle).join(' ');
+  const autorizado=await autorizarDuplicidadPersona(ced,destino,incompatibles);
+  if(!autorizado) return {...incompatibles[0],detalle:detalle+' Se requiere autorización de Jefe de Comando o Administrador para registrarla además como '+destino+'.'};
   return null;
 }
 
