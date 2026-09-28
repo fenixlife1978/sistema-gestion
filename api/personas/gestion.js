@@ -40,8 +40,12 @@ module.exports=async function(req,res){
       const ced=s(b.cedula), tel=s(b.telefono), estructura=s(b.estructura), numero_calle=s(b.numero_calle), numero_casa=s(b.numero_casa), direccion=s(b.direccion), centro_codigo=s(b.centro_codigo);
       if(!CED.test(ced)) return res.status(400).json({error:'Cédula inválida'});
       if(tel && !TEL.test(tel.replace(/\D/g,''))) return res.status(400).json({error:'Teléfono inválido'});
+      if(!centro_codigo) return res.status(400).json({error:'Centro electoral obligatorio. Seleccione primero el centro para registrar el movilizador'});
+      const centro=rowsFrom(await exec([{q:'SELECT codigo,nombre FROM centros WHERE codigo=? LIMIT 1',params:[centro_codigo]}]))[0];
+      if(!centro) return res.status(404).json({error:'Centro electoral no encontrado'});
       const p=rowsFrom(await exec([{q:'SELECT * FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
-      if(!p) return res.status(404).json({error:'La persona no existe en el padrón'});
+      if(!p) return res.status(404).json({error:'La persona no existe en el padrón CNE'});
+      if(!p.centro_votacion || String(p.centro_votacion)!==String(centro_codigo)) return res.status(409).json({error:'Registro rechazado: el centro electoral de la persona en el padrón CNE no coincide con el centro seleccionado'});
       const dup=rowsFrom(await exec([{q:'SELECT id,cedula FROM reclutadores WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
       if(dup) return res.status(409).json({error:'La persona ya es movilizador'});
 
