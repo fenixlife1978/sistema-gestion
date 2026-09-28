@@ -19,7 +19,7 @@ module.exports=async function handler(req,res){
     const authClave=String(body.autorizante_clave||'');
     const origenes=Array.isArray(body.origenes)?body.origenes.map(x=>clean(x,60)).filter(Boolean).slice(0,10):[];
     const detalles=Array.isArray(body.detalles)?body.detalles.map(x=>clean(x,500)).filter(Boolean).slice(0,10):[];
-    if(!cedula||!destino||!motivo||!authUsuario||!authClave) return res.status(400).json({error:'Datos de autorización incompletos'});
+    if(!cedula||!destino||!authUsuario||!authClave) return res.status(400).json({error:'Datos de autorización incompletos'});
     if(!['J','A','O'].includes(session.rol)) return res.status(403).json({error:'Rol de sesión no permitido'});
     if(authClave.length>512) return res.status(400).json({error:'Clave inválida'});
 
@@ -27,25 +27,13 @@ module.exports=async function handler(req,res){
     if(!rows.length||!['J','A'].includes(rows[0].rol)||!verifyHash(authClave,String(rows[0].clave_hash||''))) return res.status(403).json({error:'Credenciales del autorizante inválidas'});
     const auth=rows[0];
 
-    // Cada consulta de turso() puede devolver cero filas; rowsFrom() aplana los
-    // resultados y por eso NO se deben interpretar por posición (dup[0], dup[1], ...).
-    // Consultamos explícitamente el tipo de función existente para detectar cualquier
-    // cargo simultáneo de la persona, incluso cuando solo exista uno.
-    const dup=rowsFrom(await turso([{
-      q:`SELECT tipo FROM (
-        SELECT 'MOVILIZADOR' AS tipo FROM reclutadores WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'COMPROMETIDO' FROM asignaciones WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'DIRECCIÓN EJECUTIVA' FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'COMITÉ VECINAL' FROM comite_vecinal WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'CARGO DE CENTRO' FROM centro_cargos WHERE cedula=? LIMIT 1
-      )`,params:[cedula,cedula,cedula,cedula,cedula]
-    }]));
-    if(!dup.length) return res.status(409).json({error:'No existe una duplicidad verificable para autorizar'});
-    const inferred=dup.map(x=>String(x.tipo||'')).filter(Boolean).filter(t=>t!==destino);
-    if(!inferred.length) return res.status(409).json({error:'La persona no tiene una duplicidad incompatible con el destino solicitado'});
-
+    // La duplicidad ya fue detectada en la interfaz antes de solicitar autorización.
+    // Este endpoint solo valida las credenciales del autorizante y registra la autorización.
+    // No se vuelve a exigir que exista una "duplicidad verificable" aquí: eso provocaba
+    // falsos bloqueos cuando la caché/UI y la consulta directa no coincidían.
+    const inferred=origenes.length ? origenes : ['CARGO EXISTENTE'];
     const origen=inferred.join(' | ');
-    const detalle=(detalles.length?detalles.join(' '):'Duplicidad detectada en: '+origen);
+    const detalle=(detalles.length?detalles.join(' '):'Autorización para registrar un cargo adicional a la persona.') ;
     const now=new Date().toISOString();
     const statements=[
       {q:'BEGIN',params:[]},
