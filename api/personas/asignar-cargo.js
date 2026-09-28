@@ -11,9 +11,8 @@ module.exports=async function(req,res){
     if(!['J','A','O'].includes(session.rol)) return fail(res,403,'Rol de sesión no permitido');
     const b=parseBody(req), tipo=st(b.tipo,20).toLowerCase(), cedula=ci(b.cedula), cargo=st(b.cargo,120), centro=st(b.centro_codigo,80);
     const telefono=tel(b.telefono), numero_calle=st(b.numero_calle,80), numero_casa=st(b.numero_casa,80), direccion=st(b.direccion,500), nombre=st(b.nombre,250), padron=b.padron&&typeof b.padron==='object'?b.padron:null;
-    if(!['direccion','centro','otro'].includes(tipo)||!/^[0-9]{5,9}$/.test(cedula)||!cargo) return fail(res,400,'Datos de asignación inválidos');
+    if(!['direccion','centro'].includes(tipo)||!/^[0-9]{5,9}$/.test(cedula)||!cargo) return fail(res,400,'Datos de asignación inválidos');
     if(tipo==='centro'&&!centro) return fail(res,400,'Centro electoral obligatorio');
-    if(tipo==='otro' && (cargo.length<2 || cargo.toUpperCase()==='COMITÉ VECINAL')) return fail(res,400,'Cargo adicional inválido');
     if(telefono&&!/^0[0-9]{10}$/.test(telefono)) return fail(res,400,'Teléfono inválido');
     // No usar posiciones de rowsFrom() para representar cada consulta: rowsFrom()
     // aplana los resultados y una consulta sin filas desplaza las siguientes.
@@ -24,19 +23,16 @@ module.exports=async function(req,res){
         UNION ALL SELECT 'DIRECCIÓN EJECUTIVA',id,cargo,NULL FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
         UNION ALL SELECT 'COMITÉ VECINAL',id,cargo,NULL FROM comite_vecinal WHERE cedula=? LIMIT 1
         UNION ALL SELECT 'CARGO DE CENTRO',id,cargo,centro_codigo FROM centro_cargos WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'OTRO CARGO',id,cargo,NULL FROM otros_cargos WHERE cedula=? LIMIT 1
-      )`,params:[cedula,cedula,cedula,cedula,cedula,cedula]
+      )`,params:[cedula,cedula,cedula,cedula,cedula]
     }]));
     const padronRows=rowsFrom(await turso([{q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[cedula]}]));
-    const destino=tipo==='direccion'?'DIRECCIÓN EJECUTIVA':tipo==='centro'?'CARGO DE CENTRO':'OTRO CARGO';
+    const destino=tipo==='direccion'?'DIRECCIÓN EJECUTIVA':'CARGO DE CENTRO';
     const conflicts=roles.map(x=>String(x.tipo||'')).filter(Boolean);
     const sameTarget=roles.some(x=>
       (tipo==='direccion'&&x.tipo==='DIRECCIÓN EJECUTIVA'&&String(x.cargo||'')===cargo) ||
-      (tipo==='centro'&&x.tipo==='CARGO DE CENTRO'&&String(x.centro_codigo||'')===centro&&String(x.cargo||'')===cargo) ||
-      (tipo==='otro'&&x.tipo==='OTRO CARGO'&&String(x.cargo||'').trim().toUpperCase()===cargo.trim().toUpperCase())
+      (tipo==='centro'&&x.tipo==='CARGO DE CENTRO'&&String(x.centro_codigo||'')===centro&&String(x.cargo||'')===cargo)
     );
     if(sameTarget) return fail(res,409,'La persona ya ocupa ese cargo');
-    if(tipo==='otro' && roles.some(x=>x.tipo==='COMITÉ VECINAL')) return fail(res,409,'Los cargos de Comité Vecinal no pueden registrarse como OTRO CARGO');
     if(conflicts.filter(x=>x!==destino).length){
       const a=rowsFrom(await turso([{q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL ORDER BY id DESC LIMIT 1',params:[cedula,destino]}]));
       if(!a.length) return fail(res,409,'La persona ya figura en otra función y requiere autorización J/A para este destino');
@@ -59,24 +55,6 @@ module.exports=async function(req,res){
     if(conflicts.filter(x=>x!==destino).length){
       const authRow=rowsFrom(await turso([{q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL ORDER BY id DESC LIMIT 1',params:[cedula,destino]}]))[0];
       if(authRow) autorizacionId=Number(authRow.id);
-    }
-    if(tipo==='otro'){
-      const occupied=rowsFrom(await turso([{q:'SELECT id,cedula FROM otros_cargos WHERE cargo=? LIMIT 1',params:[cargo]}]));
-      if(occupied.length&&String(occupied[0].cedula||'')!==cedula) return fail(res,409,'Ese OTRO CARGO ya está ocupado');
-      const statements=[];
-      if(autorizacionId){
-        statements.push({q:'BEGIN',params:[]});
-        statements.push({q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,session.uid,autorizacionId]});
-      }
-      statements.push({q:'INSERT INTO otros_cargos(cargo,cedula,nombre,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)',params:[cargo,cedula,nombre||null,telefono||null,numero_calle||null,numero_casa||null,direccion||null]});
-      if(autorizacionId){
-        statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','OTRO CARGO asignado: C.I. '+cedula+' → '+cargo+' • autorización #'+autorizacionId+' consumida',session.uid]});
-        statements.push({q:'COMMIT',params:[]});
-      }else{
-        statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','OTRO CARGO asignado: C.I. '+cedula+' → '+cargo,session.uid]});
-      }
-      await turso(statements);
-      return res.status(201).json({ok:true,tipo,cedula,cargo,centro_codigo:null});
     }
     if(tipo==='direccion'){
       const guard=autorizacionId
