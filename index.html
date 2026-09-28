@@ -1513,11 +1513,9 @@ async function nrSave() {
       CACHE.recl.unshift(creado);
     }
 
-    await refreshAll();
-    // La respuesta del alta trae la lectura real de reclutadores en Turso.
-    // Igual que los demás módulos, esa lectura pasa a ser la fuente de verdad
-    // para la interfaz y evita que una recarga global o caché intermedia oculte
-    // un movilizador recién creado.
+    // /api/personas/gestion ya devuelve la lectura confirmada desde Turso.
+    // No ejecutamos refreshAll aquí porque una consulta global fallida o desactualizada
+    // puede volver a pisar la lista recién confirmada.
     if(Array.isArray(rd.movilizadores)){
       CACHE.recl = rd.movilizadores;
       for(const r of CACHE.recl) r.lista = r.lista || [];
@@ -1526,9 +1524,14 @@ async function nrSave() {
     }
     closeModal();
     const nuevo=CACHE.recl.find(r=>String(r.cedula)===String(p.cedula));
-    if(CUR==='recl'){ renderRecl(); toast('Movilizador creado y validado contra el Padrón CNE','ok'); }
-    else if(nuevo){ REG.rec=nuevo.id; go('registro'); toast('Movilizador creado y validado contra el Padrón CNE','ok'); }
-    else toast('Movilizador creado','ok');
+    if(rd.ya_existia){
+      if(CUR==='recl') renderRecl();
+      toast('Esta persona ya estaba registrada como Movilizador. No se creó un registro duplicado.','ok',8000);
+      return;
+    }
+    if(CUR==='recl'){ renderRecl(); toast('Movilizador creado y confirmado en Turso','ok'); }
+    else if(nuevo){ REG.rec=nuevo.id; go('registro'); toast('Movilizador creado y confirmado en Turso','ok'); }
+    else toast('Movilizador creado y confirmado en Turso','ok');
   }catch(e){ if(saveBtn) saveBtn.disabled=false; toast(e.message,'err',8000); }
 }
 function openNrManual(){ toast('El registro manual de movilizadores está deshabilitado: todo movilizador debe pertenecer al Padrón CNE del centro seleccionado.','err',8000); }
