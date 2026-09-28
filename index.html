@@ -1061,8 +1061,6 @@ async function autorizarDuplicidadPersona(cedula, destino, encontrados) {
       '<input class="inp" id="dupAuthUser" autocomplete="username" placeholder="Usuario">' +
       '<label class="fl" style="margin-top:10px">Clave de autorización</label>' +
       '<input class="inp" id="dupAuthPass" type="password" autocomplete="current-password" placeholder="Clave">' +
-      '<label class="fl" style="margin-top:10px">Motivo</label>' +
-      '<textarea class="inp" id="dupAuthMotivo" rows="2" placeholder="Indique el motivo de la excepción"></textarea>' +
       '</div></div></div>' +
       '<div class="win-f">' +
       '<button class="btn btn-w" onclick="cancelarAutorizacionDuplicidad()">Cancelar</button>' +
@@ -1088,7 +1086,6 @@ async function confirmarAutorizacionDuplicidad() {
   const encontrados = window.__dupAuthEncontrados || [];
   const u = String($('dupAuthUser')?.value || '').trim();
   const p = $('dupAuthPass')?.value || '';
-  const motivo = String($('dupAuthMotivo')?.value || '').trim();
   if (!u || !p) return toast('Ingrese usuario y clave de autorización','err');
   try {
     const r = await fetch('/api/duplicidades/autorizar', {
