@@ -81,34 +81,52 @@ module.exports=async function(req,res){
       }
 
       const now=new Date().toISOString();
-      const statements=[];
+      const telefono=tel?normTel(tel):null;
+      let creado=null;
+
+      // El INSERT usa RETURNING para confirmar el alta en la misma operación
+      // de escritura. Así evitamos depender de una lectura inmediatamente
+      // posterior que puede no reflejar aún el último cambio.
       if(autorizacionId){
-        statements.push({q:'BEGIN',params:[]});
-        statements.push({q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,a.id,autorizacionId]});
-        statements.push({q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,numero_calle||null,numero_casa||null,direccion||null]});
-        statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida',a.id]});
-        statements.push({q:'COMMIT',params:[]});
+        const out=await exec([
+          {q:'BEGIN',params:[]},
+          {q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,a.id,autorizacionId]},
+          {q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula',params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]},
+          {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida',a.id]},
+          {q:'COMMIT',params:[]}
+        ]);
+        const inserted=rowsFrom(out);
+        const hit=inserted.find(x=>x&&x.id!==undefined&&String(x.cedula)===String(ced));
+        if(hit) creado={id:hit.id,cedula:hit.cedula};
       }else{
-        statements.push({q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',params:[ced,tel?normTel(tel):null,estructura||null,numero_calle||null,numero_casa||null,direccion||null]});
+        const out=await exec([{
+          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula',
+          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+        }]);
+        const inserted=rowsFrom(out);
+        const hit=inserted.find(x=>x&&x.id!==undefined&&String(x.cedula)===String(ced));
+        if(hit) creado={id:hit.id,cedula:hit.cedula};
       }
-      await exec(statements);
       if(!autorizacionId) await log(a,'Nuevo movilizador creado: '+ced);
 
-      // Confirmamos el alta leyendo nuevamente desde Turso. El resultado del
-      // INSERT no siempre trae filas en el endpoint HTTP, por lo que no debemos
-      // depender de rowsFrom(out) para saber si el registro quedó disponible.
-      const creado=rowsFrom(await exec([{
-        q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,p.letra,p.p_apellido,p.s_apellido,p.p_nombre,p.s_nombre,p.centro_votacion,p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON CAST(p.cedula AS TEXT)=CAST(r.cedula AS TEXT) WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
-        params:[ced]
-      }]))[0];
+      // Completamos la respuesta con los datos del padrón que ya fueron
+      // verificados antes del INSERT; no hacemos un SELECT de confirmación
+      // inmediatamente después del alta.
       if(!creado){
-        const verificacion=rowsFrom(await exec([{
-          q:'SELECT id,cedula FROM reclutadores WHERE CAST(cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
-          params:[ced]
-        }]))[0];
-        if(verificacion) return res.status(500).json({error:'El movilizador fue guardado en Turso pero la lectura de confirmación no pudo recuperar todos sus datos',id:verificacion.id});
-        return res.status(500).json({error:'El movilizador no quedó registrado en Turso'});
+        return res.status(500).json({error:'Turso no devolvió confirmación del alta del movilizador'});
       }
+      creado.telefono=telefono;
+      creado.estructura=estructura||null;
+      creado.numero_calle=numero_calle||null;
+      creado.numero_casa=numero_casa||null;
+      creado.direccion=direccion||null;
+      creado.letra=p.letra||null;
+      creado.p_apellido=p.p_apellido||null;
+      creado.s_apellido=p.s_apellido||null;
+      creado.p_nombre=p.p_nombre||null;
+      creado.s_nombre=p.s_nombre||null;
+      creado.centro_votacion=p.centro_votacion||null;
+      creado.nombre_cv=p.nombre_cv||centro.nombre||null;
       creado.lista=[];
       return res.json({ok:true,id:creado.id||null,movilizador:creado});
     }
