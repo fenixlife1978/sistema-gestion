@@ -1482,7 +1482,7 @@ function nrSearch() {
     const disabled=!coincide||!!a&&a.tipo==='reclutador';
     const badge=!coincide?'<span class="chip chip-r">CENTRO NO COINCIDE</span>':a&&a.tipo==='reclutador'?'<span class="chip chip-r">YA ES MOVILIZADOR</span>':a?'<span class="chip chip-y">TIENE OTRO CARGO</span>':'<span class="chip chip-g">CENTRO COINCIDE</span>';
     const reason=!coincide?'Padrón CNE: '+esc(p.nombre_cv||p.centro_votacion||'sin centro')+' • Seleccionado: '+esc(cenBy(centro)?.nombre||centro):'Centro CNE verificado: '+esc(p.nombre_cv||centro);
-    return '<button class="rec-sel" '+(disabled?'disabled':'')+' style="'+(disabled?'opacity:.65;cursor:not-allowed':'')+'" onclick="'+(disabled?'':'nrPick(\\''+esc(p.cedula)+'\\')')+'"><span class="uava">'+ini(nomP(p))+'</span><span style="flex:1;min-width:0"><b style="font-size:12.5px">'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono" style="font-size:11px;color:var(--mut)">'+fC(p.letra,p.cedula)+'  '+(edadDe(p.fecha_nac)||p.edad||'-')+'a</div><div style="font-size:11px;color:'+(coincide?'var(--green)':'var(--red)')+';margin-top:2px">'+reason+'</div></span>'+badge+'</button>';
+    return '<button class="rec-sel" '+(disabled?'disabled':'')+' style="'+(disabled?'opacity:.65;cursor:not-allowed':'')+'" onclick="'+(disabled?'':'nrPick(&quot;'+esc(p.cedula)+'&quot;)')+'"><span class="uava">'+ini(nomP(p))+'</span><span style="flex:1;min-width:0"><b style="font-size:12.5px">'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono" style="font-size:11px;color:var(--mut)">'+fC(p.letra,p.cedula)+'  '+(edadDe(p.fecha_nac)||p.edad||'-')+'a</div><div style="font-size:11px;color:'+(coincide?'var(--green)':'var(--red)')+';margin-top:2px">'+reason+'</div></span>'+badge+'</button>';
   }).join('');
 }
 function nrPick(c) {
