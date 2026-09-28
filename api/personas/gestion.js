@@ -115,16 +115,16 @@ module.exports=async function(req,res){
         return res.status(500).json({error:'Turso ejecutó el alta pero no pudo confirmar el registro del movilizador',cedula:ced});
       }
 
-      const creado={...ver};
-      creado.letra=p.letra||null;
-      creado.p_apellido=p.p_apellido||null;
-      creado.s_apellido=p.s_apellido||null;
-      creado.p_nombre=p.p_nombre||null;
-      creado.s_nombre=p.s_nombre||null;
-      creado.centro_votacion=p.centro_votacion||null;
-      creado.nombre_cv=p.nombre_cv||centro.nombre||null;
-      creado.lista=[];
-      return res.json({ok:true,id:creado.id||null,movilizador:creado});
+      const registroCreado={...ver};
+      registroCreado.letra=p.letra||null;
+      registroCreado.p_apellido=p.p_apellido||null;
+      registroCreado.s_apellido=p.s_apellido||null;
+      registroCreado.p_nombre=p.p_nombre||null;
+      registroCreado.s_nombre=p.s_nombre||null;
+      registroCreado.centro_votacion=p.centro_votacion||null;
+      registroCreado.nombre_cv=p.nombre_cv||centro.nombre||null;
+      registroCreado.lista=[];
+      const todos=rowsFrom(await exec([{q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado,p.letra,p.p_apellido,p.s_apellido,p.p_nombre,p.s_nombre,p.centro_votacion,p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula ORDER BY r.creado DESC,r.id DESC',params:[]}])) ;\n      todos.forEach(x=>{x.lista=[]});\n      return res.json({ok:true,id:registroCreado.id||null,movilizador:registroCreado,movilizadores:todos});
     }
 
     if(action==='crear_reclutador_manual'){
