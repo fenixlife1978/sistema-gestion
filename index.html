@@ -1022,7 +1022,6 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
     q('SELECT id, cargo, cedula FROM direccion_ejecutiva WHERE cedula = ?', [ced]),
     q('SELECT id, comunidad, cedula FROM comite_vecinal WHERE cedula = ?', [ced]),
     q('SELECT id, centro_codigo, cargo, cedula FROM centro_cargos WHERE cedula = ?', [ced]),
-    q('SELECT id, cargo, cedula FROM otros_cargos WHERE cedula = ?', [ced])
   ]);
 
   const encontrados = [];
