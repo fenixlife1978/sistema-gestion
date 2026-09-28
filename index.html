@@ -1493,19 +1493,46 @@ async function nrSave() {
   const p=padBy(window._nrSel), centro=String(window._nrCentro||'');
   if(!p||!centro) return toast('Seleccione primero el centro y una persona del Padrón CNE','err');
   if(String(p.centro_votacion)!==centro) return toast('⛔ Registro rechazado: el centro CNE no coincide con el centro seleccionado','err',8000);
-  const dupGlobal=await verificarDuplicidadPersona(p.cedula,'movilizador');
-  if(dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula,dupGlobal),'err',8000);
-  const tel=$('nrTel').value.trim(), nroCalle=($('nrNroCalle')?.value||'').trim(), nroCasa=($('nrNroCasa')?.value||'').trim();
-  if(tel&&!valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)','err');
-  if(tel){ const dupTel=await verificarDuplicidadTelefono(tel); if(dupTel) return toast(mensajeDuplicidadTelefono(tel,dupTel),'err',8000); }
-  const saveBtn=$('btnNrSave'); if(saveBtn) saveBtn.disabled=true;
-  try{
-    const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,centro_codigo:centro,telefono:normTel(tel),estructura:$('nrEst').value,numero_calle:nroCalle,numero_casa:nroCasa,direccion:$('nrDir').value})});
-    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
 
-    // El backend confirma el registro directamente desde Turso. Lo insertamos
-    // en memoria de inmediato para que la interfaz no dependa de una segunda
-    // lectura que pueda llegar con retraso.
+  // Capturamos TODOS los datos antes de abrir cualquier modal de autorización.
+  // El modal de autorización reemplaza el formulario original en #mOv.
+  const tel=($('nrTel')?.value||'').trim();
+  const nroCalle=($('nrNroCalle')?.value||'').trim();
+  const nroCasa=($('nrNroCasa')?.value||'').trim();
+  const estructura=$('nrEst')?.value||'';
+  const direccion=($('nrDir')?.value||'').trim();
+  const saveBtn=$('btnNrSave');
+
+  try {
+    if(tel&&!valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)','err');
+    if(tel){
+      const dupTel=await verificarDuplicidadTelefono(tel);
+      if(dupTel) return toast(mensajeDuplicidadTelefono(tel,dupTel),'err',8000);
+    }
+
+    const dupGlobal=await verificarDuplicidadPersona(p.cedula,'movilizador');
+    if(dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula,dupGlobal),'err',8000);
+
+    toast('Autorización aprobada. Registrando movilizador en Turso...','ok',5000);
+
+    const rr=await fetch('/api/personas/gestion',{
+      method:'POST',
+      credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        action:'crear_reclutador',
+        cedula:p.cedula,
+        centro_codigo:centro,
+        telefono:normTel(tel),
+        estructura,
+        numero_calle:nroCalle,
+        numero_casa:nroCasa,
+        direccion
+      })
+    });
+    const rd=await rr.json().catch(()=>({}));
+    if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
+
     const creado=rd.movilizador;
     if(creado && creado.id){
       creado.lista=Array.isArray(creado.lista)?creado.lista:[];
@@ -1513,15 +1540,13 @@ async function nrSave() {
       CACHE.recl.unshift(creado);
     }
 
-    // /api/personas/gestion ya devuelve la lectura confirmada desde Turso.
-    // No ejecutamos refreshAll aquí porque una consulta global fallida o desactualizada
-    // puede volver a pisar la lista recién confirmada.
     if(Array.isArray(rd.movilizadores)){
-      CACHE.recl = rd.movilizadores;
-      for(const r of CACHE.recl) r.lista = r.lista || [];
+      CACHE.recl=rd.movilizadores;
+      for(const r of CACHE.recl) r.lista=r.lista||[];
     } else if(creado && creado.id && !CACHE.recl.some(r=>String(r.id)===String(creado.id))){
       CACHE.recl.unshift(creado);
     }
+
     closeModal();
     const nuevo=CACHE.recl.find(r=>String(r.cedula)===String(p.cedula));
     if(rd.ya_existia){
@@ -1529,48 +1554,22 @@ async function nrSave() {
       toast('Esta persona ya estaba registrada como Movilizador. No se creó un registro duplicado.','ok',8000);
       return;
     }
-    if(CUR==='recl'){ renderRecl(); toast('Movilizador creado y confirmado en Turso','ok'); }
-    else if(nuevo){ REG.rec=nuevo.id; go('registro'); toast('Movilizador creado y confirmado en Turso','ok'); }
-    else toast('Movilizador creado y confirmado en Turso','ok');
-  }catch(e){ if(saveBtn) saveBtn.disabled=false; toast(e.message,'err',8000); }
+    if(CUR==='recl'){
+      renderRecl();
+      toast('Movilizador creado y confirmado en Turso','ok');
+    } else if(nuevo){
+      REG.rec=nuevo.id;
+      go('registro');
+      toast('Movilizador creado y confirmado en Turso','ok');
+    } else {
+      toast('Movilizador creado y confirmado en Turso','ok');
+    }
+  }catch(e){
+    console.error('Error en registro de Movilizador:',e);
+    if(saveBtn) saveBtn.disabled=false;
+    toast('Error al registrar movilizador: '+e.message,'err',8000);
+  }
 }
-function openNrManual(){ toast('El registro manual de movilizadores está deshabilitado: todo movilizador debe pertenecer al Padrón CNE del centro seleccionado.','err',8000); }
-/* ----------- PADRN ----------- */
-function renderPadron() {
-  const prevFocus = _focused();
-  const f = PADF;
-  const all = CACHE.pad.filter(p => {
-    if (f.txt) { const q = f.txt.toLowerCase(), cq = normC(f.txt); if (!((cq.length >= 3 && p.cedula.includes(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(q))) return false }
-    if (f.sexo && p.sexo !== f.sexo) return false;
-    if (f.centro && p.centro_votacion !== f.centro) return false;
-    if (f.e1 && (edadDe(p.fecha_nac) || p.edad || 0) < +f.e1) return false;
-    if (f.e2 && (edadDe(p.fecha_nac) || p.edad || 0) > +f.e2) return false;
-    return true;
-  });
-  const per = 14; const pgs = Math.max(1, Math.ceil(all.length / per)); f.pg = Math.min(f.pg, pgs);
-  const rows = all.slice((f.pg - 1) * per, f.pg * per);
-  $('sec-padron').innerHTML = panel('Padrón CNE / Electores <span class="chip chip-b" style="margin-left:auto">' + all.length + ' registros  Turso</span>',
-    '<div class="filter-bar" style="margin-bottom:14px">' +
-    '<div style="flex:1;min-width:100px"><label class="fl">Buscar</label><input class="inp" id="padFilter" value="' + esc(f.txt) + '" oninput="PADF.txt=this.value;PADF.pg=1;renderPadron()"></div>' +
-    '<div style="min-width:70px"><label class="fl">Sexo</label><select class="inp" onchange="PADF.sexo=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option><option value="M" ' + (f.sexo === 'M' ? 'selected' : '') + '>M</option><option value="F" ' + (f.sexo === 'F' ? 'selected' : '') + '>F</option></select></div>' +
-    '<div style="min-width:80px"><label class="fl">Centro</label><select class="inp" onchange="PADF.centro=this.value;PADF.pg=1;renderPadron()"><option value="">Todos</option>' + CACHE.centros.map(c => '<option value="' + c.codigo + '" ' + (f.centro === c.codigo ? 'selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select></div>' +
-    '<div style="max-width:70px"><label class="fl">Edad mín.</label><input class="inp" type="number" value="' + f.e1 + '" onchange="PADF.e1=this.value;PADF.pg=1;renderPadron()"></div>' +
-    '<div style="max-width:70px"><label class="fl">Edad máx.</label><input class="inp" type="number" value="' + f.e2 + '" onchange="PADF.e2=this.value;PADF.pg=1;renderPadron()"></div>' +
-    '<div style="align-self:end;display:flex;gap:5px;flex-wrap:wrap">' +
-    '<button class="btn btn-w btn-xs" onclick="expPadron()">' + ic('dl', 12) + ' CSV</button>' +
-    '<button class="btn btn-navy btn-xs" onclick="downloadPDF(\'padronContent\',\'Padrón CNE  Electores\')">' + ic('dl', 12) + ' PDF</button>' +
-    '</div></div>' +
-    '<div id="padronContent"><table class="tbl"><thead><tr><th>C.I.</th><th>Apellidos</th><th>Nombres</th><th>Edad</th><th>Sexo</th><th>F. Nacimiento</th><th>Centro de votacin</th><th>Municipio / Parroquia</th><th>Estatus compromiso</th></tr></thead><tbody>' +
-    (rows.map(p => { const a = asignDe(p.cedula); const ed = edadDe(p.fecha_nac) || p.edad || '-'; const fnStr = fmtFn(p.fecha_nac); return '<tr><td class="mono" style="font-weight:700">' + fC(p.letra, p.cedula) + (p.es_manual ? ' <span class="chip chip-r">MANUAL</span>' : '') + '</td><td>' + esc(apeP(p)) + '</td><td>' + esc(nomP(p)) + '</td><td>' + ed + '</td><td>' + esc(p.sexo || '') + '</td><td class="mono" style="font-size:11px">' + esc(fnStr) + '</td><td style="max-width:190px">' + esc(p.nombre_cv) + ' <span class="mono" style="font-size:10px;color:var(--mut)">' + p.centro_votacion + '</span></td><td>' + esc(p.municipio) + ' / ' + esc(p.parroquia) + '</td><td>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<button class="chip chip-g" style="cursor:pointer" onclick="openRec(' + a.r.id + ')">#' + a.pos + '</button>') : '<span class="chip chip-gr">LIBRE</span>') + '</td></tr>' }).join('') || '<tr><td colspan="9"><div class="empty">Sin resultados.</div></td></tr>') +
-    '</tbody></table></div><div class="pager">' + Array.from({ length: Math.min(pgs, 20) }, (_, i) => '<button class="pg' + (i + 1 === f.pg ? ' on' : '') + '" onclick="PADF.pg=' + (i + 1) + ';renderPadron()">' + (i + 1) + '</button>').join('') + (pgs > 20 ? '<span style="align-self:center;color:var(--mut);font-size:12px"> ' + pgs + ' pgs</span>' : '') + '</div>');
-  _refocus(prevFocus);
-}
-function expPadron() {
-  const rows = [['Nro', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'EDAD', 'CODIGO_ESTADO', 'ESTADO', 'CODIGO_MUNICIPIO', 'MUNICIPIO', 'CODIGO_PARROQUIA', 'PARROQUIA', 'CENTRO_VOTACION', 'NOMBRE_CV', 'ESTATUS_COMPROMISO']];
-  CACHE.pad.forEach((p, i) => { const a = asignDe(p.cedula); rows.push([i + 1, p.letra, p.cedula, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, fmtFn(p.fecha_nac), edadDe(p.fecha_nac) || p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv, a ? (a.tipo === 'reclutador' ? 'MOVILIZADOR' : 'ASIGNADO #' + a.pos) : 'LIBRE']) });
-  dlCSV('padron_cne_turso.csv', rows); toast('Padrón exportado (' + rows.length + ')', 'ok');
-}
-
 /* ----------- CENTROS ----------- */
 function renderCentros() {
   const munis = [...new Set(CACHE.centros.map(c => c.municipio))].sort();
