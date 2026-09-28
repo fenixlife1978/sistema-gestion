@@ -1012,7 +1012,7 @@ function renderRegistro(focus) {
   if (focus && inp) inp.focus();
   if (prevFocus) _refocus(prevFocus);
 }
-async async function verificarDuplicidadPersona(cedula, contexto = '') {
+async function verificarDuplicidadPersona(cedula, contexto = '') {
   const ced=normC(cedula);
   if(!ced) return null;
   const consultas=await Promise.all([
@@ -1494,7 +1494,7 @@ function nrPick(c) {
   $('btnNrSave').disabled=false;
   $('nrCard').innerHTML='<div class="row10"><span class="pos">'+ic('id',14)+'</span><div><b class="mono">'+fC(pp.letra||'V',c)+'</b> seleccionada • <span style="color:var(--green);font-weight:700">Centro CNE verificado</span><div style="font-size:11px;color:var(--mut)">'+esc(pp.nombre_cv||centro)+'</div></div></div>';
 }
-async async function nrSave() {
+async function nrSave() {
   const p=padBy(window._nrSel), centro=String(window._nrCentro||'');
   if(!p||!centro) return toast('Seleccione primero el centro y una persona del Padrón CNE','err');
   if(String(p.centro_votacion)!==centro) return toast('⛔ Registro rechazado: el centro CNE no coincide con el centro seleccionado','err',8000);
