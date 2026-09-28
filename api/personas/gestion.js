@@ -46,8 +46,18 @@ module.exports=async function(req,res){
       const p=rowsFrom(await exec([{q:'SELECT * FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
       if(!p) return res.status(404).json({error:'La persona no existe en el padrón CNE'});
       if(!p.centro_votacion || String(p.centro_votacion)!==String(centro_codigo)) return res.status(409).json({error:'Registro rechazado: el centro electoral de la persona en el padrón CNE no coincide con el centro seleccionado'});
-      const dup=rowsFrom(await exec([{q:'SELECT id,cedula FROM reclutadores WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
-      if(dup) return res.status(409).json({error:'La persona ya es movilizador'});
+      const dup=rowsFrom(await exec([{q:'SELECT id,cedula FROM reclutadores WHERE CAST(cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',params:[ced]}]))[0];
+      if(dup){
+        const existente=rowsFrom(await exec([{
+          q:'SELECT r.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.centro_votacion, p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula WHERE r.id=? LIMIT 1',
+          params:[dup.id]
+        }]))[0];
+        if(existente){
+          existente.lista=[];
+          return res.json({ok:true,ya_existia:true,id:existente.id||dup.id,movilizador:existente});
+        }
+        return res.status(409).json({error:'La persona ya está registrada como movilizador, pero no pudo ser recuperada desde Turso'});
+      }
 
       // Una persona puede ejercer varios cargos simultáneamente. Solo bloqueamos
       // el nuevo cargo si existe otro cargo y no hay una autorización vigente para
@@ -88,10 +98,17 @@ module.exports=async function(req,res){
       // INSERT no siempre trae filas en el endpoint HTTP, por lo que no debemos
       // depender de rowsFrom(out) para saber si el registro quedó disponible.
       const creado=rowsFrom(await exec([{
-        q:'SELECT r.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.centro_votacion, p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula WHERE r.cedula=? LIMIT 1',
+        q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,p.letra,p.p_apellido,p.s_apellido,p.p_nombre,p.s_nombre,p.centro_votacion,p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON CAST(p.cedula AS TEXT)=CAST(r.cedula AS TEXT) WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
         params:[ced]
       }]))[0];
-      if(!creado) return res.status(500).json({error:'El movilizador fue procesado pero no pudo ser confirmado en Turso'});
+      if(!creado){
+        const verificacion=rowsFrom(await exec([{
+          q:'SELECT id,cedula FROM reclutadores WHERE CAST(cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
+          params:[ced]
+        }]))[0];
+        if(verificacion) return res.status(500).json({error:'El movilizador fue guardado en Turso pero la lectura de confirmación no pudo recuperar todos sus datos',id:verificacion.id});
+        return res.status(500).json({error:'El movilizador no quedó registrado en Turso'});
+      }
       creado.lista=[];
       return res.json({ok:true,id:creado.id||null,movilizador:creado});
     }
