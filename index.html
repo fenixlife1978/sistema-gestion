@@ -223,7 +223,6 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
   <section class="sec" id="sec-users"></section>
   <section class="sec" id="sec-data"></section>
   <section class="sec" id="sec-direccion"></section>
-  <section class="sec" id="sec-otros"></section>
   <section class="sec" id="sec-comite"></section>
   <section class="sec" id="sec-control"></section>
  </main>
@@ -502,7 +501,7 @@ const kc = (l, v, s, bar, full) => '<div class="kcard"><div class="kl">' + l + '
 /* ----------- ESTADO GLOBAL ----------- */
 let USER = null, CUR = 'dash', REG = { rec: null }, LAST_REC = null;
 let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '' };
-let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], otros: [], direccion: [], comite: [], verificacion: [], actasMesa: [], mesasOperativas: [], mesaMiembros: [], cortes: [] };
+let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [], comite: [], verificacion: [], actasMesa: [], mesasOperativas: [], mesaMiembros: [], cortes: [] };
 let CONTROL_ELECTORAL = { centro: '', search: '' };
 
 /* ----------- ESQUEMA TURSO (AUTO-MIGRACIÓN) ----------- */
@@ -633,7 +632,6 @@ async function refreshAll() {
     { q: 'SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100' },
     { q: 'SELECT * FROM usuarios ORDER BY rol, nombre' },
     { q: 'SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id' },
-    { q: 'SELECT oc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.centro_votacion, p.nombre_cv FROM otros_cargos oc LEFT JOIN padron p ON p.cedula = oc.cedula ORDER BY oc.cargo, oc.id' },
     { q: 'SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, d.numero_calle, d.numero_casa, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC' },
     { q: 'SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC' },
     { q: 'SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id' },
@@ -658,19 +656,18 @@ async function refreshAll() {
   CACHE.act = rows[3] || [];
   CACHE.users = rows[4] || [];
   CACHE.cargos = rows[5] || [];
-  CACHE.otros = rows[6] || [];
-  CACHE.direccion = rows[7] || [];
-  CACHE.comite = rows[8] || [];
-  CACHE.catalogoProblemas = rows[9] || [];
-  CACHE.comiteProblemas = rows[10] || [];
-  CACHE.verificacion = rows[11] || [];
-  CACHE.actasMesa = rows[12] || [];
-  CACHE.mesasOperativas = rows[13] || [];
-  CACHE.mesaMiembros = rows[14] || [];
-  CACHE.cortes = rows[15] || [];
+  CACHE.direccion = rows[6] || [];
+  CACHE.comite = rows[7] || [];
+  CACHE.catalogoProblemas = rows[8] || [];
+  CACHE.comiteProblemas = rows[9] || [];
+  CACHE.verificacion = rows[10] || [];
+  CACHE.actasMesa = rows[11] || [];
+  CACHE.mesasOperativas = rows[12] || [];
+  CACHE.mesaMiembros = rows[13] || [];
+  CACHE.cortes = rows[14] || [];
 
   // Una sola consulta para todas las asignaciones, agrupada en memoria.
-  const asignaciones = rows[16] || [];
+  const asignaciones = rows[15] || [];
   const porReclutador = new Map();
   for (const a of asignaciones) {
     const key = String(a.reclutador_id);
@@ -744,7 +741,6 @@ const MODS = [
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
   { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A', 'O'] },
   { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' },
-  { id: 'otros', l: 'Otros Cargos', i: 'userPlus' },
   { id: 'comite', l: 'Comités Vecinales', i: 'users' },
   { id: 'control', l: 'Control Electoral', i: 'check' }
 ];
@@ -774,7 +770,7 @@ function go(id) {
   const t = $('tb-' + id); if (t) t.classList.add('on');
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
   $('sec-' + id).classList.add('on');
-  ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion, otros: renderOtrosCargos, comite: renderComite, control: renderControlElectoral })[id]();
+  ({ dash: renderDash, registro: () => renderRegistro(true), recl: renderRecl, padron: renderPadron, centros: renderCentros, rep: renderRep, users: renderUsers, data: renderData, direccion: renderDireccion, comite: renderComite, control: renderControlElectoral })[id]();
   window.scrollTo({ top: 0 });
 }
 async function logout() {
@@ -1055,10 +1051,6 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
     const cc = consultas[4][0];
     encontrados.push({ tipo: 'CARGO DE CENTRO', detalle: 'ya ocupa el cargo "' + (cc.cargo || '') + '" en el centro "' + (cc.centro_codigo || '') + '".' });
   }
-  if (consultas[5].length) {
-    const oc = consultas[5][0];
-    encontrados.push({ tipo: 'OTRO CARGO', detalle: 'ya ocupa el cargo adicional "' + (oc.cargo || '') + '".' });
-  }
   if (!encontrados.length) return null;
 
   const destino = (() => {
@@ -1067,7 +1059,6 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
     if (c.includes('comprom')) return 'COMPROMETIDO';
     if (c.includes('direccion')) return 'DIRECCIÓN EJECUTIVA';
     if (c.includes('comite')) return 'COMITÉ VECINAL';
-    if (c.includes('otro')) return 'OTRO CARGO';
     if (c.includes('cargo')) return 'CARGO DE CENTRO';
     return String(contexto || 'OTRO').toUpperCase();
   })();
@@ -1480,92 +1471,82 @@ function delRecl(id) {
 }
 function openNewRecl() {
   window._nrSel = null;
+  window._nrCentro = '';
   win(ic('users', 18) + ' Nuevo movilizador',
-    '<label class="fl">Paso 1 • Ubicar en el padrón CNE (Turso)</label><div style="display:flex;gap:8px"><input class="inp" id="nrQ" placeholder="Cédula o nombre" onkeydown="if(event.key===\'Enter\')nrSearch()"><button class="btn btn-navy" onclick="nrSearch()">Buscar</button></div><div id="nrRes" style="margin-top:10px;display:grid;gap:7px"></div>' +
-    '<div id="nrForm" style="display:none;margin-top:14px;border-top:1px solid var(--line2);padding-top:14px"><label class="fl">Paso 2 • Datos del responsable</label><div id="nrCard" style="margin-bottom:10px"></div><div class="grid g3" style="gap:12px"><div><label class="fl">Teléfono</label><input class="inp mono" id="nrTel" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)"></div><div><label class="fl">Número de calle</label><input class="inp mono" id="nrNroCalle" placeholder="Ej: 12"></div><div><label class="fl">Número de casa</label><input class="inp mono" id="nrNroCasa" placeholder="Ej: 24"></div></div><div class="grid g2" style="gap:12px;margin-top:10px"><div><label class="fl">Estructura</label><input class="inp" id="nrEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div><div><label class="fl">Dirección</label><input class="inp" id="nrDir" placeholder="Urbanización, calle, casa..."></div></div></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" id="btnNrSave" disabled onclick="nrSave()">Crear</button>', 620);
+    '<div class="alert warn" style="margin-bottom:12px"><b>Regla de registro:</b> primero seleccione el Centro Electoral. Solo después se habilita la búsqueda por cédula o nombre. La persona debe pertenecer exactamente a ese centro en el Padrón CNE.</div>' +
+    '<label class="fl">Paso 1 • Seleccionar Centro Electoral *</label>' +
+    '<select class="inp" id="nrCentro" onchange="nrCentroChange()" style="margin-bottom:12px"><option value="">Seleccione un centro electoral...</option>' +
+      CACHE.centros.map(x => '<option value="' + esc(x.codigo) + '">' + esc(x.nombre) + ' (' + esc(x.codigo) + ')</option>').join('') +
+    '</select>' +
+    '<div id="nrSearchWrap" style="opacity:.55;pointer-events:none">' +
+      '<label class="fl">Paso 2 • Buscar en Padrón CNE por Cédula o Nombre</label>' +
+      '<div style="display:flex;gap:8px"><input class="inp" id="nrQ" placeholder="Cédula o nombre" disabled onkeydown="if(event.key===\'Enter\')nrSearch()"><button class="btn btn-navy" id="btnNrSearch" disabled onclick="nrSearch()">Buscar</button></div>' +
+    '</div>' +
+    '<div id="nrRes" style="margin-top:10px;display:grid;gap:7px"></div>' +
+    '<div id="nrForm" style="display:none;margin-top:14px;border-top:1px solid var(--line2);padding-top:14px"><label class="fl">Paso 3 • Datos del movilizador</label><div id="nrCard" style="margin-bottom:10px"></div><div class="grid g3" style="gap:12px"><div><label class="fl">Teléfono</label><input class="inp mono" id="nrTel" placeholder="0412-2232523" pattern="0\\d{3}-\\d{7}" maxlength="12"></div><div><label class="fl">Número de calle</label><input class="inp mono" id="nrNroCalle" placeholder="Ej: 12"></div><div><label class="fl">Número de casa</label><input class="inp mono" id="nrNroCasa" placeholder="Ej: 24"></div></div><div class="grid g2" style="gap:12px;margin-top:10px"><div><label class="fl">Estructura</label><input class="inp" id="nrEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div><div><label class="fl">Dirección</label><input class="inp" id="nrDir" placeholder="Urbanización, calle, casa..."></div></div></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" id="btnNrSave" disabled onclick="nrSave()">Crear movilizador</button>', 680);
+}
+function nrCentroChange() {
+  const el=$('nrCentro'), wrap=$('nrSearchWrap'), qel=$('nrQ'), btn=$('btnNrSearch'), res=$('nrRes'), form=$('nrForm'), save=$('btnNrSave');
+  window._nrCentro = el ? String(el.value||'') : '';
+  window._nrSel = null;
+  if(qel){ qel.value=''; qel.disabled=!window._nrCentro; }
+  if(btn) btn.disabled=!window._nrCentro;
+  if(wrap){ wrap.style.opacity=window._nrCentro?'1':'.55'; wrap.style.pointerEvents=window._nrCentro?'auto':'none'; }
+  if(res) res.innerHTML='';
+  if(form) form.style.display='none';
+  if(save) save.disabled=true;
 }
 function nrSearch() {
-  const q = $('nrQ').value.trim(); if (!q) return;
-  const cq = normC(q), ql = q.toLowerCase();
-  const res = CACHE.pad.filter(p => (cq.length >= 3 && p.cedula.startsWith(cq)) || (nomP(p) + ' ' + apeP(p)).toLowerCase().includes(ql)).slice(0, 6);
-  if (!res.length) {
-    window._nrManC = /^\d{5,9}$/.test(cq) ? cq : '';
-    $('nrRes').innerHTML = '<div class="alert warn" style="display:flex;gap:10px;align-items:center"><div class="a-ic">' + ic('db', 22) + '</div><div style="flex:1"><b>No encontrado en el padrón CNE</b><div style="font-size:12px;color:var(--mut);margin-top:2px">Puede registrar a esta persona manualmente para luego crearla como movilizador.</div></div><button class="btn btn-navy btn-xs" onclick="openNrManual()">' + ic('up', 12) + ' Registrar manualmente</button></div>';
+  const centro=String(window._nrCentro||$('nrCentro')?.value||'');
+  const qv=$('nrQ')?.value.trim()||'';
+  if(!centro) return toast('Seleccione primero el Centro Electoral','err');
+  if(!qv) return;
+  const cq=normC(qv), ql=qv.toLowerCase();
+  const res=CACHE.pad.filter(p => (cq.length>=3 && p.cedula.startsWith(cq)) || (nomP(p)+' '+apeP(p)).toLowerCase().includes(ql)).slice(0,8);
+  if(!res.length){
+    $('nrRes').innerHTML='<div class="alert warn"><div class="a-ic">'+ic('db',22)+'</div><div><b>No se encontró la persona en el Padrón CNE.</b><div style="font-size:12px;color:var(--mut);margin-top:3px">Los movilizadores deben pertenecer al Padrón CNE del centro seleccionado. No se puede registrar una persona fuera del padrón.</div></div></div>';
     return;
   }
-  $('nrRes').innerHTML = res.map(p => {
-    const a = asignDe(p.cedula);
-    return '<button class="rec-sel" ' + (a ? 'disabled' : '') + ' onclick="nrPick(\'' + p.cedula + '\')"><span class="uava">' + ini(nomP(p)) + '</span><span style="flex:1"><b style="font-size:12.5px">' + esc(apeP(p) + ', ' + nomP(p)) + '</b><div class="mono" style="font-size:11px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + esc(p.nombre_cv) + '</div></span>' + (a ? (a.tipo === 'reclutador' ? '<span class="chip chip-b">MOVILIZADOR</span>' : '<span class="chip chip-r">YA ASIGNADO</span>') : '<span class="chip chip-g">DISPONIBLE</span>') + '</button>';
+  $('nrRes').innerHTML=res.map(p=>{
+    const coincide=String(p.centro_votacion||'')===String(centro);
+    const a=asignDe(p.cedula);
+    const disabled=!coincide||!!a&&a.tipo==='reclutador';
+    const badge=!coincide?'<span class="chip chip-r">CENTRO NO COINCIDE</span>':a&&a.tipo==='reclutador'?'<span class="chip chip-r">YA ES MOVILIZADOR</span>':a?'<span class="chip chip-y">TIENE OTRO CARGO</span>':'<span class="chip chip-g">CENTRO COINCIDE</span>';
+    const reason=!coincide?'Padrón CNE: '+esc(p.nombre_cv||p.centro_votacion||'sin centro')+' • Seleccionado: '+esc(cenBy(centro)?.nombre||centro):'Centro CNE verificado: '+esc(p.nombre_cv||centro);
+    return '<button class="rec-sel" '+(disabled?'disabled':'')+' style="'+(disabled?'opacity:.65;cursor:not-allowed':'')+'" onclick="'+(disabled?'':'nrPick(\\''+esc(p.cedula)+'\\')')+'"><span class="uava">'+ini(nomP(p))+'</span><span style="flex:1;min-width:0"><b style="font-size:12.5px">'+esc(apeP(p)+', '+nomP(p))+'</b><div class="mono" style="font-size:11px;color:var(--mut)">'+fC(p.letra,p.cedula)+'  '+(edadDe(p.fecha_nac)||p.edad||'-')+'a</div><div style="font-size:11px;color:'+(coincide?'var(--green)':'var(--red)')+';margin-top:2px">'+reason+'</div></span>'+badge+'</button>';
   }).join('');
 }
-function nrPick(c) { const pp = padBy(c); window._nrSel = c; $('nrForm').style.display = 'block'; $('btnNrSave').disabled = false; $('nrCard').innerHTML = '<div class="row10"><span class="pos">' + ic('id', 14) + '</span><div><b class="mono">' + fC(pp ? pp.letra : 'V', c) + '</b> seleccionada</div></div>' }
+function nrPick(c) {
+  const pp=padBy(c), centro=String(window._nrCentro||'');
+  if(!pp||!centro) return;
+  if(String(pp.centro_votacion)!==centro) return toast('⛔ La persona no pertenece al centro electoral seleccionado según el Padrón CNE.','err',8000);
+  window._nrSel=c;
+  $('nrForm').style.display='block';
+  $('btnNrSave').disabled=false;
+  $('nrCard').innerHTML='<div class="row10"><span class="pos">'+ic('id',14)+'</span><div><b class="mono">'+fC(pp.letra||'V',c)+'</b> seleccionada • <span style="color:var(--green);font-weight:700">Centro CNE verificado</span><div style="font-size:11px;color:var(--mut)">'+esc(pp.nombre_cv||centro)+'</div></div></div>';
+}
 async function nrSave() {
-  const p = padBy(window._nrSel); if (!p) return;
-  const dupGlobal = await verificarDuplicidadPersona(p.cedula, 'movilizador');
-  if (dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula, dupGlobal), 'err', 8000);
-  const tel = $('nrTel').value.trim();
-  const nroCalle = ($('nrNroCalle')?.value || '').trim();
-  const nroCasa = ($('nrNroCasa')?.value || '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
-  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
-  const saveBtn = $('btnNrSave');
-  if (saveBtn) saveBtn.disabled = true;
-  try {
-    const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,telefono:normTel(tel),estructura:$('nrEst').value,numero_calle:nroCalle,numero_casa:nroCasa,direccion:$('nrDir').value})});
-    const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
-    await refreshAll();
-    closeModal();
-    const nuevo = CACHE.recl.find(r => r.cedula === p.cedula);
-    if (CUR === 'recl') {
-      renderRecl();
-      toast('Movilizador creado en Turso y listado actualizado', 'ok');
-    } else if (nuevo) {
-      REG.rec = nuevo.id;
-      go('registro');
-      toast('Movilizador creado en Turso', 'ok');
-    } else {
-      toast('Movilizador creado en Turso', 'ok');
-    }
-  } catch (e) { if (saveBtn) saveBtn.disabled = false; toast(e.message, 'err') }
+  const p=padBy(window._nrSel), centro=String(window._nrCentro||'');
+  if(!p||!centro) return toast('Seleccione primero el centro y una persona del Padrón CNE','err');
+  if(String(p.centro_votacion)!==centro) return toast('⛔ Registro rechazado: el centro CNE no coincide con el centro seleccionado','err',8000);
+  const dupGlobal=await verificarDuplicidadPersona(p.cedula,'movilizador');
+  if(dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula,dupGlobal),'err',8000);
+  const tel=$('nrTel').value.trim(), nroCalle=($('nrNroCalle')?.value||'').trim(), nroCasa=($('nrNroCasa')?.value||'').trim();
+  if(tel&&!valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)','err');
+  if(tel){ const dupTel=await verificarDuplicidadTelefono(tel); if(dupTel) return toast(mensajeDuplicidadTelefono(tel,dupTel),'err',8000); }
+  const saveBtn=$('btnNrSave'); if(saveBtn) saveBtn.disabled=true;
+  try{
+    const rr=await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador',cedula:p.cedula,centro_codigo:centro,telefono:normTel(tel),estructura:$('nrEst').value,numero_calle:nroCalle,numero_casa:nroCasa,direccion:$('nrDir').value})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
+    await refreshAll(); closeModal();
+    const nuevo=CACHE.recl.find(r=>r.cedula===p.cedula);
+    if(CUR==='recl'){ renderRecl(); toast('Movilizador creado y validado contra el Padrón CNE','ok'); }
+    else if(nuevo){ REG.rec=nuevo.id; go('registro'); toast('Movilizador creado y validado contra el Padrón CNE','ok'); }
+    else toast('Movilizador creado','ok');
+  }catch(e){ if(saveBtn) saveBtn.disabled=false; toast(e.message,'err',8000); }
 }
-function openNrManual() {
-  const c = window._nrManC || '';
-  win(ic('up', 18) + ' Registrar movilizador manualmente',
-    '<p style="font-size:12px;color:var(--mut);margin-bottom:12px">Complete los datos. La persona se guardará en el padrón CNE y se creará como movilizador.</p>' +
-    '<div class="grid g3" style="gap:10px"><div><label class="fl">LETRA_CEDULA</label><select class="inp" id="nrmLet"><option>V</option><option>E</option></select></div><div><label class="fl">CDULA *</label><input class="inp mono" id="nrmCed" value="' + c + '" placeholder="12345678"></div><div><label class="fl">SEXO</label><select class="inp" id="nrmSex"><option>F</option><option>M</option></select></div>' +
-    '<div><label class="fl">PRIMER APELLIDO *</label><input class="inp" id="nrmPa"></div><div><label class="fl">SEGUNDO APELLIDO</label><input class="inp" id="nrmSa"></div><div><label class="fl">FECHA NACIMIENTO</label><input class="inp" type="date" id="nrmFn"></div>' +
-    '<div><label class="fl">PRIMER NOMBRE *</label><input class="inp" id="nrmPn"></div><div><label class="fl">SEGUNDO NOMBRE</label><input class="inp" id="nrmSn"></div><div><label class="fl">CENTRO VOTACIN</label><select class="inp" id="nrmCv">' + CACHE.centros.map(x => '<option value="' + x.codigo + '">' + esc(x.nombre) + '</option>').join('') + '</select></div>' +
-    '</div><div class="grid g2" style="gap:10px;margin-top:10px"><div><label class="fl">TELÉFONO</label><input class="inp mono" id="nrmTel" placeholder="0412-2232523" pattern="0\d{3}-\d{7}" maxlength="12" title="Formato: 0XXX-XXXXXXX (11 dígitos)"></div><div><label class="fl">ESTRUCTURA</label><input class="inp" id="nrmEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div></div><div class="grid g3" style="gap:10px;margin-top:10px"><div><label class="fl">NÚMERO DE CALLE</label><input class="inp mono" id="nrmNroCalle" placeholder="Ej: 12"></div><div><label class="fl">NÚMERO DE CASA</label><input class="inp mono" id="nrmNroCasa" placeholder="Ej: 24"></div><div><label class="fl">DIRECCIÓN</label><input class="inp" id="nrmDir" placeholder="Urbanización, calle, casa..."></div></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveNrManual()">Crear movilizador</button>', 660);
-}
-async function saveNrManual() {
-  const ced = normC($('nrmCed').value), pa = $('nrmPa').value.trim(), pn = $('nrmPn').value.trim();
-  if (!/^\d{5,9}$/.test(ced)) return toast('Ingrese una cédula válida (5-9 dígitos)', 'err');
-  if (!pa || !pn) return toast('Complete primer apellido y primer nombre', 'err');
-  const cv = cenBy($('nrmCv').value) || CACHE.centros[0];
-  const p = padBy(ced);
-  if (p && p.centro_votacion && (p.centro_votacion !== cv.codigo && p.nombre_cv !== cv.nombre)) {
-    return toast('⛔ Registro rechazado: La persona C.I. V-' + ced + ' pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cv.codigo) + ').', 'err', 8000);
-  }
-  if (p) return toast('La cédula ya existe en el padrón CNE', 'err');
-  const dupGlobal = await verificarDuplicidadPersona(ced, 'movilizador');
-  if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
-  const fn = $('nrmFn').value; const edad = edadDe(fn);
-  const letra = $('nrmLet').value, sexo = $('nrmSex').value;
-  const tel = $('nrmTel').value.trim(), est = $('nrmEst').value, dir = $('nrmDir').value.trim();
-  const nroCalle = ($('nrmNroCalle')?.value || '').trim(), nroCasa = ($('nrmNroCasa')?.value || '').trim();
-  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
-  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
-  try {
-    const rr = await fetch('/api/personas/gestion',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'crear_reclutador_manual',cedula:ced,letra,pa,p_apellido:pa,s_apellido:$('nrmSa').value.trim(),p_nombre:pn,s_nombre:$('nrmSn').value.trim(),sexo,fecha_nac:fn,telefono:normTel(tel),estructura:est,direccion:dir,centro:{codigo:cv.codigo}})});
-    const rd = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
-    await refreshAll(); closeModal(); toast('Movilizador creado en Turso', 'ok');
-    const nuevo = CACHE.recl.find(r => r.cedula === ced);
-    if (nuevo) { REG.rec = nuevo.id; go('registro') }
-  } catch (e) { toast(e.message, 'err') }
-}
-
+function openNrManual(){ toast('El registro manual de movilizadores está deshabilitado: todo movilizador debe pertenecer al Padrón CNE del centro seleccionado.','err',8000); }
 /* ----------- PADRN ----------- */
 function renderPadron() {
   const prevFocus = _focused();
@@ -2173,7 +2154,6 @@ async function renderCurrentModuleAfterSync() {
   else if (CUR === 'control') renderControlElectoral();
   else if (CUR === 'comite') renderComite();
   else if (CUR === 'direccion') renderDireccion();
-  else if (CUR === 'otros') renderOtrosCargos();
 }
 
 async function syncNow(force) {
@@ -2312,65 +2292,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
     console.error(e);
   }
 })();
-
-/* ═══════════ OTROS CARGOS ═══════════ */
-function renderOtrosCargos() {
-  const qv = String($('otrosSearch')?.value || '').toLowerCase().trim();
-  const rows = (CACHE.otros || []).filter(x => {
-    const p = padBy(x.cedula);
-    const nm = p ? (nomP(p) + ' ' + apeP(p)) : (x.nombre || x.cedula);
-    return !qv || nm.toLowerCase().includes(qv) || String(x.cargo || '').toLowerCase().includes(qv) || normC(qv) && String(x.cedula).includes(normC(qv));
-  });
-  const groups = {};
-  (CACHE.otros || []).forEach(x => { (groups[x.cargo] ||= 0); groups[x.cargo]++; });
-  $('sec-otros').innerHTML = panel('Otros Cargos <span class="chip chip-b">' + (CACHE.otros || []).length + ' asignaciones</span>',
-    '<div class="grid g4" style="margin-bottom:14px">' +
-      kc('Otros cargos', (CACHE.otros || []).length, 'asignaciones registradas') +
-      kc('Cargos diferentes', Object.keys(groups).length, 'denominaciones') +
-      kc('Con autorización', (CACHE.act || []).filter(a => String(a.tipo) === 'autorizacion' && String(a.texto || '').includes('OTRO CARGO')).length, 'registradas en auditoría') +
-      kc('Comité excluido', 'Sí', 'no puede pasar a OTRO CARGO') +
-    '</div>' +
-    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:1"><label class="fl">Buscar persona o cargo</label><input class="inp" id="otrosSearch" value="' + esc(qv) + '" oninput="renderOtrosCargos()" placeholder="C.I., nombre o cargo..."></div><div style="align-self:end"><button class="btn btn-navy" onclick="openOtroCargo()">' + ic('userPlus',12) + ' Registrar OTRO CARGO</button></div></div>' +
-    '<div id="otrosContent"><div class="grid g3">' + (rows.map(x => {
-      const p = padBy(x.cedula) || x;
-      const nm = (p.p_apellido || p.p_nombre) ? (apeP(p) + ', ' + nomP(p)) : (x.nombre || x.cedula);
-      return '<div class="kcard"><div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase">' + esc(x.cargo) + '</div><div style="font-size:14px;font-weight:700;color:var(--navy);margin-top:4px">' + esc(nm) + '</div><div class="mono" style="font-size:11px;color:var(--mut);margin-top:3px">' + esc(fC(p.letra || 'V', x.cedula)) + '</div><div style="font-size:11px;color:var(--mut);margin-top:6px">' + esc(x.direccion || '') + '</div></div>';
-    }).join('') || '<div class="empty">No hay otros cargos registrados.</div>') + '</div></div>');
-}
-async function openOtroCargo() {
-  win(ic('userPlus',18) + ' Registrar OTRO CARGO',
-    '<div class="alert warn" style="margin-bottom:12px"><b>Regla:</b> una persona puede ejercer OTRO CARGO mediante autorización de Jefe de Comando o Administrador cuando ya tenga otra función. Los cargos de Comité Vecinal están excluidos de esta excepción.</div>' +
-    '<div class="grid g2"><div><label class="fl">C.I. *</label><input class="inp mono" id="otroCed" placeholder="12345678"></div><div><label class="fl">OTRO CARGO *</label><input class="inp" id="otroCargo" placeholder="Ej. Coordinador de Formación"></div></div>' +
-    '<div class="grid g3" style="margin-top:10px"><div><label class="fl">Teléfono</label><input class="inp mono" id="otroTel" placeholder="0412-2232523"></div><div><label class="fl">N° Calle</label><input class="inp" id="otroCalle"></div><div><label class="fl">N° Casa</label><input class="inp" id="otroCasa"></div></div>' +
-    '<div style="margin-top:10px"><label class="fl">Dirección</label><input class="inp" id="otroDir"></div>',
-    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="saveOtroCargo()">' + ic('check',13) + ' Registrar</button>', 650);
-  setTimeout(() => $('otroCed')?.focus(), 50);
-}
-async function saveOtroCargo() {
-  const ced = normC($('otroCed')?.value || ''), cargo = String($('otroCargo')?.value || '').trim();
-  if (!/^\\d{5,9}$/.test(ced)) return toast('Ingrese una cédula válida', 'err');
-  if (cargo.length < 2) return toast('Indique el OTRO CARGO', 'err');
-  const p = padBy(ced);
-  if (!p) return toast('La persona debe existir en el padrón CNE', 'err');
-  const roles = [];
-  if ((CACHE.recl || []).some(x => String(x.cedula) === ced)) roles.push({tipo:'MOVILIZADOR',detalle:'ya está registrado como movilizador.'});
-  if ((CACHE.recl || []).some(r => (r.lista || []).some(x => String(x.cedula) === ced))) roles.push({tipo:'COMPROMETIDO',detalle:'ya pertenece a una lista de comprometidos.'});
-  if ((CACHE.direccion || []).some(x => String(x.cedula) === ced)) roles.push({tipo:'DIRECCIÓN EJECUTIVA',detalle:'ya ocupa un cargo en Dirección Ejecutiva.'});
-  if ((CACHE.comite || []).some(x => String(x.cedula) === ced)) return toast('⛔ Los cargos de Comité Vecinal no pueden registrarse como OTRO CARGO.', 'err', 8000);
-  if ((CACHE.cargos || []).some(x => String(x.cedula) === ced)) roles.push({tipo:'CARGO DE CENTRO',detalle:'ya ocupa un cargo en un centro electoral.'});
-  if ((CACHE.otros || []).some(x => String(x.cedula) === ced && String(x.cargo || '').trim().toUpperCase() === cargo.toUpperCase())) return toast('La persona ya ocupa ese OTRO CARGO.', 'err');
-  let destino='OTRO CARGO';
-  if (roles.length) {
-    const ok = await autorizarDuplicidadPersona(ced, destino, roles);
-    if (!ok) return;
-  }
-  try {
-    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'otro',cedula:ced,cargo,nombre:(nomP(p)+' '+apeP(p)).trim(),telefono:normTel($('otroTel')?.value||''),numero_calle:$('otroCalle')?.value||'',numero_casa:$('otroCasa')?.value||'',direccion:$('otroDir')?.value||''})});
-    const rd = await rr.json().catch(()=>({}));
-    if (!rr.ok) throw new Error(rd.error || 'No se pudo registrar el OTRO CARGO');
-    await refreshAll(); closeModal(); renderOtrosCargos(); toast('OTRO CARGO registrado y sincronizado', 'ok');
-  } catch(e) { toast(e.message,'err',8000); }
-}
 
 /* ═══════════ DIRECCION EJECUTIVA ═══════════ */
 function renderDireccion() {
