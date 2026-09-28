@@ -88,6 +88,7 @@ module.exports=async function(req,res){
     }
 
     if(action==='crear_reclutador_manual'){
+      return res.status(409).json({error:'El registro manual de movilizadores está deshabilitado: todo movilizador debe pertenecer al Padrón CNE del centro seleccionado'});
       const ced=s(b.cedula), letra=s(b.letra)||'V', pa=s(b.p_apellido), sa=s(b.s_apellido), pn=s(b.p_nombre), sn=s(b.s_nombre);
       const sexo=s(b.sexo), fecha=s(b.fecha_nac), tel=s(b.telefono), estructura=s(b.estructura), numero_calle=s(b.numero_calle), numero_casa=s(b.numero_casa), direccion=s(b.direccion);
       const cv= b.centro || {};
