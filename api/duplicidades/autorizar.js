@@ -38,7 +38,7 @@ module.exports=async function handler(req,res){
         UNION ALL SELECT 'DIRECCIÓN EJECUTIVA' FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
         UNION ALL SELECT 'COMITÉ VECINAL' FROM comite_vecinal WHERE cedula=? LIMIT 1
         UNION ALL SELECT 'CARGO DE CENTRO' FROM centro_cargos WHERE cedula=? LIMIT 1
-      )`,params:[cedula,cedula,cedula,cedula,cedula,cedula]
+      )`,params:[cedula,cedula,cedula,cedula,cedula]
     }]));
     if(!dup.length) return res.status(409).json({error:'No existe una duplicidad verificable para autorizar'});
     const inferred=dup.map(x=>String(x.tipo||'')).filter(Boolean).filter(t=>t!==destino);
