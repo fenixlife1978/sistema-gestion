@@ -85,20 +85,6 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_pad_mun ON padron(municipio)`,
   `CREATE INDEX IF NOT EXISTS idx_asig_recl ON asignaciones(reclutador_id)`,
   `CREATE INDEX IF NOT EXISTS idx_cargo_centro ON centro_cargos(centro_codigo)`,
-  `CREATE TABLE IF NOT EXISTS otros_cargos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cargo TEXT NOT NULL,
-    cedula TEXT NOT NULL,
-    nombre TEXT,
-    telefono TEXT,
-    numero_calle TEXT,
-    numero_casa TEXT,
-    direccion TEXT,
-    creado TEXT DEFAULT (datetime('now')),
-    UNIQUE(cargo, cedula)
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_otros_cargos_cedula ON otros_cargos(cedula)`,
-  `CREATE INDEX IF NOT EXISTS idx_otros_cargos_cargo ON otros_cargos(cargo)`,
   `ALTER TABLE asignaciones ADD COLUMN telefono TEXT`,
   `ALTER TABLE asignaciones ADD COLUMN numero_calle TEXT`,
   `ALTER TABLE asignaciones ADD COLUMN numero_casa TEXT`,
@@ -364,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-09-27-b5';
+const BOOTSTRAP_VERSION = '2026-09-28-c1';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -397,6 +383,9 @@ async function execSchema() {
       if(!asig.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN numero_casa TEXT',params:[]}]);
       if(!asig.some(x=>x.name==='direccion')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN direccion TEXT',params:[]}]);
     }
+    // Eliminación definitiva del antiguo concepto de Otros Cargos.
+    // La capacidad de múltiples cargos es transversal y no utiliza una tabla independiente.
+    await turso([{q:'DROP TABLE IF EXISTS otros_cargos',params:[]}]);
     // Migración defensiva de movilizadores: corrige duplicados históricos por cédula.
     const recl=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='reclutadores' LIMIT 1",params:[]} ]));
     if(recl.length){
@@ -414,20 +403,6 @@ async function execSchema() {
       if(!com.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN numero_casa TEXT',params:[]}]);
       if(!com.some(x=>x.name==='direccion')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN direccion TEXT',params:[]}]);
     }
-    await turso([{q:`CREATE TABLE IF NOT EXISTS otros_cargos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      cargo TEXT NOT NULL,
-      cedula TEXT NOT NULL,
-      nombre TEXT,
-      telefono TEXT,
-      numero_calle TEXT,
-      numero_casa TEXT,
-      direccion TEXT,
-      creado TEXT DEFAULT (datetime('now')),
-      UNIQUE(cargo, cedula)
-    )`,params:[]}]);
-    await turso([{q:'CREATE INDEX IF NOT EXISTS idx_otros_cargos_cedula ON otros_cargos(cedula)',params:[]}]);
-    await turso([{q:'CREATE INDEX IF NOT EXISTS idx_otros_cargos_cargo ON otros_cargos(cargo)',params:[]}]);
     await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:[BOOTSTRAP_VERSION]}]);
     return;
   }
