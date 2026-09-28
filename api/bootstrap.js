@@ -350,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-09-28-c1';
+const BOOTSTRAP_VERSION = '2026-09-28-c2';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -383,9 +383,6 @@ async function execSchema() {
       if(!asig.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN numero_casa TEXT',params:[]}]);
       if(!asig.some(x=>x.name==='direccion')) await turso([{q:'ALTER TABLE asignaciones ADD COLUMN direccion TEXT',params:[]}]);
     }
-    // Eliminación definitiva del antiguo concepto de Otros Cargos.
-    // La capacidad de múltiples cargos es transversal y no utiliza una tabla independiente.
-    await turso([{q:'DROP TABLE IF EXISTS otros_cargos',params:[]}]);
     // Migración defensiva de movilizadores: corrige duplicados históricos por cédula.
     const recl=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='reclutadores' LIMIT 1",params:[]} ]));
     if(recl.length){
