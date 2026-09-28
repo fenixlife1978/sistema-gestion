@@ -93,13 +93,22 @@ module.exports=async function(req,res){
       // de RETURNING a través del wrapper HTTP. La confirmación real se hace
       // con SELECT y, si ya existe, se devuelve como alta exitosa.
       if(autorizacionId){
-        await exec([
-          {q:'BEGIN',params:[]},
-          {q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,a.id,autorizacionId]},
-          {q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]},
-          {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida',a.id]},
-          {q:'COMMIT',params:[]}
-        ]);
+        // La API HTTP de Turso ejecuta el lote de sentencias, pero no admite
+        // BEGIN/COMMIT como SQL dentro de este endpoint. Consumimos la
+        // autorización y luego registramos el movilizador.
+        const consumida=rowsFrom(await exec([{
+          q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL RETURNING id',
+          params:[now,a.id,autorizacionId]
+        }]))[0];
+        if(!consumida) return res.status(409).json({error:'La autorización ya fue utilizada o no está disponible'});
+        await exec([{
+          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+        }]);
+        await exec([{
+          q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
+          params:['user','Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida',a.id]
+        }]);
       }else{
         await exec([{
           q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
