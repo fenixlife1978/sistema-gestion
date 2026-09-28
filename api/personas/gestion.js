@@ -54,7 +54,12 @@ module.exports=async function(req,res){
         }]))[0];
         if(existente){
           existente.lista=[];
-          return res.json({ok:true,ya_existia:true,id:existente.id||dup.id,movilizador:existente});
+          const todos=rowsFrom(await exec([{
+            q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado,p.letra,p.p_apellido,p.s_apellido,p.p_nombre,p.s_nombre,p.centro_votacion,p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula ORDER BY r.creado DESC,r.id DESC',
+            params:[]
+          }]));
+          todos.forEach(x=>{x.lista=[]});
+          return res.json({ok:true,ya_existia:true,id:existente.id||dup.id,movilizador:existente,movilizadores:todos});
         }
         return res.status(409).json({error:'La persona ya está registrada como movilizador, pero no pudo ser recuperada desde Turso'});
       }
