@@ -93,29 +93,31 @@ module.exports=async function(req,res){
       // de que el wrapper HTTP de Turso exponga correctamente RETURNING dentro
       // de un batch: lo importante es confirmar que la fila existe en Turso.
       if(autorizacionId){
-        const out=await exec([
-          {
-            q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
-            params:[now,a.id,autorizacionId]
-          },
-          {
-            q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-            params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-          }
-        ]);
-        const estado=rowsFrom(out);
-        console.log('[personas-gestion] alta autorizada ejecutada:', estado.length);
-      }else{
+        // Mantener la autorización y el alta en llamadas separadas: así no
+        // dependemos de la semántica de resultados de un batch de Turso.
         await exec([{
-          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+          q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
+          params:[now,a.id,autorizacionId]
         }]);
       }
 
-      const confirmado=rowsFrom(await exec([{
-        q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
-        params:[ced]
-      }]))[0];
+      await exec([{
+        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+      }]);
+
+      // Turso puede tardar un instante en reflejar la escritura en una lectura
+      // posterior. Confirmamos con reintentos y además toleramos diferencias
+      // de representación numérica de la cédula (p. ej. ceros a la izquierda).
+      let confirmado=null;
+      for(let intento=0; intento<6 && !confirmado; intento++){
+        const rows=rowsFrom(await exec([{
+          q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) OR (typeof(r.cedula) IN (\'integer\',\'real\') AND CAST(r.cedula AS INTEGER)=CAST(? AS INTEGER)) LIMIT 1',
+          params:[ced,ced]
+        }]));
+        confirmado=rows[0]||null;
+        if(!confirmado && intento<5) await new Promise(resolve=>setTimeout(resolve,250));
+      }
       if(!confirmado) return res.status(500).json({error:'Turso no confirmó el movilizador después del alta',cedula:ced});
       creado=confirmado;
       if(autorizacionId) await log(a,'Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida');
