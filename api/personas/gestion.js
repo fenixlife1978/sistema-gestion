@@ -89,35 +89,24 @@ module.exports=async function(req,res){
       const telefono=tel?normTel(tel):null;
       let creado=null;
 
-      // El alta se confirma con una lectura posterior independiente. No dependemos
-      // de que el wrapper HTTP de Turso exponga correctamente RETURNING dentro
-      // de un batch: lo importante es confirmar que la fila existe en Turso.
+      // La autorización se consume antes del alta, pero el INSERT queda
+      // completamente aislado en su propia petición a Turso.
       if(autorizacionId){
-        // Mantener la autorización y el alta en llamadas separadas: así no
-        // dependemos de la semántica de resultados de un batch de Turso.
         await exec([{
           q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
           params:[now,a.id,autorizacionId]
         }]);
       }
 
-      // Ejecutamos el INSERT y la lectura de confirmación en el MISMO
-      // request/batch HTTP de Turso. Así no dependemos de la replicación
-      // entre requests separados.
-      const alta=await exec([
-        {
-          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-        },
-        {
-          q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) OR CAST(r.cedula AS INTEGER)=CAST(? AS INTEGER) LIMIT 1',
-          params:[ced,ced]
-        }
-      ]);
-      const filasAlta=rowsFrom(alta);
-      let confirmado=filasAlta[0]||null;
-      if(!confirmado) return res.status(500).json({error:'Turso ejecutó el alta pero no devolvió la fila confirmada en la misma operación',cedula:ced});
-      if(!confirmado) return res.status(500).json({error:'Turso no confirmó el movilizador después del alta',cedula:ced});
+      // IMPORTANTE: el INSERT lleva su propio RETURNING y es la ÚNICA
+      // sentencia del batch. Así rowsFrom() recibe directamente la fila
+      // creada y no puede confundirla con el resultado vacío de un UPDATE.
+      const alta=await exec([{
+        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado',
+        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+      }]);
+      const confirmado=rowsFrom(alta)[0]||null;
+      if(!confirmado) return res.status(500).json({error:'Turso ejecutó el alta pero no devolvió la fila creada mediante RETURNING',cedula:ced});
       creado=confirmado;
       if(autorizacionId) await log(a,'Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida');
       else await log(a,'Nuevo movilizador creado: '+ced);
