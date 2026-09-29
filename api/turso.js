@@ -52,6 +52,17 @@ module.exports = async function handler(req, res) {
       return res.status(413).json({ error: 'Sentencia SQL demasiado grande' });
     }
 
+    // Este endpoint se usa desde el cliente para consultas de lectura.
+    // Las mutaciones pasan por endpoints de negocio autenticados y nunca deben
+    // exponerse como SQL arbitrario desde el navegador.
+    const readonly = stmts.every(({ q }) => {
+      const normalized = q.trim().replace(/^\uFEFF/, '');
+      return /^(SELECT|PRAGMA)\b/i.test(normalized);
+    });
+    if (!readonly) {
+      return res.status(403).json({ error: 'El proxy Turso solo permite consultas de lectura' });
+    }
+
     // Usar exactamente el mismo cliente Turso que las demás rutas del sistema.
     // Así TURSO_URL/TURSO_DATABASE_URL y TURSO_TOKEN/TURSO_AUTH_TOKEN
     // siempre apuntan al mismo origen de datos.
