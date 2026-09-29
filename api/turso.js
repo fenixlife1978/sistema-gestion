@@ -1,14 +1,16 @@
-const {turso} = require('../lib/auth');
+const {turso,verify,getCookie}=require('../lib/auth');
 
 module.exports = async function handler(req, res) {
-  // Este endpoint solo debe ser consumido por la aplicación web del sistema.
-  // No se usa '*' porque el endpoint es un proxy con capacidad de ejecutar SQL.
+  // Este endpoint es un proxy SQL de alto privilegio. El origen CORS por sí
+  // solo no constituye autenticación: exigimos una sesión válida antes de
+  // aceptar cualquier sentencia.
   const origin = String(req.headers.origin || '').replace(/\/$/, '');
   const requestHost = String(req.headers.host || '').replace(/\/$/, '');
   const sameOrigin = origin && requestHost && (() => { try { return new URL(origin).host === requestHost; } catch(e) { return false; } })();
   const allowedOrigins = new Set([
     'https://erp-electoral.vercel.app',
     'https://gestion-erp-electoral.vercel.app',
+    'https://sistema-gestion-beta.vercel.app',
     'http://localhost:3000',
     'http://localhost:5173',
     'http://127.0.0.1:3000',
@@ -26,6 +28,12 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    const session = verify(getCookie(req,'erp_session'));
+    if (!session) return res.status(401).json({ error: 'Sesión requerida' });
+    if (!['J','A','O'].includes(session.rol)) {
+      return res.status(403).json({ error: 'Rol de sesión no permitido' });
+    }
+
     let body = req.body || {};
     if (typeof body === 'string') {
       try { body = JSON.parse(body); } catch(e) {}
