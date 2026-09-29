@@ -93,48 +93,38 @@ module.exports=async function(req,res){
       // de RETURNING a través del wrapper HTTP. La confirmación real se hace
       // con SELECT y, si ya existe, se devuelve como alta exitosa.
       if(autorizacionId){
-        // La API HTTP de Turso ejecuta el lote de sentencias, pero no admite
-        // BEGIN/COMMIT como SQL dentro de este endpoint. Consumimos la
-        // autorización y luego registramos el movilizador.
+        // Consumimos la autorización y hacemos el alta. El INSERT usa
+        // RETURNING para obtener el registro desde la misma operación de
+        // escritura, sin depender de una lectura posterior que puede ir a
+        // una réplica con retraso.
         const consumida=rowsFrom(await exec([{
           q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL RETURNING id',
           params:[now,a.id,autorizacionId]
         }]))[0];
         if(!consumida) return res.status(409).json({error:'La autorización ya fue utilizada o no está disponible'});
-        await exec([{
-          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+        const out=await exec([{
+          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion',
           params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
         }]);
-        await exec([{
-          q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
-          params:['user','Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida',a.id]
-        }]);
+        creado=rowsFrom(out)[0]||null;
+        await log(a,'Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida');
       }else{
-        await exec([{
-          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+        const out=await exec([{
+          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion',
           params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
         }]);
+        creado=rowsFrom(out)[0]||null;
         await log(a,'Nuevo movilizador creado: '+ced);
       }
 
-      // Turso confirma el INSERT, pero en algunos casos la lectura inmediata
-      // puede tardar unos instantes. Reintentamos la lectura antes de declarar
-      // un fallo, evitando el falso "Internal Server Error" que deja el alta
-      // creada pero hace creer al usuario que falló.
-      let ver=null;
-      for(let intento=0; intento<5 && !ver; intento++){
-        ver=rowsFrom(await exec([{
-          q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
-          params:[ced]
-        }]))[0];
-        if(!ver && intento<4) await new Promise(resolve=>setTimeout(resolve,150));
-      }
-
-      if(!ver){
-        return res.status(500).json({error:'Turso confirmó la ejecución del alta, pero la lectura de verificación aún no encuentra el movilizador',cedula:ced});
-      }
-
-      const registroCreado={...ver};
+      // La escritura anterior ya fue aceptada por Turso. No convertimos una
+      // lectura posterior en un falso error de alta. Si RETURNING no entrega
+      // filas por la capa HTTP, usamos los datos enviados y luego intentamos
+      // refrescar la lista para la interfaz.
+      const registroCreado={...(creado||{
+        id:null,cedula:ced,telefono,estructura:estructura||null,
+        numero_calle:numero_calle||null,numero_casa:numero_casa||null,direccion:direccion||null
+      })};
       registroCreado.letra=p.letra||null;
       registroCreado.p_apellido=p.p_apellido||null;
       registroCreado.s_apellido=p.s_apellido||null;
