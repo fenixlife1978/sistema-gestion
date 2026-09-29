@@ -102,32 +102,22 @@ module.exports=async function(req,res){
             params:[now,a.id,autorizacionId]
           },
           {
-            q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+            q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion',
             params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-          },
-          {
-            q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
-            params:[ced]
           }
         ]);
-        const filas=rowsFrom(out);
-        creado=filas.find(x=>String(x.cedula)===String(ced))||null;
-        if(!creado) return res.status(500).json({error:'Turso no pudo confirmar el movilizador dentro del mismo batch de escritura',cedula:ced});
+        creado=rowsFrom(out)[0]||null;
+        if(!creado) return res.status(500).json({error:'Turso ejecutó el alta pero no devolvió el registro creado',cedula:ced});
         await log(a,'Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida');
       }else{
         const out=await exec([
           {
-            q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+            q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion',
             params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-          },
-          {
-            q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
-            params:[ced]
           }
         ]);
-        const filas=rowsFrom(out);
-        creado=filas.find(x=>String(x.cedula)===String(ced))||null;
-        if(!creado) return res.status(500).json({error:'Turso no pudo confirmar el movilizador dentro del mismo batch de escritura',cedula:ced});
+        creado=rowsFrom(out)[0]||null;
+        if(!creado) return res.status(500).json({error:'Turso ejecutó el alta pero no devolvió el registro creado',cedula:ced});
         await log(a,'Nuevo movilizador creado: '+ced);
       }
 
