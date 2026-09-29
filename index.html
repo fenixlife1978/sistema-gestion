@@ -502,6 +502,10 @@ const kc = (l, v, s, bar, full) => '<div class="kcard"><div class="kl">' + l + '
 let USER = null, CUR = 'dash', REG = { rec: null }, LAST_REC = null;
 let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '' };
 let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [], comite: [], verificacion: [], actasMesa: [], mesasOperativas: [], mesaMiembros: [], cortes: [] };
+// Altas de movilizadores recién confirmadas. Se conservan en memoria hasta
+// que el snapshot de Turso las refleje, evitando que la sincronización
+// automática las haga desaparecer por una lectura momentáneamente atrasada.
+const PENDING_RECL = new Map();
 let CONTROL_ELECTORAL = { centro: '', search: '' };
 
 /* ----------- ESQUEMA TURSO (AUTO-MIGRACIÓN) ----------- */
@@ -653,6 +657,13 @@ async function refreshAll() {
   CACHE.pad.forEach(p => { p.edad = edadDe(p.fecha_nac) || p.edad || 0; });
   CACHE.centros = rows[1] || [];
   CACHE.recl = rows[2] || [];
+  const ahoraPend = Date.now();
+  for(const [ced,pend] of PENDING_RECL){
+    if(ahoraPend - pend.ts > 60000){ PENDING_RECL.delete(ced); continue; }
+    const presente=CACHE.recl.some(r=>String(r.cedula)===String(ced));
+    if(presente) PENDING_RECL.delete(ced);
+    else CACHE.recl.unshift({...pend.registro,lista:pend.registro.lista||[]});
+  }
   CACHE.act = rows[3] || [];
   CACHE.users = rows[4] || [];
   CACHE.cargos = rows[5] || [];
@@ -1534,8 +1545,9 @@ async function nrSave() {
     if(!rr.ok) throw new Error(rd.error||'No se pudo crear el movilizador');
 
     const creado=rd.movilizador;
-    if(creado && creado.id){
+    if(creado){
       creado.lista=Array.isArray(creado.lista)?creado.lista:[];
+      PENDING_RECL.set(String(creado.cedula),{registro:{...creado},ts:Date.now()});
       CACHE.recl=CACHE.recl.filter(r=>String(r.id)!==String(creado.id) && String(r.cedula)!==String(creado.cedula));
       CACHE.recl.unshift(creado);
     }
