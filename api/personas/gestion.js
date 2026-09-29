@@ -135,6 +135,11 @@ module.exports=async function(req,res){
       registroCreado.lista=[];
       const todos=rowsFrom(await exec([{q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado,p.letra,p.p_apellido,p.s_apellido,p.p_nombre,p.s_nombre,p.centro_votacion,p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula ORDER BY r.creado DESC,r.id DESC',params:[]}])) ;
       todos.forEach(x=>{x.lista=[]});
+      // Si la lectura global todavía no refleja la escritura, no ocultamos
+      // el alta recién confirmada: la agregamos a la respuesta de esta
+      // operación para que la interfaz la muestre inmediatamente.
+      const yaEnLista=todos.some(x=>String(x.cedula)===String(ced));
+      if(!yaEnLista) todos.unshift({...registroCreado});
       return res.json({ok:true,id:registroCreado.id||null,movilizador:registroCreado,movilizadores:todos});
     }
 
