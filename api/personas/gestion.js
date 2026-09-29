@@ -89,39 +89,41 @@ module.exports=async function(req,res){
       const telefono=tel?normTel(tel):null;
       let creado=null;
 
-      // La autorización se consume antes del alta, pero el INSERT queda
-      // completamente aislado en su propia petición a Turso.
+      // El consumo de la autorización y el alta deben formar una sola unidad.
+      // Así nunca dejamos una autorización consumida si el INSERT falla.
+      const statements=[{q:'BEGIN',params:[]}];
       if(autorizacionId){
-        await exec([{
+        statements.push({
           q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
           params:[now,a.id,autorizacionId]
-        }]);
+        });
+      }
+      statements.push({
+        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+      });
+      statements.push({
+        q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
+        params:['user','Nuevo movilizador creado: '+ced+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''),a.id]
+      });
+      statements.push({q:'COMMIT',params:[]});
+      try{
+        await exec(statements);
+      }catch(e){
+        try{ await exec([{q:'ROLLBACK',params:[]}]); }catch(_e){}
+        throw e;
       }
 
-      // Turso HTTP no garantiza last_insert_rowid() entre sentencias del
-      // transporte. Confirmamos por la cédula dentro del mismo batch, que es
-      // la clave lógica única del movilizador.
-      const alta=await exec([
-        {
-          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-        },
-        {
-          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion FROM reclutadores WHERE cedula=? LIMIT 1',
-          params:[ced]
-        }
-      ]);
-      const resultados=Array.isArray(alta)?alta:(alta&&Array.isArray(alta.statements)?alta.statements:[]);
-      const verificacion=resultados[1];
-      const vr=verificacion?.results||verificacion||{};
-      const cols=vr.columns||[];
-      const rows=vr.rows||[];
-      const confirmado=rows[0]
-        ? Object.fromEntries(cols.map((col,i)=>[col,rows[0][i]]))
-        : null;
+      // Confirmamos después del COMMIT con una consulta independiente. Así no
+      // dependemos de que Turso devuelva correctamente el resultado de un SELECT
+      // que acompañe al INSERT en el mismo batch.
+      const confirmado=rowsFrom(await exec([{
+        q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? LIMIT 1',
+        params:[ced]
+      }]))[0]||null;
       if(!confirmado || confirmado.id===undefined || confirmado.id===null) {
         return res.status(500).json({
-          error:'Turso ejecutó el alta pero no pudo confirmar el registro creado por su cédula',
+          error:'El alta fue ejecutada pero Turso no devolvió el movilizador al confirmar por cédula',
           cedula:ced
         });
       }
