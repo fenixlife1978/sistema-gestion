@@ -1,4 +1,4 @@
-const {turso,rowsFrom,modernHash}=require('../lib/auth');
+const {turso,rowsFrom,modernHash,verify,getCookie}=require('../lib/auth');
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS usuarios (
@@ -530,6 +530,14 @@ module.exports=async function handler(req,res){
   if(req.method==='OPTIONS')return res.status(200).end();
   if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
   try{
+    // El login puede invocar bootstrap internamente solo cuando la base aún no
+    // tiene usuarios. Las invocaciones HTTP normales requieren una sesión
+    // administrativa para evitar que un tercero fuerce migraciones o semillas.
+    if(req.internalBootstrap!==true){
+      const session=verify(getCookie(req,'erp_session'));
+      if(!session) return res.status(401).json({ok:false,error:'Sesión requerida'});
+      if(!['J','A'].includes(session.rol)) return res.status(403).json({ok:false,error:'Se requiere autorización J/A'});
+    }
     await execSchema();
     if(req.internalBootstrap===true)return {ok:true,ready:true};
     const rows=rowsFrom(await turso([{q:'SELECT COUNT(*) AS n FROM padron',params:[]}]));
