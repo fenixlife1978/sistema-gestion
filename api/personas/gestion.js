@@ -98,36 +98,34 @@ module.exports=async function(req,res){
         }]);
       }
 
-      // No dependemos de INSERT ... RETURNING para confirmar el alta.
-      // En este endpoint Turso se consume mediante el formato legacy
-      // {statements:[...]}; algunas respuestas de ese transporte no exponen
-      // la fila de RETURNING aunque el INSERT sí se haya ejecutado.
-      // Usamos last_insert_rowid(), que es metadata de la misma conexión/batch
-      // y no depende de una lectura posterior de la tabla.
+      // Turso HTTP no garantiza last_insert_rowid() entre sentencias del
+      // transporte. Confirmamos por la cédula dentro del mismo batch, que es
+      // la clave lógica única del movilizador.
       const alta=await exec([
         {
           q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
           params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
         },
         {
-          q:'SELECT last_insert_rowid() AS id',
-          params:[]
+          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion FROM reclutadores WHERE cedula=? LIMIT 1',
+          params:[ced]
         }
       ]);
-      const confirmado=rowsFrom(alta).find(x=>x && x.id!==undefined && x.id!==null);
-      if(!confirmado || !String(confirmado.id)) {
-        return res.status(500).json({error:'Turso ejecutó el alta pero no devolvió el ID generado por la inserción',cedula:ced});
+      const resultados=Array.isArray(alta)?alta:(alta&&Array.isArray(alta.statements)?alta.statements:[]);
+      const verificacion=resultados[1];
+      const vr=verificacion?.results||verificacion||{};
+      const cols=vr.columns||[];
+      const rows=vr.rows||[];
+      const confirmado=rows[0]
+        ? Object.fromEntries(cols.map((col,i)=>[col,rows[0][i]]))
+        : null;
+      if(!confirmado || confirmado.id===undefined || confirmado.id===null) {
+        return res.status(500).json({
+          error:'Turso ejecutó el alta pero no pudo confirmar el registro creado por su cédula',
+          cedula:ced
+        });
       }
-      creado={
-        id:confirmado.id,
-        cedula:ced,
-        telefono:telefono,
-        estructura:estructura||null,
-        numero_calle:numero_calle||null,
-        numero_casa:numero_casa||null,
-        direccion:direccion||null,
-        creado:now
-      };
+      creado=confirmado;
       if(autorizacionId) await log(a,'Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida');
       else await log(a,'Nuevo movilizador creado: '+ced);
 
