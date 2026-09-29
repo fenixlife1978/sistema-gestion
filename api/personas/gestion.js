@@ -89,39 +89,39 @@ module.exports=async function(req,res){
       const telefono=tel?normTel(tel):null;
       let creado=null;
 
-      // Turso puede ejecutar correctamente el INSERT pero no exponer las filas
-      // de RETURNING a través del wrapper HTTP. La confirmación real se hace
-      // con SELECT y, si ya existe, se devuelve como alta exitosa.
+      // El alta se confirma con una lectura posterior independiente. No dependemos
+      // de que el wrapper HTTP de Turso exponga correctamente RETURNING dentro
+      // de un batch: lo importante es confirmar que la fila existe en Turso.
       if(autorizacionId){
-        // La autorización y el alta se ejecutan en el mismo batch de Turso.
-        // La verificación también viaja en ese mismo batch para garantizar
-        // lectura después de escritura antes de responder al navegador.
         const out=await exec([
           {
             q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
             params:[now,a.id,autorizacionId]
           },
           {
-            q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion',
+            q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
             params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
           }
         ]);
-        creado=rowsFrom(out)[0]||null;
-        if(!creado) return res.status(500).json({error:'Turso ejecutó el alta pero no devolvió el registro creado',cedula:ced});
-        await log(a,'Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida');
+        const estado=rowsFrom(out);
+        console.log('[personas-gestion] alta autorizada ejecutada:', estado.length);
       }else{
-        const out=await exec([
-          {
-            q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion',
-            params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-          }
-        ]);
-        creado=rowsFrom(out)[0]||null;
-        if(!creado) return res.status(500).json({error:'Turso ejecutó el alta pero no devolvió el registro creado',cedula:ced});
-        await log(a,'Nuevo movilizador creado: '+ced);
+        await exec([{
+          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+        }]);
       }
 
-      // La confirmación anterior ya viene de Turso en el mismo batch.
+      const confirmado=rowsFrom(await exec([{
+        q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
+        params:[ced]
+      }]))[0];
+      if(!confirmado) return res.status(500).json({error:'Turso no confirmó el movilizador después del alta',cedula:ced});
+      creado=confirmado;
+      if(autorizacionId) await log(a,'Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida');
+      else await log(a,'Nuevo movilizador creado: '+ced);
+
+      // La confirmación anterior viene de una lectura real de Turso.
       const registroCreado={...creado};
       registroCreado.letra=p.letra||null;
       registroCreado.p_apellido=p.p_apellido||null;
