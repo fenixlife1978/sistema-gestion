@@ -386,12 +386,13 @@ async function execSchema() {
     // Migración defensiva de movilizadores: corrige duplicados históricos por cédula.
     const recl=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='reclutadores' LIMIT 1",params:[]} ]));
     if(recl.length){
+      // Turso HTTP ejecuta batches, pero este endpoint no admite BEGIN/COMMIT
+      // como SQL ordinario. Ejecutamos la migración secuencialmente y de forma
+      // idempotente para no abortar el bootstrap ni dejar datos a medio migrar.
       await turso([
-        {q:'BEGIN',params:[]},
         {q:'UPDATE asignaciones SET reclutador_id=(SELECT MIN(r2.id) FROM reclutadores r2 WHERE r2.cedula=(SELECT r3.cedula FROM reclutadores r3 WHERE r3.id=asignaciones.reclutador_id)) WHERE reclutador_id IN (SELECT r.id FROM reclutadores r WHERE r.id<>(SELECT MIN(r2.id) FROM reclutadores r2 WHERE r2.cedula=r.cedula))',params:[]},
         {q:'DELETE FROM reclutadores WHERE id NOT IN (SELECT MIN(id) FROM reclutadores GROUP BY cedula)',params:[]},
-        {q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_reclutadores_cedula ON reclutadores(cedula)',params:[]},
-        {q:'COMMIT',params:[]}
+        {q:'CREATE UNIQUE INDEX IF NOT EXISTS ux_reclutadores_cedula ON reclutadores(cedula)',params:[]}
       ]);
     }
     const com=rowsFrom(await turso([{q:'PRAGMA table_info(comite_vecinal)',params:[]}]));
