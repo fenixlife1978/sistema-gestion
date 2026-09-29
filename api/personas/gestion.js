@@ -128,9 +128,6 @@ module.exports=async function(req,res){
         });
       }
       creado=confirmado;
-      if(autorizacionId) await log(a,'Nuevo movilizador creado: '+ced+' • autorización #'+autorizacionId+' consumida');
-      else await log(a,'Nuevo movilizador creado: '+ced);
-
       // La confirmación anterior viene de una lectura real de Turso.
       const registroCreado={...creado};
       registroCreado.letra=p.letra||null;
