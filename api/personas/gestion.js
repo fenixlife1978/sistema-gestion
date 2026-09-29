@@ -117,16 +117,21 @@ module.exports=async function(req,res){
         await log(a,'Nuevo movilizador creado: '+ced);
       }
 
-      // Confirmación tolerante: Turso es la fuente de verdad; si el registro
-      // existe después del INSERT, el alta fue exitosa aunque RETURNING no
-      // haya entregado filas al wrapper.
-      const ver=rowsFrom(await exec([{
-        q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
-        params:[ced]
-      }]))[0];
+      // Turso confirma el INSERT, pero en algunos casos la lectura inmediata
+      // puede tardar unos instantes. Reintentamos la lectura antes de declarar
+      // un fallo, evitando el falso "Internal Server Error" que deja el alta
+      // creada pero hace creer al usuario que falló.
+      let ver=null;
+      for(let intento=0; intento<5 && !ver; intento++){
+        ver=rowsFrom(await exec([{
+          q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion FROM reclutadores r WHERE CAST(r.cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
+          params:[ced]
+        }]))[0];
+        if(!ver && intento<4) await new Promise(resolve=>setTimeout(resolve,150));
+      }
 
       if(!ver){
-        return res.status(500).json({error:'Turso ejecutó el alta pero no pudo confirmar el registro del movilizador',cedula:ced});
+        return res.status(500).json({error:'Turso confirmó la ejecución del alta, pero la lectura de verificación aún no encuentra el movilizador',cedula:ced});
       }
 
       const registroCreado={...ver};
