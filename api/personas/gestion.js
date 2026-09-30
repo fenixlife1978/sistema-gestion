@@ -114,13 +114,18 @@ module.exports=async function(req,res){
         throw e;
       }
 
-      // Confirmamos después del COMMIT con una consulta independiente. Así no
-      // dependemos de que Turso devuelva correctamente el resultado de un SELECT
-      // que acompañe al INSERT en el mismo batch.
-      const confirmado=rowsFrom(await exec([{
-        q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? LIMIT 1',
-        params:[ced]
-      }]))[0]||null;
+      // Turso puede tardar un instante en hacer visible una escritura recién
+      // confirmada cuando la siguiente lectura llega por otra conexión HTTP.
+      // Confirmamos por cédula con lectura independiente y pequeños reintentos.
+      let confirmado=null;
+      for(let intento=0; intento<8 && !confirmado; intento++){
+        const encontrados=rowsFrom(await exec([{
+          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE CAST(cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
+          params:[ced]
+        }]));
+        confirmado=encontrados[0]||null;
+        if(!confirmado && intento<7) await new Promise(resolve=>setTimeout(resolve,250));
+      }
       if(!confirmado || confirmado.id===undefined || confirmado.id===null) {
         return res.status(500).json({
           error:'El alta fue ejecutada pero Turso no devolvió el movilizador al confirmar por cédula',
