@@ -43,10 +43,10 @@ module.exports=async function(req,res){
       if(!centro_codigo) return res.status(400).json({error:'Centro electoral obligatorio. Seleccione primero el centro para registrar el movilizador'});
       const centro=rowsFrom(await exec([{q:'SELECT codigo,nombre FROM centros WHERE codigo=? LIMIT 1',params:[centro_codigo]}]))[0];
       if(!centro) return res.status(404).json({error:'Centro electoral no encontrado'});
-      const p=rowsFrom(await exec([{q:'SELECT * FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
+      const p=rowsFrom(await exec([{q:'SELECT * FROM padron WHERE CAST(cedula AS INTEGER)=CAST(? AS INTEGER) LIMIT 1',params:[ced]}]))[0];
       if(!p) return res.status(404).json({error:'La persona no existe en el padrón CNE'});
       if(!p.centro_votacion || String(p.centro_votacion)!==String(centro_codigo)) return res.status(409).json({error:'Registro rechazado: el centro electoral de la persona en el padrón CNE no coincide con el centro seleccionado'});
-      const dup=rowsFrom(await exec([{q:'SELECT id,cedula FROM reclutadores WHERE CAST(cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',params:[ced]}]))[0];
+      const dup=rowsFrom(await exec([{q:'SELECT id,cedula FROM reclutadores WHERE CAST(cedula AS INTEGER)=CAST(? AS INTEGER) LIMIT 1',params:[ced]}]))[0];
       if(dup){
         const existente=rowsFrom(await exec([{
           q:'SELECT r.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.centro_votacion, p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula WHERE r.id=? LIMIT 1',
@@ -101,12 +101,14 @@ module.exports=async function(req,res){
         params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
       }]);
 
-      // Confirmamos con una lectura real de Turso. No dependemos de
-      // INSERT ... RETURNING ni de last_insert_rowid().
+      // Confirmamos por valor numérico de cédula. La comparación textual podía fallar
+      // cuando SQLite/Turso almacenaba una cédula numérica sin ceros a la izquierda
+      // (por ejemplo 01234567 frente a 1234567), aunque el INSERT hubiera sido exitoso.
+      // No dependemos de INSERT ... RETURNING ni de last_insert_rowid().
       let confirmado=null;
       for(let intento=0; intento<8 && !confirmado; intento++){
         const encontrados=rowsFrom(await exec([{
-          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE CAST(cedula AS TEXT)=CAST(? AS TEXT) LIMIT 1',
+          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE CAST(cedula AS INTEGER)=CAST(? AS INTEGER) LIMIT 1',
           params:[ced]
         }]));
         confirmado=encontrados[0]||null;
@@ -145,7 +147,7 @@ module.exports=async function(req,res){
       // Si la lectura global todavía no refleja la escritura, no ocultamos
       // el alta recién confirmada: la agregamos a la respuesta de esta
       // operación para que la interfaz la muestre inmediatamente.
-      const yaEnLista=todos.some(x=>String(x.cedula)===String(ced));
+      const yaEnLista=todos.some(x=>String(Number(x.cedula))===String(Number(ced)));
       if(!yaEnLista) todos.unshift({...registroCreado});
       return res.json({ok:true,id:registroCreado.id||null,movilizador:registroCreado,movilizadores:todos});
     }
