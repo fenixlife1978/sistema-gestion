@@ -89,34 +89,20 @@ module.exports=async function(req,res){
       const telefono=tel?normTel(tel):null;
       let creado=null;
 
-      // El consumo de la autorización y el alta deben formar una sola unidad.
-      // Así nunca dejamos una autorización consumida si el INSERT falla.
-      const statements=[{q:'BEGIN',params:[]}];
-      if(autorizacionId){
-        statements.push({
-          q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
-          params:[now,a.id,autorizacionId]
-        });
-      }
-      statements.push({
+      // IMPORTANTE: este endpoint usa el transporte HTTP de Turso mediante
+      // sentencias independientes. No se deben enviar BEGIN/COMMIT/ROLLBACK
+      // como SQL de negocio: ese orden fue el quiebre que dejó el alta de
+      // movilizadores bloqueada.
+      //
+      // Primero hacemos el INSERT. Así una autorización nunca queda consumida
+      // si el alta no llega a ejecutarse.
+      await exec([{
         q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
         params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-      });
-      statements.push({
-        q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
-        params:['user','Nuevo movilizador creado: '+ced+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''),a.id]
-      });
-      statements.push({q:'COMMIT',params:[]});
-      try{
-        await exec(statements);
-      }catch(e){
-        try{ await exec([{q:'ROLLBACK',params:[]}]); }catch(_e){}
-        throw e;
-      }
+      }]);
 
-      // Turso puede tardar un instante en hacer visible una escritura recién
-      // confirmada cuando la siguiente lectura llega por otra conexión HTTP.
-      // Confirmamos por cédula con lectura independiente y pequeños reintentos.
+      // Confirmamos con una lectura real de Turso. No dependemos de
+      // INSERT ... RETURNING ni de last_insert_rowid().
       let confirmado=null;
       for(let intento=0; intento<8 && !confirmado; intento++){
         const encontrados=rowsFrom(await exec([{
@@ -128,11 +114,22 @@ module.exports=async function(req,res){
       }
       if(!confirmado || confirmado.id===undefined || confirmado.id===null) {
         return res.status(500).json({
-          error:'El alta fue ejecutada pero Turso no devolvió el movilizador al confirmar por cédula',
+          error:'Turso ejecutó el alta pero no pudo confirmar el movilizador por su cédula',
           cedula:ced
         });
       }
+
+      // La autorización se consume SOLO después de comprobar que el movilizador
+      // existe realmente. La condición consumida_en IS NULL evita reutilizarla.
+      if(autorizacionId){
+        await exec([{
+          q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
+          params:[now,a.id,autorizacionId]
+        }]);
+      }
+
       creado=confirmado;
+      await log(a,'Nuevo movilizador creado: '+ced+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''));
       // La confirmación anterior viene de una lectura real de Turso.
       const registroCreado={...creado};
       registroCreado.letra=p.letra||null;
