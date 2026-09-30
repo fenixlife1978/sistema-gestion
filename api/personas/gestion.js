@@ -101,37 +101,21 @@ module.exports=async function(req,res){
         params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
       }]);
 
-      // Confirmamos por valor numérico de cédula. La comparación textual podía fallar
-      // cuando SQLite/Turso almacenaba una cédula numérica sin ceros a la izquierda
-      // (por ejemplo 01234567 frente a 1234567), aunque el INSERT hubiera sido exitoso.
-      // No dependemos de INSERT ... RETURNING ni de last_insert_rowid().
-      // Turso puede enrutar una lectura posterior a una réplica distinta. Por eso
-      // primero confirmamos por cédula y, si esa lectura todavía no ve el dato,
-      // comprobamos también el último registro escrito. Nunca damos por hecho
-      // que el INSERT falló solo porque una lectura inmediata no lo encontró.
-      let confirmado=null;
-      for(let intento=0; intento<8 && !confirmado; intento++){
-        const encontrados=rowsFrom(await exec([{
-          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE CAST(cedula AS INTEGER)=CAST(? AS INTEGER) ORDER BY id DESC LIMIT 1',
-          params:[ced]
-        }]));
-        confirmado=encontrados[0]||null;
-        if(!confirmado && intento<7) await new Promise(resolve=>setTimeout(resolve,250));
-      }
-
-      // Fallback de confirmación por el último ID de reclutadores. Esto evita
-      // depender exclusivamente de la representación de la cédula en SQLite.
-      if(!confirmado){
-        const ultimo=rowsFrom(await exec([{
-          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores ORDER BY id DESC LIMIT 1',
-          params:[]
-        }]))[0];
-        if(ultimo && Number(ultimo.cedula)===Number(ced)) confirmado=ultimo;
-      }
+      // La confirmación debe salir de la MISMA operación de escritura.
+      // No hacemos un SELECT posterior porque Turso puede confirmar el INSERT
+      // en el primario y una lectura inmediatamente posterior no necesariamente
+      // observar la escritura en el mismo instante.
+      // INSERT ... RETURNING devuelve exactamente la fila que SQLite acaba de
+      // insertar, incluido el ID AUTOINCREMENT generado.
+      const alta=await exec([{
+        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado',
+        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+      }]);
+      const confirmado=rowsFrom(alta)[0]||null;
 
       if(!confirmado || confirmado.id===undefined || confirmado.id===null) {
         return res.status(500).json({
-          error:'Turso ejecutó el alta pero la lectura de confirmación no encontró el registro recién creado',
+          error:'Turso ejecutó el alta pero no devolvió la fila creada en el RETURNING del INSERT',
           cedula:ced
         });
       }
