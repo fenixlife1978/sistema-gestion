@@ -45,7 +45,7 @@ module.exports=async function handler(req,res){
     if(!recl.centro_votacion) return res.status(409).json({error:'No se puede registrar el comprometido porque el movilizador no tiene un centro electoral asociado en el Padrón CNE.'});
     if(!pad) return res.status(409).json({error:'La cédula no existe en el padrón CNE'});
     if(!pad.centro_votacion) return res.status(409).json({error:'Registro rechazado: la persona no tiene un centro electoral CNE asociado.'});
-    if(String(pad.centro_votacion)!==String(recl.centro_votacion)) return res.status(409).json({error:'Registro rechazado: el aspirante a comprometido no pertenece al mismo centro electoral de su movilizador.,tipo_conflicto:'CENTRO_ELECTORAL_DIFERENTE',centro_movilizador:String(recl.centro_votacion),centro_persona:String(pad.centro_votacion)});
+    if(String(pad.centro_votacion)!==String(recl.centro_votacion)) return res.status(409).json({error:'Registro rechazado: el aspirante a comprometido no pertenece al mismo centro electoral de su movilizador.',tipo_conflicto:'CENTRO_ELECTORAL_DIFERENTE',centro_movilizador:String(recl.centro_votacion),centro_persona:String(pad.centro_votacion)});
     if(String(recl.cedula)===cedula) return res.status(409).json({error:'La cédula corresponde al propio movilizador'});
     if(Number(cupos?.n||0)>=10) return res.status(409).json({error:'La lista ya está completa (10/10)'});
 
