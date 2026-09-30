@@ -67,7 +67,12 @@ module.exports = async function handler(req, res) {
     // Así TURSO_URL/TURSO_DATABASE_URL y TURSO_TOKEN/TURSO_AUTH_TOKEN
     // siempre apuntan al mismo origen de datos.
     const data = await turso(stmts);
-    return res.status(200).json(data);
+    // El cliente del navegador mantiene el contrato histórico: para una
+    // sentencia devuelve un objeto {results:{columns,rows}} y para varias,
+    // un arreglo de esos objetos. No exponer directamente la envoltura del
+    // pipeline HTTP de Turso porque el frontend espera poder recorrerla.
+    const out = Array.isArray(data?.statements) ? data.statements : [];
+    return res.status(200).json(Array.isArray(statements) ? out : (out[0] || {results:{columns:[],rows:[]}}));
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
