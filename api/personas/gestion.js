@@ -110,37 +110,47 @@ module.exports=async function(req,res){
 
       const now=new Date().toISOString();
       const telefono=tel?normTel(tel):null;
-      let creado=null;
 
-      // Alta simple: Turso ejecuta el INSERT y, en la MISMA petición HTTP,
-      // consultamos el ID generado. No dependemos de INSERT ... RETURNING porque
-      // este endpoint HTTP de Turso no está exponiendo correctamente su resultado.
-      // Si el INSERT termina sin error, el cargo ya fue creado.
-      // Ejecutamos la escritura en una petición Turso independiente.
-      // La lectura de confirmación/listado va después, para que nunca dependa
-      // del resultado de un batch que mezcle INSERT + SELECT.
-      await exec([{
-        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-      }]);
-      const confirmado=rowsFrom(await exec([{
-        q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? ORDER BY id DESC LIMIT 1',
-        params:[ced]
-      }]))[0]||null;
+      // Persistencia estricta: un alta de movilizador solo se considera exitosa
+      // cuando una lectura posterior, independiente de la escritura, encuentra
+      // la misma fila en Turso. Nunca fabricamos un registro local como sustituto
+      // de una confirmación real de la base de datos.
+      let confirmado=null;
+      let ultimoError=null;
+      for(let intento=0;intento<5 && !confirmado;intento++){
+        try{
+          if(intento===0){
+            await exec([{
+              q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+              params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+            }]);
+          }else{
+            // Si la escritura fue aceptada pero la lectura llegó antes de que
+            // Turso la hiciera visible, repetimos de forma idempotente.
+            await exec([{
+              q:'INSERT OR IGNORE INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+              params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+            }]);
+          }
+          confirmado=rowsFrom(await exec([{
+            q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? LIMIT 1',
+            params:[ced]
+          }]))[0]||null;
+        }catch(e){
+          ultimoError=e;
+        }
+        if(!confirmado && intento<4) await new Promise(r=>setTimeout(r,250*(intento+1)));
+      }
 
-      // El INSERT ya fue exitoso. Si la lectura del ID no viene en la respuesta
-      // de Turso, no convertimos un alta válida en error: construimos el registro
-      // con los datos enviados y continuamos.
-      const creadoSeguro=confirmado||{
-        id:null,
-        cedula:ced,
-        telefono:telefono,
-        estructura:estructura||null,
-        numero_calle:numero_calle||null,
-        numero_casa:numero_casa||null,
-        direccion:direccion||null,
-        creado:now
-      };
+      if(!confirmado){
+        console.error('Alta de movilizador sin confirmación persistente:',ced,ultimoError?.message||'sin fila confirmada');
+        return res.status(503).json({
+          error:'Turso ejecutó el alta pero no confirmó la persistencia del movilizador. No se mostrará como creado hasta que la base de datos confirme el registro.',
+          persistencia_confirmada:false
+        });
+      }
+
+      const creadoSeguro=confirmado;
 
       if(autorizacionId){
         await exec([{
@@ -151,7 +161,7 @@ module.exports=async function(req,res){
 
       creado=creadoSeguro;
       await log(a,'Nuevo movilizador creado: '+ced+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''));
-      // La confirmación anterior viene de una lectura real de Turso.
+      // La fila usada para responder proviene de una lectura real de Turso.
       const registroCreado={...creado};
       registroCreado.letra=p.letra||null;
       registroCreado.p_apellido=p.p_apellido||null;
