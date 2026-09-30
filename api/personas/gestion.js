@@ -111,56 +111,23 @@ module.exports=async function(req,res){
       const now=new Date().toISOString();
       const telefono=tel?normTel(tel):null;
 
-      // Persistencia: usamos el mismo patrón de escritura que ya funciona en
-      // asignaciones, Comité Vecinal y cargos. El INSERT se ejecuta solo y Turso
-      // confirma la escritura mediante affected_row_count/last_insert_rowid.
+      // Persistencia definitiva: Turso debe devolver la FILA creada.
+      // No aceptamos affected_row_count/last_insert_rowid como sustituto de la
+      // confirmación de la fila ni fabricamos un objeto local si no aparece.
+      // INSERT ... RETURNING devuelve la fila creada dentro de la misma
+      // operación de escritura ejecutada contra Turso.
       const writeResult=await exec([{
-        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado',
         params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
       }]);
-      const writeStatement=Array.isArray(writeResult?.statements)?writeResult.statements[0]:null;
-      const affected=Number(writeStatement?.results?.affected_row_count||0);
-      const insertedId=writeStatement?.results?.last_insert_rowid!=null
-        ? Number(writeStatement.results.last_insert_rowid)
-        : null;
+      const creadoSeguro=rowsFrom(writeResult)[0]||null;
 
-      if(affected!==1){
-        console.error('Alta de movilizador sin fila afectada:',ced,writeStatement?.results);
+      if(!creadoSeguro || !creadoSeguro.id || String(creadoSeguro.cedula)!==String(ced)){
+        console.error('Turso no devolvió la fila del movilizador después del alta:',ced,writeResult);
         return res.status(503).json({
-          error:'Turso no confirmó la escritura del movilizador.',
+          error:'Turso ejecutó el alta pero no devolvió la fila confirmada del movilizador.',
           persistencia_confirmada:false
         });
-      }
-
-      // La lectura se hace después de la escritura, igual que en los demás
-      // módulos. Si tarda en reflejarse, el rowid devuelto por Turso sigue siendo
-      // la confirmación de que la escritura fue aceptada por la base de datos.
-      let creadoSeguro=null;
-      let ultimoError=null;
-      for(let intento=0;intento<3 && !creadoSeguro;intento++){
-        try{
-          const confirmado=rowsFrom(await exec([{
-            q:insertedId
-              ? 'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE id=? LIMIT 1'
-              : 'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? ORDER BY id DESC LIMIT 1',
-            params:[insertedId||ced]
-          }]))[0];
-          if(confirmado) creadoSeguro=confirmado;
-        }catch(e){ ultimoError=e; }
-        if(!creadoSeguro&&intento<2) await new Promise(r=>setTimeout(r,300*(intento+1)));
-      }
-
-      if(!creadoSeguro){
-        console.warn('Movilizador escrito pero lectura inmediata diferida:',ced,ultimoError?.message||'sin fila leída');
-        creadoSeguro={
-          id:insertedId,
-          cedula:ced,
-          telefono,
-          estructura:estructura||null,
-          numero_calle:numero_calle||null,
-          numero_casa:numero_casa||null,
-          direccion:direccion||null
-        };
       }
 
       if(autorizacionId){
@@ -172,8 +139,8 @@ module.exports=async function(req,res){
 
       const creado=creadoSeguro;
       await log(a,'Nuevo movilizador creado: '+ced+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''));
-      // La fila usada para responder proviene de una lectura real de Turso.
-      const registroCreado={...creado};
+      // Esta fila fue devuelta por Turso mediante INSERT ... RETURNING.
+      const registroCreado={...creadoSeguro};
       registroCreado.letra=p.letra||null;
       registroCreado.p_apellido=p.p_apellido||null;
       registroCreado.s_apellido=p.s_apellido||null;
@@ -189,9 +156,9 @@ module.exports=async function(req,res){
         console.error('listar movilizadores despues de alta:',e);
       }
       todos.forEach(x=>{x.lista=[]});
-      // Si la lectura global todavía no refleja la escritura, no ocultamos
-      // el alta recién confirmada: la agregamos a la respuesta de esta
-      // operación para que la interfaz la muestre inmediatamente.
+      // La confirmación ya provino de Turso. Si la lectura global tuviera un
+      // retraso excepcional, conservamos la fila confirmada en esta respuesta,
+      // pero nunca la usamos como sustituto de la confirmación de persistencia.
       const yaEnLista=todos.some(x=>String(Number(x.cedula))===String(Number(ced)));
       if(!yaEnLista) todos.unshift({...registroCreado});
       return res.json({ok:true,id:registroCreado.id||null,movilizador:registroCreado,movilizadores:todos});
