@@ -350,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-09-30-c3';
+const BOOTSTRAP_VERSION = '2026-09-30-c4';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -514,13 +514,13 @@ async function execSchema() {
 
   const users=rowsFrom(await turso([{q:'SELECT COUNT(*) AS n FROM usuarios',params:[]}]));
   if(Number(users[0]?.n||0)===0){
-    const seeds=[
-      ['admin@comando.com','admin123','Administrador del Sistema','A','Administrador'],
-      ['jefe','jefe123','Gualberto Martinez','J','Jefe de Comando'],
-      ['operador','operador123','Pedro Rivas','O','Operador de Sala'],
-      ['cdiaz','operador123','Carmen Díaz','O','Operadora Territorial']
-    ];
-    for(const [u,p,n,r,c] of seeds) await turso([{q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:[u,modernHash(p),n,r,c]}]);
+    // Único acceso inicial: un administrador semilla. Los demás usuarios
+    // administrativos/operativos deben ser creados desde Gestión de Usuarios.
+    // El administrador semilla puede eliminarse después de crear otro A activo.
+    await turso([{
+      q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',
+      params:['admin@comando.com',modernHash('admin123'),'Administrador del Sistema','A','Administrador']
+    }]);
   }
   await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:[BOOTSTRAP_VERSION]}]);
 }
