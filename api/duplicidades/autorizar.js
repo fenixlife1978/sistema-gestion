@@ -36,13 +36,11 @@ module.exports=async function handler(req,res){
     const detalle=(detalles.length?detalles.join(' '):'Autorización para registrar un cargo adicional a la persona.') ;
     const now=new Date().toISOString();
     const statements=[
-      {q:'BEGIN',params:[]},
       {q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=COALESCE(consumida_en,?), consumida_por=COALESCE(consumida_por,?) WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL',params:[now,auth.id,cedula,destino]},
       {q:'INSERT INTO autorizaciones_duplicidad_persona(cedula,contexto_origen,contexto_destino,detalle_duplicidad,motivo,autorizado_por,autorizado_en,registrado_por) VALUES(?,?,?,?,?,?,?,?)',params:[cedula,origen,destino,detalle,motivo,auth.id,now,session.uid]},
-      {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['autorizacion','Duplicidad autorizada: C.I. '+cedula+' → '+destino+' • autorizó '+auth.usuario+' • '+motivo,session.uid]},
-      {q:'COMMIT',params:[]}
+      {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['autorizacion','Duplicidad autorizada: C.I. '+cedula+' → '+destino+' • autorizó '+auth.usuario+' • '+motivo,session.uid]}
     ];
-    try{ await turso(statements); }catch(e){ try{await turso([{q:'ROLLBACK',params:[]}])}catch(_e){}; throw e; }
+    try{ await turso(statements); }catch(e){ throw e; }
     return res.status(200).json({ok:true,autorizado_por:auth.id,destino,cedula,origenes:inferred});
   }catch(e){return res.status(500).json({error:e.message||'No se pudo registrar la autorización'});}
 };

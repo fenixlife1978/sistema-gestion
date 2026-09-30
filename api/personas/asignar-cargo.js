@@ -63,7 +63,6 @@ module.exports=async function(req,res){
       const guardParams=autorizacionId?[autorizacionId,now,session.uid]:[];
       const statements=[];
       if(autorizacionId){
-        statements.push({q:'BEGIN',params:[]});
         statements.push({q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,session.uid,autorizacionId]});
       }
       statements.push({q:'DELETE FROM direccion_ejecutiva WHERE cargo=?'+guard,params:[cargo,...guardParams]});
@@ -74,7 +73,6 @@ module.exports=async function(req,res){
       }
       if(autorizacionId){
         statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) SELECT ?,?,? WHERE EXISTS (SELECT 1 FROM autorizaciones_duplicidad_persona WHERE id=? AND consumida_en=? AND consumida_por=?)',params:['user','Dirección Ejecutiva asignada: C.I. '+cedula+' → '+cargo+' • autorización #'+autorizacionId+' consumida',session.uid,autorizacionId,now,session.uid]});
-        statements.push({q:'COMMIT',params:[]});
       }else{
         statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Dirección Ejecutiva asignada: C.I. '+cedula+' → '+cargo,session.uid]});
       }
@@ -87,7 +85,6 @@ module.exports=async function(req,res){
         : '';
       const guardParams=autorizacionId?[autorizacionId,now,session.uid]:[];
       if(autorizacionId){
-        statements.push({q:'BEGIN',params:[]});
         statements.push({q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',params:[now,session.uid,autorizacionId]});
       }
       if(ex.length) statements.push({q:'UPDATE centro_cargos SET cedula=?,telefono=COALESCE(?,telefono),direccion=COALESCE(?,direccion),asignado_en=? WHERE id=?'+guard,params:[cedula,telefono||null,direccion||null,now,ex[0].id,...guardParams]});
@@ -95,7 +92,6 @@ module.exports=async function(req,res){
       else statements.push({q:'INSERT INTO centro_cargos(centro_codigo,cargo,cedula,telefono,direccion,asignado_en) VALUES(?,?,?,?,?,?)',params:[centro,cargo,cedula,telefono||null,direccion||null,now]});
       if(autorizacionId){
         statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) SELECT ?,?,? WHERE EXISTS (SELECT 1 FROM autorizaciones_duplicidad_persona WHERE id=? AND consumida_en=? AND consumida_por=?)',params:['user',cargo+' asignado en centro '+centro+' • C.I. '+cedula+' • autorización #'+autorizacionId+' consumida',session.uid,autorizacionId,now,session.uid]});
-        statements.push({q:'COMMIT',params:[]});
       }else{
         statements.push({q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user',cargo+' asignado en centro '+centro+' • C.I. '+cedula,session.uid]});
       }
