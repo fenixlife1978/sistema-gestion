@@ -350,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-09-28-c2';
+const BOOTSTRAP_VERSION = '2026-09-30-c3';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -401,8 +401,9 @@ async function execSchema() {
       if(!com.some(x=>x.name==='numero_casa')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN numero_casa TEXT',params:[]}]);
       if(!com.some(x=>x.name==='direccion')) await turso([{q:'ALTER TABLE comite_vecinal ADD COLUMN direccion TEXT',params:[]}]);
     }
-    await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:[BOOTSTRAP_VERSION]}]);
-    return;
+    // No salir aquí: una base existente también debe atravesar SCHEMA y las
+    // migraciones de esta versión. Así las tablas/columnas agregadas después
+    // de la instalación original no quedan sin aplicar.
   }
 
   const existing=rowsFrom(await turso([{q:"SELECT name FROM sqlite_master WHERE type='table' AND name='comite_vecinal' LIMIT 1",params:[]}]));
