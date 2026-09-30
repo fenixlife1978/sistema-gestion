@@ -126,7 +126,7 @@ module.exports=async function(req,res){
         }]);
       }
 
-      creado=confirmado;
+      creado=creadoSeguro;
       await log(a,'Nuevo movilizador creado: '+ced+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''));
       // La confirmación anterior viene de una lectura real de Turso.
       const registroCreado={...creado};
@@ -138,7 +138,12 @@ module.exports=async function(req,res){
       registroCreado.centro_votacion=p.centro_votacion||null;
       registroCreado.nombre_cv=p.nombre_cv||centro.nombre||null;
       registroCreado.lista=[];
-      const todos=rowsFrom(await exec([{q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado,p.letra,p.p_apellido,p.s_apellido,p.p_nombre,p.s_nombre,p.centro_votacion,p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula ORDER BY r.creado DESC,r.id DESC',params:[]}])) ;
+      let todos=[];
+      try{
+        todos=rowsFrom(await exec([{q:'SELECT r.id,r.cedula,r.telefono,r.estructura,r.numero_calle,r.numero_casa,r.direccion,r.creado,p.letra,p.p_apellido,p.s_apellido,p.p_nombre,p.s_nombre,p.centro_votacion,p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula ORDER BY r.creado DESC,r.id DESC',params:[]}]));
+      }catch(e){
+        console.error('listar movilizadores despues de alta:',e);
+      }
       todos.forEach(x=>{x.lista=[]});
       // Si la lectura global todavía no refleja la escritura, no ocultamos
       // el alta recién confirmada: la agregamos a la respuesta de esta
