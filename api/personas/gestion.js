@@ -67,21 +67,34 @@ module.exports=async function(req,res){
       // Una persona puede ejercer varios cargos simultáneamente. Solo bloqueamos
       // el nuevo cargo si existe otro cargo y no hay una autorización vigente para
       // el destino MOVILIZADOR.
-      const cross=rowsFrom(await exec([{
-        q:`SELECT tipo FROM (
-          SELECT 'COMPROMETIDO' AS tipo FROM asignaciones WHERE cedula=? LIMIT 1
-          UNION ALL SELECT 'DIRECCIÓN EJECUTIVA' FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
-          UNION ALL SELECT 'COMITÉ VECINAL' FROM comite_vecinal WHERE cedula=? LIMIT 1
-          UNION ALL SELECT 'CARGO DE CENTRO' FROM centro_cargos WHERE cedula=? LIMIT 1
-        )`,params:[ced,ced,ced,ced]
-      }]));
+      // Detectamos los cargos existentes con consultas independientes. Evitamos
+      // UNION + LIMIT por subconsulta porque SQLite/Turso puede rechazar esa forma
+      // de SQL y dejar el alta bloqueada justo cuando la persona tiene otro cargo.
+      const crossSets=await exec([
+        {q:'SELECT cedula FROM asignaciones WHERE cedula=? LIMIT 1',params:[ced]},
+        {q:'SELECT cargo FROM direccion_ejecutiva WHERE cedula=? LIMIT 1',params:[ced]},
+        {q:'SELECT comunidad,cargo FROM comite_vecinal WHERE cedula=? LIMIT 1',params:[ced]},
+        {q:'SELECT centro_codigo,cargo FROM centro_cargos WHERE cedula=? LIMIT 1',params:[ced]}
+      ]);
+      const cross=[];
+      if(rowsFrom([crossSets[0]]).length) cross.push('COMPROMETIDO');
+      if(rowsFrom([crossSets[1]]).length) cross.push('DIRECCIÓN EJECUTIVA');
+      if(rowsFrom([crossSets[2]]).length) cross.push('COMITÉ VECINAL');
+      if(rowsFrom([crossSets[3]]).length) cross.push('CARGO DE CENTRO');
+
       let autorizacionId=null;
       if(cross.length){
         const auth=rowsFrom(await exec([{
           q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL ORDER BY id DESC LIMIT 1',
           params:[ced,'MOVILIZADOR']
         }]))[0];
-        if(!auth) return res.status(409).json({error:'La persona ya tiene otro cargo y requiere autorización para ser registrada como movilizador'});
+        if(!auth){
+          return res.status(409).json({
+            error:'La persona ya está registrada en otro cargo: '+cross.join(', ')+'. Para registrarla también como movilizador se requiere autorización de un Jefe de Comando o Administrador.',
+            requiere_autorizacion:true,
+            cargos_existentes:cross
+          });
+        }
         autorizacionId=Number(auth.id);
       }
 
