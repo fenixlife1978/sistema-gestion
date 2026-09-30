@@ -111,42 +111,57 @@ module.exports=async function(req,res){
       const now=new Date().toISOString();
       const telefono=tel?normTel(tel):null;
 
-      // Persistencia estricta: escritura y confirmación viajan en el MISMO
-      // pipeline HTTP de Turso. Esto evita que la escritura llegue a un nodo/ruta
-      // y la lectura inmediata a otro que todavía no vea el cambio.
-      let confirmado=null;
-      let ultimoError=null;
+      // Persistencia: usamos el mismo patrón de escritura que ya funciona en
+      // asignaciones, Comité Vecinal y cargos. El INSERT se ejecuta solo y Turso
+      // confirma la escritura mediante affected_row_count/last_insert_rowid.
+      const writeResult=await exec([{
+        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+      }]);
+      const writeStatement=Array.isArray(writeResult?.statements)?writeResult.statements[0]:null;
+      const affected=Number(writeStatement?.results?.affected_row_count||0);
+      const insertedId=writeStatement?.results?.last_insert_rowid!=null
+        ? Number(writeStatement.results.last_insert_rowid)
+        : null;
 
-      for(let intento=0;intento<3 && !confirmado;intento++){
-        try{
-          const resultado=await exec([
-            {
-              q:intento===0
-                ? 'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)'
-                : 'INSERT OR IGNORE INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-              params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-            },
-            {
-              q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? ORDER BY id DESC LIMIT 1',
-              params:[ced]
-            }
-          ]);
-          // exec() devuelve el objeto normalizado de Turso; rowsFrom() ya extrae\n          // las filas de todas las sentencias del pipeline. La primera sentencia\n          // es INSERT (sin filas) y la segunda es SELECT (una fila confirmada).\n          confirmado=rowsFrom(resultado)[0]||null;
-        }catch(e){
-          ultimoError=e;
-        }
-        if(!confirmado && intento<2) await new Promise(r=>setTimeout(r,400*(intento+1)));
-      }
-
-      if(!confirmado){
-        console.error('Alta de movilizador sin confirmación persistente:',ced,ultimoError?.message||'sin fila confirmada');
+      if(affected!==1){
+        console.error('Alta de movilizador sin fila afectada:',ced,writeStatement?.results);
         return res.status(503).json({
-          error:'Turso no confirmó la fila del movilizador después de la escritura. El alta no se considerará completada hasta que la base de datos pueda leer el registro.',
+          error:'Turso no confirmó la escritura del movilizador.',
           persistencia_confirmada:false
         });
       }
 
-      const creadoSeguro=confirmado;
+      // La lectura se hace después de la escritura, igual que en los demás
+      // módulos. Si tarda en reflejarse, el rowid devuelto por Turso sigue siendo
+      // la confirmación de que la escritura fue aceptada por la base de datos.
+      let creadoSeguro=null;
+      let ultimoError=null;
+      for(let intento=0;intento<3 && !creadoSeguro;intento++){
+        try{
+          const confirmado=rowsFrom(await exec([{
+            q:insertedId
+              ? 'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE id=? LIMIT 1'
+              : 'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? ORDER BY id DESC LIMIT 1',
+            params:[insertedId||ced]
+          }]))[0];
+          if(confirmado) creadoSeguro=confirmado;
+        }catch(e){ ultimoError=e; }
+        if(!creadoSeguro&&intento<2) await new Promise(r=>setTimeout(r,300*(intento+1)));
+      }
+
+      if(!creadoSeguro){
+        console.warn('Movilizador escrito pero lectura inmediata diferida:',ced,ultimoError?.message||'sin fila leída');
+        creadoSeguro={
+          id:insertedId,
+          cedula:ced,
+          telefono,
+          estructura:estructura||null,
+          numero_calle:numero_calle||null,
+          numero_casa||null,
+          direccion:direccion||null
+        };
+      }
 
       if(autorizacionId){
         await exec([{
@@ -155,7 +170,7 @@ module.exports=async function(req,res){
         }]);
       }
 
-      creado=creadoSeguro;
+      const creado=creadoSeguro;
       await log(a,'Nuevo movilizador creado: '+ced+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''));
       // La fila usada para responder proviene de una lectura real de Turso.
       const registroCreado={...creado};
