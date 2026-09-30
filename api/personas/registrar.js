@@ -26,8 +26,8 @@ module.exports=async function handler(req,res){
      * cédulas libres como si ya estuvieran asignadas.
      */
     const batch=await turso([
-      {q:'SELECT id,cedula FROM reclutadores WHERE id=? LIMIT 1',params:[reclutadorId]},
-      {q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[cedula]},
+      {q:'SELECT r.id,r.cedula,p.centro_votacion,p.nombre_cv FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula WHERE r.id=? LIMIT 1',params:[reclutadorId]},
+      {q:'SELECT cedula,centro_votacion,nombre_cv FROM padron WHERE cedula=? LIMIT 1',params:[cedula]},
       {q:'SELECT id,reclutador_id,posicion FROM asignaciones WHERE cedula=? LIMIT 1',params:[cedula]},
       {q:'SELECT id FROM asignaciones WHERE reclutador_id=? AND cedula=? LIMIT 1',params:[reclutadorId,cedula]},
       {q:'SELECT COUNT(*) AS n FROM asignaciones WHERE reclutador_id=?',params:[reclutadorId]},
@@ -42,7 +42,10 @@ module.exports=async function handler(req,res){
     const telDup=rowsAt(batch,5)[0];
 
     if(!recl) return res.status(404).json({error:'Movilizador no encontrado'});
-    if(!pad) return res.status(409).json({error:'La cédula no existe en el padrón'});
+    if(!recl.centro_votacion) return res.status(409).json({error:'No se puede registrar el comprometido porque el movilizador no tiene un centro electoral asociado en el Padrón CNE.'});
+    if(!pad) return res.status(409).json({error:'La cédula no existe en el padrón CNE'});
+    if(!pad.centro_votacion) return res.status(409).json({error:'Registro rechazado: la persona no tiene un centro electoral CNE asociado.'});
+    if(String(pad.centro_votacion)!==String(recl.centro_votacion)) return res.status(409).json({error:'Registro rechazado: el centro electoral de la persona en el Padrón CNE no coincide con el centro electoral del movilizador. Movilizador: '+String(recl.centro_votacion)+' — Persona: '+String(pad.centro_votacion),tipo_conflicto:'CENTRO_ELECTORAL_DIFERENTE',centro_movilizador:String(recl.centro_votacion),centro_persona:String(pad.centro_votacion)});
     if(String(recl.cedula)===cedula) return res.status(409).json({error:'La cédula corresponde al propio movilizador'});
     if(Number(cupos?.n||0)>=10) return res.status(409).json({error:'La lista ya está completa (10/10)'});
 
