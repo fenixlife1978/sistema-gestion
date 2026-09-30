@@ -131,7 +131,7 @@ module.exports=async function(req,res){
               params:[ced]
             }
           ]);
-          confirmado=rowsFrom([resultado[1]])[0]||null;
+          // exec() devuelve el objeto normalizado de Turso; rowsFrom() ya extrae\n          // las filas de todas las sentencias del pipeline. La primera sentencia\n          // es INSERT (sin filas) y la segunda es SELECT (una fila confirmada).\n          confirmado=rowsFrom(resultado)[0]||null;
         }catch(e){
           ultimoError=e;
         }
