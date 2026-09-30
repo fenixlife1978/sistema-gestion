@@ -3406,6 +3406,7 @@ async function guardarVerificacion(cedula) {
 
     await refreshAll();
     closeModal();
+    CONTROL_ELECTORAL.search = '';
     renderControlElectoral();
     toast('Asistencia verificada • VOTÓ • Mesa '+mesa,'ok',6000);
   } catch(e) {
