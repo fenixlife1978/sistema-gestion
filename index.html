@@ -1513,7 +1513,6 @@ async function nrSave() {
   const estructura=$('nrEst')?.value||'';
   const direccion=($('nrDir')?.value||'').trim();
   const saveBtn=$('btnNrSave');
-  if(saveBtn) saveBtn.disabled=true;
 
   try {
     if(tel&&!valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)','err');
@@ -1525,6 +1524,7 @@ async function nrSave() {
     const dupGlobal=await verificarDuplicidadPersona(p.cedula,'movilizador');
     if(dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula,dupGlobal),'err',8000);
 
+    if(saveBtn) saveBtn.disabled=true;
     toast('Autorización aprobada. Registrando movilizador en Turso...','ok',5000);
 
     const rr=await fetch('/api/personas/gestion',{
