@@ -158,7 +158,7 @@ module.exports=async function(req,res){
           telefono,
           estructura:estructura||null,
           numero_calle:numero_calle||null,
-          numero_casa||null,
+          numero_casa:numero_casa||null,
           direccion:direccion||null
         };
       }
