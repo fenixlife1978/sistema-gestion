@@ -12,7 +12,7 @@ module.exports=async function handler(req,res){
     if(!session) return res.status(401).json({error:'Sesión no válida o expirada'});
 
     const b=parseBody(req), reclutadorId=Number(b.reclutador_id), cedula=c(b.cedula);
-    const telefono=tel(b.telefono), calle=s(b.numero_calle,80), casa=s(b.numero_casa,80), direccion=s(b.direccion,500);
+    const telefono=tel(b.telefono), calle=s(b.numero_calle,80), casa=s(b.numero_casa,80), direccionPersona=s(b.direccion,500);
     if(!Number.isInteger(reclutadorId)||reclutadorId<1||!/^[0-9]{5,9}$/.test(cedula)) return res.status(400).json({error:'Datos de registro inválidos'});
     if(telefono && !/^0[0-9]{10}$/.test(telefono)) return res.status(400).json({error:'Teléfono inválido'});
 
