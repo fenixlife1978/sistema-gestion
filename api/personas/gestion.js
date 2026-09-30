@@ -111,21 +111,26 @@ module.exports=async function(req,res){
       const now=new Date().toISOString();
       const telefono=tel?normTel(tel):null;
 
-      // Persistencia definitiva: Turso debe devolver la FILA creada.
-      // No aceptamos affected_row_count/last_insert_rowid como sustituto de la
-      // confirmación de la fila ni fabricamos un objeto local si no aparece.
-      // INSERT ... RETURNING devuelve la fila creada dentro de la misma
-      // operación de escritura ejecutada contra Turso.
-      const writeResult=await exec([{
-        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado',
-        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-      }]);
-      const creadoSeguro=rowsFrom(writeResult)[0]||null;
+      // Persistencia definitiva: INSERT + SELECT en el MISMO pipeline HTTP
+      // de Turso. El alta solo se considera completada cuando la respuesta del
+      // mismo pipeline contiene la fila recién creada. No usamos RETURNING porque
+      // este transporte HTTP ya demostró que no expone correctamente ese resultado.
+      const alta=await exec([
+        {
+          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+        },
+        {
+          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE CAST(cedula AS INTEGER)=CAST(? AS INTEGER) ORDER BY id DESC LIMIT 1',
+          params:[ced]
+        }
+      ]);
+      const creadoSeguro=rowsFrom(alta).find(x=>x && String(Number(x.cedula))===String(Number(ced)))||null;
 
-      if(!creadoSeguro || !creadoSeguro.id || String(creadoSeguro.cedula)!==String(ced)){
-        console.error('Turso no devolvió la fila del movilizador después del alta:',ced,writeResult);
+      if(!creadoSeguro || !creadoSeguro.id){
+        console.error('Turso no devolvió la fila del movilizador en el mismo pipeline:',ced,alta);
         return res.status(503).json({
-          error:'Turso ejecutó el alta pero no devolvió la fila confirmada del movilizador.',
+          error:'Turso no confirmó el movilizador después del alta.',
           persistencia_confirmada:false
         });
       }
@@ -139,7 +144,8 @@ module.exports=async function(req,res){
 
       const creado=creadoSeguro;
       await log(a,'Nuevo movilizador creado: '+ced+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''));
-      // Esta fila fue devuelta por Turso mediante INSERT ... RETURNING.
+      // Esta fila fue devuelta por el SELECT confirmatorio del mismo
+      // pipeline que ejecutó el INSERT.
       const registroCreado={...creadoSeguro};
       registroCreado.letra=p.letra||null;
       registroCreado.p_apellido=p.p_apellido||null;
