@@ -1513,6 +1513,7 @@ async function nrSave() {
   const estructura=$('nrEst')?.value||'';
   const direccion=($('nrDir')?.value||'').trim();
   const saveBtn=$('btnNrSave');
+  if(saveBtn) saveBtn.disabled=true;
 
   try {
     if(tel&&!valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)','err');
