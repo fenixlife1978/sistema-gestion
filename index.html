@@ -1049,6 +1049,15 @@ async function verificarDuplicidadPersona(cedula, contexto = '') {
   const incompatibles=encontrados.filter(d=>d.tipo!==destino);
   if(!incompatibles.length) return encontrados[0];
   const detalle=incompatibles.map(d=>d.detalle).join(' ');
+  // Comité Vecinal es incompatible con Movilizador y no puede autorizarse.
+  const comite=incompatibles.find(d=>d.tipo==='COMITÉ VECINAL');
+  if(comite){
+    return {
+      ...comite,
+      bloqueado:true,
+      detalle:detalle+' Esta persona no puede registrarse como MOVILIZADOR porque ya pertenece a Comité Vecinal. La autorización no aplica para este caso.'
+    };
+  }
   const autorizado=await autorizarDuplicidadPersona(ced,destino,incompatibles);
   if(!autorizado) return {...incompatibles[0],detalle:detalle+' Se requiere autorización de Jefe de Comando o Administrador para registrarla además como '+destino+'.'};
   return null;
@@ -1522,7 +1531,12 @@ async function nrSave() {
     }
 
     const dupGlobal=await verificarDuplicidadPersona(p.cedula,'movilizador');
-    if(dupGlobal) return toast(mensajeDuplicidadPersona(p.cedula,dupGlobal),'err',8000);
+    if(dupGlobal){
+      const mensaje=dupGlobal.bloqueado
+        ? '⛔ '+dupGlobal.detalle
+        : mensajeDuplicidadPersona(p.cedula,dupGlobal);
+      return toast(mensaje,'err',10000);
+    }
 
     if(saveBtn) saveBtn.disabled=true;
     toast('Autorización aprobada. Registrando movilizador en Turso...','ok',5000);
