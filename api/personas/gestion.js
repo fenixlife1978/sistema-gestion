@@ -89,24 +89,11 @@ module.exports=async function(req,res){
       const telefono=tel?normTel(tel):null;
       let creado=null;
 
-      // IMPORTANTE: este endpoint usa el transporte HTTP de Turso mediante
-      // sentencias independientes. No se deben enviar BEGIN/COMMIT/ROLLBACK
-      // como SQL de negocio: ese orden fue el quiebre que dejó el alta de
-      // movilizadores bloqueada.
-      //
-      // Primero hacemos el INSERT. Así una autorización nunca queda consumida
-      // si el alta no llega a ejecutarse.
-      await exec([{
-        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-      }]);
-
-      // La confirmación debe salir de la MISMA operación de escritura.
-      // No hacemos un SELECT posterior porque Turso puede confirmar el INSERT
-      // en el primario y una lectura inmediatamente posterior no necesariamente
-      // observar la escritura en el mismo instante.
-      // INSERT ... RETURNING devuelve exactamente la fila que SQLite acaba de
-      // insertar, incluido el ID AUTOINCREMENT generado.
+      // El alta y la confirmación se realizan en UNA SOLA escritura.
+      // INSERT ... RETURNING devuelve la misma fila que SQLite acaba de insertar,
+      // incluido el ID AUTOINCREMENT generado. No hacemos un INSERT previo ni un
+      // SELECT posterior para confirmar, evitando duplicados y problemas de
+      // consistencia de lectura.
       const alta=await exec([{
         q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado',
         params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
