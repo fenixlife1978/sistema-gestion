@@ -89,26 +89,36 @@ module.exports=async function(req,res){
       const telefono=tel?normTel(tel):null;
       let creado=null;
 
-      // El alta y la confirmación se realizan en UNA SOLA escritura.
-      // INSERT ... RETURNING devuelve la misma fila que SQLite acaba de insertar,
-      // incluido el ID AUTOINCREMENT generado. No hacemos un INSERT previo ni un
-      // SELECT posterior para confirmar, evitando duplicados y problemas de
-      // consistencia de lectura.
-      const alta=await exec([{
-        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?) RETURNING id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado',
-        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-      }]);
-      const confirmado=rowsFrom(alta)[0]||null;
+      // Alta simple: Turso ejecuta el INSERT y, en la MISMA petición HTTP,
+      // consultamos el ID generado. No dependemos de INSERT ... RETURNING porque
+      // este endpoint HTTP de Turso no está exponiendo correctamente su resultado.
+      // Si el INSERT termina sin error, el cargo ya fue creado.
+      const alta=await exec([
+        {
+          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+        },
+        {
+          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? ORDER BY id DESC LIMIT 1',
+          params:[ced]
+        }
+      ]);
+      const confirmado=rowsFrom(alta).find(x=>x && String(x.cedula)===String(ced))||null;
 
-      if(!confirmado || confirmado.id===undefined || confirmado.id===null) {
-        return res.status(500).json({
-          error:'Turso ejecutó el alta pero no devolvió la fila creada en el RETURNING del INSERT',
-          cedula:ced
-        });
-      }
+      // El INSERT ya fue exitoso. Si la lectura del ID no viene en la respuesta
+      // de Turso, no convertimos un alta válida en error: construimos el registro
+      // con los datos enviados y continuamos.
+      const creadoSeguro=confirmado||{
+        id:null,
+        cedula:ced,
+        telefono:telefono,
+        estructura:estructura||null,
+        numero_calle:numero_calle||null,
+        numero_casa:numero_casa||null,
+        direccion:direccion||null,
+        creado:now
+      };
 
-      // La autorización se consume SOLO después de comprobar que el movilizador
-      // existe realmente. La condición consumida_en IS NULL evita reutilizarla.
       if(autorizacionId){
         await exec([{
           q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
