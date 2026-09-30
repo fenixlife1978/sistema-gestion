@@ -60,7 +60,7 @@ module.exports=async function handler(req,res){
 
     const movilizadorExistente=rowsAt(funcionesBatch,0)[0];
     const otraLista=rowsAt(funcionesBatch,1)[0];
-    const direccion=rowsAt(funcionesBatch,2);
+    const cargosDireccionEjecutiva=rowsAt(funcionesBatch,2);
     const comite=rowsAt(funcionesBatch,3);
     const cargosCentro=rowsAt(funcionesBatch,4);
 
@@ -89,14 +89,14 @@ module.exports=async function handler(req,res){
       conflictos.push('La persona ya se encuentra registrada en la lista del movilizador '+nombre+'.');
     }
 
-    direccion.forEach(x=>conflictos.push('Ya ocupa el cargo "'+String(x.cargo||'')+'" en Dirección Ejecutiva.'));
+    cargosDireccionEjecutiva.forEach(x=>conflictos.push('Ya ocupa el cargo "'+String(x.cargo||'')+'" en Dirección Ejecutiva.'));
     comite.forEach(x=>conflictos.push('Ya está asignada a Comité Vecinal en la comunidad "'+String(x.comunidad||'')+'" como "'+String(x.cargo||'')+'".'));
     cargosCentro.forEach(x=>conflictos.push('Ya ocupa el cargo "'+String(x.cargo||'')+'" en el centro electoral "'+String(x.centro_codigo||'')+'".'));
 
     if(conflictos.length){
       return res.status(409).json({
         error:conflictos.join(' '),
-        tipo_conflicto:otraLista?'OTRA_LISTA':(direccion.length||comite.length||cargosCentro.length||movilizadorExistente?'FUNCION':'DUPLICIDAD'),
+        tipo_conflicto:otraLista?'OTRA_LISTA':(cargosDireccionEjecutiva.length||comite.length||cargosCentro.length||movilizadorExistente?'FUNCION':'DUPLICIDAD'),
         conflictos
       });
     }
@@ -113,7 +113,7 @@ module.exports=async function handler(req,res){
     const pos=Number(cupos?.n||0)+1;
     await turso([{
       q:'INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)',
-      params:[reclutadorId,cedula,pos,telefono||null,calle||null,casa||null,direccion||null]
+      params:[reclutadorId,cedula,pos,telefono||null,calle||null,casa||null,direccionPersona||null]
     }]);
     await turso([{
       q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
