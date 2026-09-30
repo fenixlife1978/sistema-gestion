@@ -82,6 +82,16 @@ module.exports=async function(req,res){
       if(rowsFrom([crossSets[2]]).length) cross.push('COMITÉ VECINAL');
       if(rowsFrom([crossSets[3]]).length) cross.push('CARGO DE CENTRO');
 
+      // Comité Vecinal es incompatible con Movilizador y NO admite excepción.
+      if(cross.includes('COMITÉ VECINAL')){
+        return res.status(409).json({
+          error:'Registro rechazado: la persona ya está registrada en Comité Vecinal. Una persona con cargo de Comité Vecinal no puede ser registrada como Movilizador, ni siquiera mediante autorización.',
+          bloqueado:true,
+          motivo_bloqueo:'COMITÉ VECINAL',
+          cargos_existentes:cross
+        });
+      }
+
       let autorizacionId=null;
       if(cross.length){
         const auth=rowsFrom(await exec([{
@@ -106,17 +116,17 @@ module.exports=async function(req,res){
       // consultamos el ID generado. No dependemos de INSERT ... RETURNING porque
       // este endpoint HTTP de Turso no está exponiendo correctamente su resultado.
       // Si el INSERT termina sin error, el cargo ya fue creado.
-      const alta=await exec([
-        {
-          q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-          params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-        },
-        {
-          q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? ORDER BY id DESC LIMIT 1',
-          params:[ced]
-        }
-      ]);
-      const confirmado=rowsFrom(alta).find(x=>x && String(x.cedula)===String(ced))||null;
+      // Ejecutamos la escritura en una petición Turso independiente.
+      // La lectura de confirmación/listado va después, para que nunca dependa
+      // del resultado de un batch que mezcle INSERT + SELECT.
+      await exec([{
+        q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+        params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
+      }]);
+      const confirmado=rowsFrom(await exec([{
+        q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? ORDER BY id DESC LIMIT 1',
+        params:[ced]
+      }]))[0]||null;
 
       // El INSERT ya fue exitoso. Si la lectura del ID no viene en la respuesta
       // de Turso, no convertimos un alta válida en error: construimos el registro
