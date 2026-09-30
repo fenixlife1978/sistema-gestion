@@ -111,41 +111,37 @@ module.exports=async function(req,res){
       const now=new Date().toISOString();
       const telefono=tel?normTel(tel):null;
 
-      // Persistencia estricta: un alta de movilizador solo se considera exitosa
-      // cuando una lectura posterior, independiente de la escritura, encuentra
-      // la misma fila en Turso. Nunca fabricamos un registro local como sustituto
-      // de una confirmación real de la base de datos.
+      // Persistencia estricta: escritura y confirmación viajan en el MISMO
+      // pipeline HTTP de Turso. Esto evita que la escritura llegue a un nodo/ruta
+      // y la lectura inmediata a otro que todavía no vea el cambio.
       let confirmado=null;
       let ultimoError=null;
-      for(let intento=0;intento<5 && !confirmado;intento++){
+
+      for(let intento=0;intento<3 && !confirmado;intento++){
         try{
-          if(intento===0){
-            await exec([{
-              q:'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
+          const resultado=await exec([
+            {
+              q:intento===0
+                ? 'INSERT INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)'
+                : 'INSERT OR IGNORE INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
               params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-            }]);
-          }else{
-            // Si la escritura fue aceptada pero la lectura llegó antes de que
-            // Turso la hiciera visible, repetimos de forma idempotente.
-            await exec([{
-              q:'INSERT OR IGNORE INTO reclutadores(cedula,telefono,estructura,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?)',
-              params:[ced,telefono,estructura||null,numero_calle||null,numero_casa||null,direccion||null]
-            }]);
-          }
-          confirmado=rowsFrom(await exec([{
-            q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? LIMIT 1',
-            params:[ced]
-          }]))[0]||null;
+            },
+            {
+              q:'SELECT id,cedula,telefono,estructura,numero_calle,numero_casa,direccion,creado FROM reclutadores WHERE cedula=? ORDER BY id DESC LIMIT 1',
+              params:[ced]
+            }
+          ]);
+          confirmado=rowsFrom([resultado[1]])[0]||null;
         }catch(e){
           ultimoError=e;
         }
-        if(!confirmado && intento<4) await new Promise(r=>setTimeout(r,250*(intento+1)));
+        if(!confirmado && intento<2) await new Promise(r=>setTimeout(r,400*(intento+1)));
       }
 
       if(!confirmado){
         console.error('Alta de movilizador sin confirmación persistente:',ced,ultimoError?.message||'sin fila confirmada');
         return res.status(503).json({
-          error:'Turso ejecutó el alta pero no confirmó la persistencia del movilizador. No se mostrará como creado hasta que la base de datos confirme el registro.',
+          error:'Turso no confirmó la fila del movilizador después de la escritura. El alta no se considerará completada hasta que la base de datos pueda leer el registro.',
           persistencia_confirmada:false
         });
       }
