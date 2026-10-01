@@ -34,7 +34,7 @@ module.exports=async function(req,res){
       const row=rowsAt(rolesBatch,i)[0];
       if(row) roles.push({tipo:roleNames[i],id:row.id,cargo:row.cargo,centro_codigo:row.centro_codigo});
     }
-    const padronRows=rowsFrom(await turso([{q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[cedula]}]));
+    const padronRows=rowsFrom(await turso([{q:'SELECT cedula,centro_votacion FROM padron WHERE cedula=? LIMIT 1',params:[cedula]}]));
     const destino=tipo==='direccion'?'DIRECCIÓN EJECUTIVA':'CARGO DE CENTRO';
     const conflicts=roles.map(x=>String(x.tipo||'')).filter(Boolean);
     const sameTarget=roles.some(x=>
@@ -48,6 +48,11 @@ module.exports=async function(req,res){
     }
     if(tipo==='centro'){
       const cen=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo=? LIMIT 1',params:[centro]}])); if(!cen.length) return fail(res,404,'Centro electoral no encontrado');
+      // Todo cargo de centro exige que la persona pertenezca al padrón CNE
+      // del mismo centro electoral. No se permite asignar por nombre ni por
+      // datos manuales si la cédula pertenece a otro centro.
+      const padronCentro=String(padronRows[0]?.centro_votacion||'').trim();
+      if(!padronRows.length || padronCentro!==centro) return fail(res,409,'Está persona no Pertenece al padrón CNE de este Centro');
       const occupied=rowsFrom(await turso([{q:'SELECT id,cedula FROM centro_cargos WHERE centro_codigo=? AND cargo=? LIMIT 1',params:[centro,cargo]}]));
       if(occupied.length&&String(occupied[0].cedula||'')!==cedula) return fail(res,409,'El cargo ya está ocupado en ese centro');
     }else{
