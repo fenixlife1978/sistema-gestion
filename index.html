@@ -453,6 +453,24 @@ function downloadPDF(elId, title) {
     '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
     '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\''+esc(title)+'\')">'+ic('file',13)+' Descargar PDF</button>');
 }
+function vistaPreviaDocumento(titulo, html, acciones) {
+  window.__previewDocHtml = html;
+  const contenido = '<div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
+    '<b style="font-size:15px;color:var(--navy)">' + esc(titulo || 'Vista previa') + '</b>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">' + (acciones || '') + '</div></div>' +
+    '<div style="border:1px solid var(--line2);border-radius:8px;background:#fff;overflow:auto;max-height:65vh;padding:8px">' +
+    '<iframe id="previewDocFrame" style="display:block;width:100%;min-width:900px;height:62vh;border:0;background:#fff"></iframe></div>';
+  win(titulo || 'Vista previa', contenido, '<button class="btn btn-w" onclick="closeModal()">Cerrar</button>', 1000);
+  setTimeout(() => {
+    const frame = $('previewDocFrame');
+    if (!frame) return;
+    const doc = frame.contentDocument || frame.contentWindow.document;
+    doc.open();
+    doc.write(html || '<html><body><p>Sin contenido.</p></body></html>');
+    doc.close();
+  }, 30);
+}
+
 function imprimirHTMLPrevisualizado(html) {
   const w=window.open('','_blank');
   if(!w) return toast('El navegador bloqueó la ventana de impresión. Permita ventanas emergentes para este sistema.','err');
