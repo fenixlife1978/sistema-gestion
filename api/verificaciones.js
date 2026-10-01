@@ -68,13 +68,28 @@ module.exports=async function(req,res){
       throw e;
     }
 
-    const post=await turso([
-      {q:'SELECT id FROM verificaciones_votacion WHERE cedula=? AND centro_codigo=? LIMIT 1',params:[cedula,centro]},
-      {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['voto','Verificación individual registrada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]}
-    ]);
+    const post=await turso([{
+      q:'SELECT id FROM verificaciones_votacion WHERE cedula=? AND centro_codigo=? LIMIT 1',
+      params:[cedula,centro]
+    }]);
     const inserted=rowsFrom(post[0] || {});
+    if(!inserted[0]?.id) return fail(res,500,'Turso no confirmó la verificación después del alta');
 
-    return res.status(201).json({ok:true,accion:'registrada',id:inserted[0]?.id||null,centro_codigo:centro,mesa});
+    // La verificación ya está confirmada en la tabla principal. La actividad
+    // alimenta la sincronización global, pero un fallo secundario no debe
+    // convertir una verificación válida en un falso error para el operador.
+    let syncAdvertencia=null;
+    try{
+      await turso([{
+        q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
+        params:['voto','Verificación individual registrada: C.I. '+cedula+' • Centro '+centro+' • Mesa '+mesa,session.uid]
+      }]);
+    }catch(e){
+      syncAdvertencia='La verificación quedó guardada, pero la actividad de sincronización no pudo registrarse.';
+      console.error('actividad_verificacion',e);
+    }
+
+    return res.status(201).json({ok:true,accion:'registrada',id:inserted[0].id,centro_codigo:centro,mesa,sync_advertencia:syncAdvertencia});
   }catch(e){
     return fail(res,500,e.message||'No se pudo guardar la verificación');
   }
