@@ -208,7 +208,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
   <button class="tb" onclick="openDocs()"><span class="g" id="gDocs"></span>Documentos</button>
   <button class="tb" onclick="openNotes()"><span class="g" id="gNotes"></span>Notas</button>
   <button class="tb" onclick="openAlerts()"><span class="g" id="gBell"></span>Alertas</button>
-  <button class="tb" onclick="go('padron')"><span class="g" id="gCne"></span>Padrón CNE</button>
+  <button class="tb" id="tbQuickPadron" onclick="go('padron')"><span class="g" id="gCne"></span>Padrón CNE</button>
   <button class="tb" onclick="toggleMore()"><span class="g" id="gMore"></span>Más Opciones</button>
  </div>
  <div id="moreMenu"></div>
@@ -748,11 +748,11 @@ const MODS = [
   { id: 'dash', l: 'Inicio', i: 'grid' },
   { id: 'registro', l: 'Mi Compromiso', i: 'target' },
   { id: 'recl', l: 'Movilizadores', i: 'users' },
-  { id: 'padron', l: 'Padrón CNE', i: 'db' },
+  { id: 'padron', l: 'Padrón CNE', i: 'db', adm: ['J', 'A'] },
   { id: 'centros', l: 'Centros', i: 'school' },
   { id: 'rep', l: 'Reportes y Cruces', i: 'chart' },
   { id: 'users', l: 'Usuarios', i: 'userPlus', adm: ['J', 'A'] },
-  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A', 'O'] },
+  { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] },
   { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' },
   { id: 'comite', l: 'Comités Vecinales', i: 'users' },
   { id: 'control', l: 'Control Electoral', i: 'check' }
