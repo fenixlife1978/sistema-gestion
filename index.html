@@ -1355,7 +1355,7 @@ function renderRecl() {
   const comp = CACHE.recl.filter(r => r.lista.length === 10).length, vac = CACHE.recl.filter(r => !r.lista.length).length;
   $('sec-recl').innerHTML = panel('Movilizadores / Gestión de Compromisos',
     '<div class="grid g4" style="margin-bottom:14px">' + kc('Movilizadores', CACHE.recl.length, 'desplegados') + kc('Listas completas', comp, (CACHE.recl.length ? (100 * comp / CACHE.recl.length).toFixed(0) : 0) + '%', CACHE.recl.length ? 100 * comp / CACHE.recl.length : 0, comp === CACHE.recl.length && comp > 0) + kc('En progreso', CACHE.recl.length - comp - vac, '1 a 9 registros') + kc('Vacías', vac, 'por activar') + '</div>' +
-    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:1;min-width:120px"><label class="fl">Buscar</label><input class="inp" id="rq2" value="' + esc(qq) + '" oninput="renderRecl()"></div><div style="align-self:end;display:flex;gap:5px;flex-wrap:wrap"><button class="btn btn-w btn-xs" onclick="printSection(\'reclContent\',\'Movilizadores  Gestión de Compromisos\')">' + ic('file', 12) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'reclContent\',\'Movilizadores  Gestión de Compromisos\')">' + ic('dl', 12) + ' PDF</button><button class="btn btn-navy btn-xs" onclick="openNewRecl()">' + ic('users', 12) + ' Nuevo</button></div></div>' +
+    '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:1;min-width:120px"><label class="fl">Buscar</label><input class="inp" id="rq2" value="' + esc(qq) + '" oninput="renderRecl()"></div><div style="align-self:end;display:flex;gap:5px;flex-wrap:wrap"><button class="btn btn-w btn-xs" onclick="printMovilizadores()">' + ic('file', 12) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="printMovilizadores()">' + ic('dl', 12) + ' PDF</button><button class="btn btn-navy btn-xs" onclick="openNewRecl()">' + ic('users', 12) + ' Nuevo</button></div></div>' +
     '<div id="reclContent"><div class="grid g3">' + (list.map(r => {
       const p = padBy(r.cedula); const nm = p ? nomP(p) + ' ' + apeP(p) : r.cedula;
       const n = r.lista.length;
@@ -1368,6 +1368,60 @@ function renderRecl() {
         '<div style="display:flex;gap:5px;margin-top:9px"><button class="btn btn-navy btn-xs" style="flex:1;justify-content:center" onclick="event.stopPropagation();openRec(' + r.id + ')">' + ic('search', 12) + ' Ver</button><button class="btn btn-w btn-xs" onclick="event.stopPropagation();verDatosMovilizador(' + r.id + ')">' + ic('eye', 12) + ' Ver Datos</button><button class="btn btn-w btn-xs" onclick="event.stopPropagation();REG.rec=' + r.id + ';go(\'registro\')">' + ic('target', 12) + ' Registrar</button><button class="btn btn-red btn-xs" style="padding:4px 8px" title="Eliminar Movilizador" onclick="event.stopPropagation();delRecl(' + r.id + ')">' + ic('trash', 12) + ' Eliminar</button></div></div>';
     }).join('') || '<div class="empty">Sin movilizadores.</div>') + '</div></div>');
   _refocus(prevFocus);
+}
+function printMovilizadores() {
+  const d = CACHE.recl || [];
+  if (!d.length) return toast('No hay movilizadores registrados para generar el reporte', 'err');
+  const rows = d.map((r, i) => {
+    const p = padBy(r.cedula);
+    const nombre = p ? (apeP(p) + ', ' + nomP(p)).trim() : (r.nombre || r.cedula || '');
+    const ci = fC(p ? p.letra : 'V', r.cedula);
+    const edad = p ? (edadDe(p.fecha_nac) || p.edad || '') : '';
+    const fn = p ? fmtFn(p.fecha_nac) : '';
+    const centro = p ? (p.nombre_cv || p.centro_votacion || '') : '';
+    const munPar = p ? ((p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '')) : '';
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td><b>' + esc(nombre) + '</b></td>' +
+      '<td class="mono">' + esc(ci) + '</td>' +
+      '<td>' + esc(r.estructura || '') + '</td>' +
+      '<td>' + esc(edad) + '</td>' +
+      '<td>' + esc(p ? (p.sexo || '') : '') + '</td>' +
+      '<td>' + esc(fn) + '</td>' +
+      '<td>' + esc(centro) + '</td>' +
+      '<td>' + esc(munPar) + '</td>' +
+      '<td>' + esc(r.telefono || '') + '</td>' +
+      '<td>' + esc(r.numero_calle || '') + '</td>' +
+      '<td>' + esc(r.numero_casa || '') + '</td>' +
+      '<td>' + esc(r.direccion || '') + '</td>' +
+      '<td>' + esc(r.lista ? r.lista.length + '/10' : '0/10') + '</td>' +
+    '</tr>';
+  }).join('');
+  const html =
+    '<html><head><meta charset="utf-8"><title>Movilizadores — Gestión de Compromisos</title>' +
+    '<style>' +
+      '@page{size:landscape;margin:10mm}' +
+      'body{font-family:Arial,sans-serif;padding:12px;font-size:9px;color:#222}' +
+      'h2{margin:0 0 3px;color:#123c69;font-size:16px}' +
+      'h3{margin:0 0 7px;color:#222;font-size:13px}' +
+      'p{margin:0 0 10px;color:#555;font-size:9px}' +
+      'table{width:100%;border-collapse:collapse}' +
+      'th,td{border:1px solid #999;padding:4px 5px;text-align:left;vertical-align:top;font-size:8px}' +
+      'th{background:#123c69;color:#fff;font-weight:bold;white-space:nowrap}' +
+      'tr:nth-child(even){background:#f4f7fa}' +
+      '.mono{font-family:monospace}' +
+    '</style></head><body>' +
+    '<h2>MOVILIZADORES / GESTIÓN DE COMPROMISOS — COMANDO DE CAMPAÑA EDUARDO LAPI - GOBERNADOR</h2>' +
+    '<h3>Gualberto Martínez - Alcalde del Municipio Independencia del Estado Yaracuy.</h3>' +
+    '<p>Reporte Oficial con Datos Completos del Padrón CNE • Fecha: ' + new Date().toLocaleDateString('es-VE') + ' • Movilizadores: ' + d.length + '</p>' +
+    '<table><thead><tr>' +
+      '<th>#</th><th>MOVILIZADOR</th><th>C.I.</th><th>ESTRUCTURA</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th>' +
+      '<th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>CALLE</th><th>CASA</th><th>DIRECCIÓN</th><th>LISTA</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
+  window.__previewDocHtml = html;
+  vistaPreviaDocumento('Vista previa • Movilizadores / Gestión de Compromisos', html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">' + ic('print',13) + ' Imprimir</button>' +
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'movilizadores_gestion_compromisos\')">' + ic('file',13) + ' Descargar PDF</button>');
 }
 function verDatosMovilizador(id) {
   const r = CACHE.recl.find(x => x.id === id);
