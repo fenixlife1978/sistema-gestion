@@ -2011,8 +2011,8 @@ function renderRep() {
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">' +
       '<div><h2 style="font-size:17px;font-weight:800;color:var(--navy);margin:0">Reportes y Anlisis Cruzado Territorial</h2><p style="font-size:12px;color:var(--mut);margin-top:2px">Inteligencia electoral, correlación de votos y proyecciones de movilización</p></div>' +
       '<div style="display:flex;gap:6px">' +
-        '<button class="btn btn-w btn-xs" onclick="expRep()">' + ic('dl', 12) + ' Descargar CSV</button>' +
-        '<button class="btn btn-navy btn-xs" onclick="downloadPDF(\'repContent\',\'Reportes y Anlisis Cruzado Territorial\')">' + ic('file', 13) + ' Imprimir Reporte</button>' +
+        '<button class="btn btn-w btn-xs" onclick="imprimirReporteCruces()">' + ic('print', 12) + ' Imprimir Reporte</button>' +
+        '<button class="btn btn-navy btn-xs" onclick="descargarReporteCrucesPDF()">' + ic('file', 13) + ' Descargar PDF</button>' +
       '</div></div>' +
     '<div id="repContent">' +
     '<div class="filter-bar" style="margin-bottom:14px">' +
@@ -2044,21 +2044,52 @@ function renderRep() {
           return '<tr><td><b>' + esc(x.l) + '</b></td><td class="mono" style="text-align:right;font-weight:700">' + x.v + '</td><td class="mono" style="text-align:right">' + pct + '%</td><td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:16px;background:#e2e8f0;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + barW + '%;background:linear-gradient(90deg,var(--teal),var(--blue));border-radius:3px;transition:width .6s"></div></div></div></td></tr>';
         }).join('') + '</tbody></table>' : '<div class="empty">Sin datos para mostrar.</div>') +
     '</div>' +
-    panel(ic('users', 15) + ' Reporte de Movilizadores  Datos Completos <span class="chip chip-b" style="margin-left:auto">' + CACHE.recl.length + ' movilizadores</span>',
-      CACHE.recl.length ? '<table class="tbl"><thead><tr><th>#</th><th>C.I.</th><th>Nombre</th><th>Estructura</th><th>Teléfono</th><th>Dirección</th><th>Comprometidos</th><th>Estado</th></tr></thead><tbody>' +
-        CACHE.recl.map((r, i) => {
-          const p = padBy(r.cedula);
-          const nm = p ? nomP(p) + ' ' + apeP(p) : r.cedula;
-          const n = r.lista.length;
-          const telHtml = r.telefono ? '<a href="https://wa.me/58' + esc(r.telefono.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);text-decoration:none;font-weight:600">' + ic('chat', 12) + ' ' + esc(r.telefono) + '</a>' : '<span style="color:var(--mut)"></span>';
-          const estado = n >= 10 ? '<span class="chip chip-g">COMPLETA</span>' : n === 0 ? '<span class="chip chip-gr">VACA</span>' : '<span class="chip chip-y">' + n + '/10</span>';
-          return '<tr><td class="mono" style="font-weight:700">' + (i + 1) + '</td><td class="mono" style="font-weight:700">' + fC(p ? p.letra : 'V', r.cedula) + '</td><td><b>' + esc(nm) + '</b></td><td>' + esc(r.estructura || '') + '</td><td>' + telHtml + '</td><td style="font-size:11px">' + esc(r.direccion || '') + '</td><td class="mono" style="font-weight:700;text-align:center">' + n + '/10</td><td>' + estado + '</td></tr>';
-        }).join('') + '</tbody></table>' : '<div class="empty">No hay movilizadores registrados.</div>') +
     '</div></div>');
 
   hbars('repC', byC.map((x, i) => ({ ...x, c: f.centro ? (x.local ? '#43a047' : '#e53935') : PAL[i % PAL.length] })));
   vbars('repE', edades);
 }
+function _datosReporteCruces() {
+  const f = REPF;
+  const list = CACHE.pad.filter(p => {
+    if (f.centro && p.centro_votacion !== f.centro) return false;
+    if (f.municipio && p.municipio !== f.municipio) return false;
+    if (f.sexo && p.sexo !== f.sexo) return false;
+    if (f.e1 && (edadDe(p.fecha_nac) || p.edad || 0) < +f.e1) return false;
+    if (f.e2 && (edadDe(p.fecha_nac) || p.edad || 0) > +f.e2) return false;
+    return true;
+  });
+  const M=list.filter(p=>p.sexo==='M').length, F=list.filter(p=>p.sexo==='F').length;
+  const comprometidos=list.filter(p=>asignDe(p.cedula)).length;
+  const R=[[18,25,'18–25'],[26,35,'26–35'],[36,45,'36–45'],[46,55,'46–55'],[56,65,'56–65'],[66,999,'66+']];
+  const edades=R.map(r=>({l:r[2],v:list.filter(p=>{const e=edadDe(p.fecha_nac)||p.edad||0;return e>=r[0]&&e<=r[1]}).length}));
+  const gc={}; list.forEach(p=>gc[p.nombre_cv||p.centro_votacion||'Sin centro']=(gc[p.nombre_cv||p.centro_votacion||'Sin centro']||0)+1);
+  const centros=Object.entries(gc).sort((a,b)=>b[1]-a[1]);
+  const gm={}; list.forEach(p=>gm[p.municipio||'Sin municipio']=(gm[p.municipio||'Sin municipio']||0)+1);
+  const municipios=Object.entries(gm).sort((a,b)=>b[1]-a[1]);
+  const edadesValid=list.map(p=>edadDe(p.fecha_nac)||p.edad||0).filter(e=>e>0&&e<=120);
+  const edadProm=edadesValid.length?(edadesValid.reduce((a,b)=>a+b,0)/edadesValid.length).toFixed(1):'—';
+  return {list,M,F,comprometidos,cobertura:list.length?(100*comprometidos/list.length).toFixed(1):'0.0',edades,centros,municipios,edadProm};
+}
+function reporteCrucesHtml() {
+  const d=_datosReporteCruces(), f=REPF;
+  const total=d.list.length||1, maxC=Math.max(...d.centros.map(x=>x[1]),1), maxM=Math.max(...d.municipios.map(x=>x[1]),1);
+  const filtro=[f.centro?'Centro: '+(cenBy(f.centro)||{}).nombre:'Todos los centros',f.municipio?'Municipio: '+f.municipio:'Todos los municipios',f.sexo?'Sexo: '+f.sexo:'Ambos sexos',(f.e1||f.e2)?'Edad: '+(f.e1||'mín')+'–'+(f.e2||'máx'):'Todas las edades'].join(' • ');
+  const pie=d.M+d.F?'<div class="pie" style="background:conic-gradient(#1e88e5 0 '+(100*d.M/(d.M+d.F))+'%,#e53935 '+(100*d.M/(d.M+d.F))+'% 100%)"></div>':'<div class="pie emptyPie">Sin datos</div>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reporte y Análisis Cruzado Territorial</title><style>'+
+    '@page{size:A4 landscape;margin:10mm}body{font-family:Arial,sans-serif;color:#1f2937;padding:10px;font-size:10px}h1{color:#123c69;font-size:18px;margin:0}h2{color:#123c69;font-size:13px;margin:0 0 7px}.sub{color:#64748b;margin:3px 0 12px}.head{border-bottom:3px solid #123c69;padding-bottom:9px;margin-bottom:12px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{border:1px solid #cbd5e1;padding:9px;border-radius:5px}.metric b{display:block;font-size:19px;color:#123c69}.metric span{font-size:9px;color:#64748b}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.card{border:1px solid #cbd5e1;padding:10px;border-radius:5px}.pieRow{display:flex;gap:18px;align-items:center}.pie{width:110px;height:110px;border-radius:50%;flex:none}.emptyPie{border:2px dashed #cbd5e1;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:9px}.legend div{margin:5px 0}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}.barRow{display:grid;grid-template-columns:150px 1fr 45px;gap:7px;align-items:center;margin:5px 0}.bar{height:11px;background:#e5e7eb;border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:#1e88e5}.barRow small{font-size:8px}.table{width:100%;border-collapse:collapse;margin-top:5px}.table th,.table td{border:1px solid #cbd5e1;padding:4px;text-align:left}.table th{background:#123c69;color:white}.footer{margin-top:12px;border-top:1px solid #cbd5e1;padding-top:6px;color:#64748b;font-size:8px}@media print{.no-print{display:none!important}}</style></head><body>'+
+    '<div class="head"><h1>REPORTES Y ANÁLISIS CRUZADO TERRITORIAL</h1><div class="sub">Comando de Campaña Eduardo Lapi - Gobernador</div><div class="sub">Gualberto Martínez - Alcalde del Municipio Independencia del Estado Yaracuy.</div><div class="sub">Corte: '+new Date().toLocaleDateString('es-VE')+' • '+filtro+'</div></div>'+
+    '<div class="metrics"><div class="metric"><b>'+d.list.length+'</b><span>Población del corte</span></div><div class="metric"><b>'+d.comprometidos+'</b><span>Comprometidos</span></div><div class="metric"><b>'+d.cobertura+'%</b><span>Cobertura</span></div><div class="metric"><b>'+d.edadProm+'</b><span>Edad promedio</span></div></div>'+
+    '<div class="grid"><div class="card"><h2>Distribución por sexo</h2><div class="pieRow">'+pie+'<div class="legend"><div><span class="dot" style="background:#1e88e5"></span>Masculino: <b>'+d.M+'</b> ('+(100*d.M/total).toFixed(1)+'%)</div><div><span class="dot" style="background:#e53935"></span>Femenino: <b>'+d.F+'</b> ('+(100*d.F/total).toFixed(1)+'%)</div></div></div></div>'+
+    '<div class="card"><h2>Grupos de edad</h2>'+d.edades.map(x=>'<div class="barRow"><small>'+x.l+'</small><div class="bar"><i style="width:'+(100*x.v/Math.max(d.list.length,1))+'%"></i></div><small><b>'+x.v+'</b></small></div>').join('')+'</div></div>'+
+    '<div class="grid"><div class="card"><h2>Principales centros electorales</h2>'+d.centros.slice(0,12).map(x=>'<div class="barRow"><small>'+esc(x[0])+'</small><div class="bar"><i style="width:'+(100*x[1]/maxC)+'%"></i></div><small><b>'+x[1]+'</b></small></div>').join('')+'</div>'+
+    '<div class="card"><h2>Distribución por municipio</h2>'+d.municipios.map(x=>'<div class="barRow"><small>'+esc(x[0])+'</small><div class="bar"><i style="width:'+(100*x[1]/maxM)+'%"></i></div><small><b>'+x[1]+'</b></small></div>').join('')+'</div></div>'+
+    '<div class="card" style="margin-top:10px"><h2>Resumen territorial</h2><table class="table"><thead><tr><th>Municipio</th><th>Electores</th><th>%</th></tr></thead><tbody>'+d.municipios.map(x=>'<tr><td>'+esc(x[0])+'</td><td>'+x[1]+'</td><td>'+(100*x[1]/Math.max(d.list.length,1)).toFixed(1)+'%</td></tr>').join('')+'</tbody></table></div>'+
+    '<div class="footer">Reporte generado desde Turso • No incluye el reporte de Movilizadores; ese listado se genera exclusivamente desde el módulo Movilizadores / Gestión de Compromisos.</div></body></html>';
+}
+function imprimirReporteCruces(){ const html=reporteCrucesHtml(); window.__previewDocHtml=html; vistaPreviaDocumento('Vista previa • Reportes y Cruces',html,'<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'); }
+function descargarReporteCrucesPDF(){ const html=reporteCrucesHtml(); window.__previewDocHtml=html; vistaPreviaDocumento('Vista previa • Reportes y Cruces',html,'<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button><button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'reportes_cruces_territorial\')">'+ic('file',13)+' Descargar PDF</button>'); }
+
 function expRep() {
   const list = CACHE.pad.filter(p => { const f = REPF; if (f.centro && p.centro_votacion !== f.centro) return false; if (f.municipio && p.municipio !== f.municipio) return false; if (f.sexo && p.sexo !== f.sexo) return false; if (f.e1 && (p.edad || 0) < +f.e1) return false; if (f.e2 && (p.edad || 0) > +f.e2) return false; return true });
   const rows = [['LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'NOMBRE_COMPLETO', 'EDAD', 'SEXO', 'MUNICIPIO', 'PARROQUIA', 'CENTRO_VOTACION', 'NOMBRE_CV', 'COMPROMISO', 'MOVILIZADOR', 'TEL_MOVILIZADOR']];
