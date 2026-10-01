@@ -113,12 +113,23 @@ module.exports=async function(req,res){
       params:[centro,session.uid]
     }]))[0]||null;
 
-    await turso([{
-      q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
-      params:['corte','Corte de métricas • Centro '+centro+' • '+(row?.etiqueta||'Sin etiqueta'),session.uid]
-    }]);
+    if(!row?.id) return fail(res,500,'Turso no confirmó el corte después del alta');
 
-    return res.status(201).json({ok:true,corte:row});
+    // El corte ya está confirmado en la tabla principal. La actividad alimenta
+    // la sincronización global, pero un fallo secundario no debe convertir un
+    // corte válido en un falso error para el operador.
+    let syncAdvertencia=null;
+    try{
+      await turso([{
+        q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
+        params:['corte','Corte de métricas • Centro '+centro+' • '+(row.etiqueta||'Sin etiqueta'),session.uid]
+      }]);
+    }catch(e){
+      syncAdvertencia='El corte quedó guardado, pero la actividad de sincronización no pudo registrarse.';
+      console.error('actividad_corte',e);
+    }
+
+    return res.status(201).json({ok:true,corte:row,sync_advertencia:syncAdvertencia});
   }catch(e){
     return fail(res,500,e.message||'No se pudo guardar el corte');
   }
