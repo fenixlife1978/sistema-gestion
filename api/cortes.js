@@ -15,25 +15,14 @@ async function calcularCorte(centro_codigo){
   const centro=centros[0];
   if(!centro) return null;
 
-  // Mantiene exactamente el universo funcional usado por Control Electoral:
-  // 1x10, Dirección Ejecutiva, Comité Vecinal y cargos del centro,
-  // deduplicado por cédula y limitado al padrón del centro.
+  // El universo del corte debe ser exactamente el mismo que muestra
+  // Control Electoral: todo elector del padrón CNE perteneciente al centro,
+  // independientemente de que tenga 1x10, cargo o función en el sistema.
   const personas=rowsFrom(await turso([{
-    q:`SELECT DISTINCT x.cedula,p.sexo
-        FROM (
-          SELECT r.cedula FROM reclutadores r
-          UNION
-          SELECT a.cedula FROM asignaciones a
-          UNION
-          SELECT d.cedula FROM direccion_ejecutiva d
-          UNION
-          SELECT cv.cedula FROM comite_vecinal cv
-          UNION
-          SELECT cc.cedula FROM centro_cargos cc WHERE cc.centro_codigo=?
-        ) x
-        JOIN padron p ON p.cedula=x.cedula
-        WHERE (p.centro_votacion=? OR p.nombre_cv=?)`,
-    params:[centro_codigo,centro_codigo,centro.nombre||'']
+    q:`SELECT cedula,sexo
+        FROM padron
+        WHERE centro_votacion=? OR nombre_cv=?`,
+    params:[centro_codigo,centro.nombre||'']
   }]));
 
   const verificados=rowsFrom(await turso([{
