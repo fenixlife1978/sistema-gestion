@@ -72,7 +72,7 @@ module.exports=async function(req,res){
       q:'SELECT id FROM verificaciones_votacion WHERE cedula=? AND centro_codigo=? LIMIT 1',
       params:[cedula,centro]
     }]);
-    const inserted=rowsFrom(post[0] || {});
+    const inserted=rowsFrom(post);
     if(!inserted[0]?.id) return fail(res,500,'Turso no confirmó la verificación después del alta');
 
     // La verificación ya está confirmada en la tabla principal. La actividad
