@@ -38,6 +38,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Sistema de Gestión Electoral"
-    }
+    },
+    "icon": "build/icon.ico",
+    "asar": true
   }
 }
