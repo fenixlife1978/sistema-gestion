@@ -23,6 +23,30 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--navy:#123c69;--navy-d:#0d2f52;--navy-l:#1a4f8a;--bg:#e8ebee;--line:#c9d2dc;--line2:#d9dee4;--txt:#22303e;--mut:#5c6b7a;--yel:#ffca28;--green:#43a047;--red:#e53935;--teal:#00897b;--orange:#fb8c00;--blue:#1e88e5}
 body{font:14px/1.45 Roboto,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--txt)}
+/* Protección responsive global: ningún módulo puede provocar desbordamiento horizontal */
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+*,*::before,*::after{box-sizing:border-box;max-width:100%}
+img,svg,video,canvas{max-width:100%;height:auto}
+#app,#main,.content,.panel,.panel-b,.card,.grid,.g2,.g3,.g4,.gC,.tbl-wrap,.table-wrap{min-width:0;max-width:100%}
+.tbl-wrap,.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl{max-width:none}
+button,input,select,textarea{max-width:100%}
+.win-b{min-width:0;overflow-wrap:anywhere}
+@media(max-width:760px){
+  #hdr{width:100%;max-width:100%;overflow:hidden}
+  #toolbar{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+  #tabs{width:100%;max-width:100%;overflow-x:auto;white-space:nowrap}
+  .win{width:calc(100vw - 24px);max-width:calc(100vw - 24px)}
+  .win-b{padding:14px}
+  .win-f{padding:9px 12px}
+  .filter-bar>div{min-width:0;width:100%}
+  .filter-bar{width:100%}
+  .qchips{grid-template-columns:1fr}
+  .toast{min-width:0;width:calc(100vw - 24px);max-width:calc(100vw - 24px)}
+  .dn-wrap{max-width:100%;overflow:hidden}
+  .hb-row{grid-template-columns:minmax(80px,35%) 1fr 38px}
+}
+
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#b9c4d0;border-radius:6px}
 .mono{font-family:Consolas,monospace}button{font-family:inherit}
 #hdr{background:var(--navy);color:#fff;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:13px 22px}
