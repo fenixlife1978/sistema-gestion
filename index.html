@@ -3318,7 +3318,7 @@ function renderControlElectoral() {
           '<div class="ck">' +
             '<div class="ck-it"><b>' + actasCargadas + '/' + mesas + '</b><span>Mesas con acta cargada</span></div>' +
             '<div class="ck-it"><b>' + totalActa + '</b><span>Total votos del partido según actas</span></div>' +
-            '<div class="ck-it"><b>' + (diffTotal === null ? '—' : diffTotal) + '</b><span>Diferencia asistencia vs acta</span></div>' +
+            '<div class="ck-it"><b>' + (diffTotal === null ? '—' : (diffTotal > 0 ? '+' : '') + diffTotal) + '</b><span>Diferencia de Votos vs Acta</span></div>' +
           '</div>')
       + '</div>' +
 
