@@ -33,6 +33,17 @@ module.exports=async function(req,res){
     if(maxMesas>0 && (nMesa<1 || nMesa>maxMesas))
       return fail(res,409,'La mesa indicada no pertenece al centro seleccionado');
 
+    // No se puede registrar VOTÓ en una mesa que todavía no haya sido
+    // constituida. La validación es obligatoria en backend para impedir
+    // verificaciones aunque el cliente tenga una caché desactualizada.
+    const mesaOperativa=rowsFrom(await turso([{
+      q:'SELECT id,hora_constitucion,estado FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',
+      params:[centro,mesa]
+    }]));
+    const mesaActual=mesaOperativa[0];
+    if(!mesaActual?.hora_constitucion)
+      return fail(res,409,'No se puede registrar la verificación: la mesa no ha sido constituida');
+
     // La verificación electoral se basa exclusivamente en el padrón CNE
     // del centro seleccionado. Tener o no tener cargos/funciones en el
     // sistema no es un requisito para marcar VOTÓ.
