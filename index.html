@@ -624,13 +624,13 @@ async function registrarAct(tipo, texto, uid) {
 }
 
 /* ----------- RECARGA DE CACHE DESDE TURSO ----------- */
-async function refreshAll() {
+async function refreshAll(skipPadron = false) {
   // Una sola llamada al proxy Turso para todo el snapshot. Antes cada q() abría
   // una petición HTTP independiente y, además, las listas de cada reclutador
   // generaban un N+1. El resultado funcional se mantiene, pero con un único
   // viaje Vercel -> Turso por sincronización.
   const statements = [
-    { q: 'SELECT * FROM padron ORDER BY p_apellido, p_nombre' },
+    skipPadron ? { q: 'SELECT cedula FROM padron WHERE 0' } : { q: 'SELECT * FROM padron ORDER BY p_apellido, p_nombre' },
     { q: 'SELECT * FROM centros ORDER BY nombre' },
     { q: 'SELECT * FROM reclutadores ORDER BY creado DESC' },
     { q: 'SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100' },
@@ -653,7 +653,7 @@ async function refreshAll() {
     const cols = rr.columns || [], rows = rr.rows || [];
     return rows.map(row => Object.fromEntries(cols.map((col,i) => [col,row[i]])));
   });
-  CACHE.pad = rows[0] || [];
+  if (!skipPadron) CACHE.pad = rows[0] || [];
   CACHE.pad.forEach(p => { p.edad = edadDe(p.fecha_nac) || p.edad || 0; });
   CACHE.centros = rows[1] || [];
   CACHE.recl = rows[2] || [];
@@ -2222,7 +2222,7 @@ async function syncNow(force) {
     const previousVersion = syncVersion;
     syncVersion = Number(info.latest_id || syncVersion);
 
-    await refreshAll();
+    await refreshAll(true);
 
     const hi = $('hdrInfo');
     if (hi && USER) {
@@ -2253,7 +2253,7 @@ function startSync() {
 
   syncT = setInterval(() => {
     syncNow(false).catch(() => {});
-  }, 2000);
+  }, 5000);
 }
 
 setInterval(() => { const c = $('clock'); if (c) c.textContent = new Date().toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) }, 1000);
