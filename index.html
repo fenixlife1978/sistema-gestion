@@ -3774,6 +3774,318 @@ async function saveComiteManualFull() {
   }
 }
 
+function renderComite() {
+  const activeEl = document.activeElement;
+  const isComTxt = activeEl && activeEl.id === 'comTxt';
+  const isComSearch = activeEl && activeEl.id === 'comSearch';
+  const activeSearchId = isComTxt ? 'comTxt' : (isComSearch ? 'comSearch' : null);
+  const selStart = activeSearchId ? activeEl.selectionStart : null;
+  const selEnd = activeSearchId ? activeEl.selectionEnd : null;
+
+  const comList = CACHE.comite || [];
+  const comunidades = getComunidadesCatalogo();
+  const fCom = COMITE_FILTER.comunidad;
+
+  const asignadosCount = comList.length;
+  const totalComunidades = comunidades.length;
+  const totalCargos = totalComunidades * 5;
+  const pctCobertura = totalCargos ? ((asignadosCount / totalCargos) * 100).toFixed(1) : '0.0';
+
+  $('sec-comite').innerHTML = panel(
+    'Comités Vecinales <span class="chip chip-b">' + asignadosCount + ' / ' + totalCargos + ' cargos asignados (' + pctCobertura + '%)</span>',
+    '<div class="grid g3" style="gap:10px;margin-bottom:14px">' +
+      kc('Comunidades Totales', totalComunidades, 'del catálogo oficial') +
+      kc('Cargos Asignados', asignadosCount, 'de 5 cargos por comunidad', (asignadosCount/Math.max(1,totalCargos))*100) +
+      kc('Cobertura Territorial', pctCobertura + '%', 'de comunidades cubiertas', pctCobertura, true) +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;background:var(--bg2);padding:10px;border-radius:8px;border:1px solid var(--line2)">' +
+      '<div style="flex:1;min-width:180px;position:relative">' +
+        '<label class="fl">Buscar comunidad</label>' +
+        '<input class="inp" id="comSearch" autocomplete="off" placeholder="Escriba nombre o palabras clave de la comunidad..." value="' + esc(COMITE_FILTER.comunidad || '') + '" oninput="filterComiteCards()" onfocus="renderComunidadSugerencias()">' +
+        '<div id="comSearchSuggestions" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:80;margin-top:4px;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 24px rgba(15,40,70,.18);max-height:280px;overflow:auto"></div>' +
+      '</div>' +
+      '<div style="flex:1;min-width:180px">' +
+        '<label class="fl">Buscar responsable / cédula</label>' +
+        '<input class="inp" id="comTxt" placeholder="Nombre o C.I..." value="' + esc(COMITE_FILTER.txt) + '" oninput="filterComiteCards()">' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;margin-top:18px">' +
+        '<button class="btn btn-navy" onclick="openComiteManual()">' + ic('userPlus', 14) + ' Asignar Comité</button>' +
+        '<button class="btn btn-w" onclick="printComite()">' + ic('print', 14) + ' Imprimir</button>' +
+        '<button class="btn btn-w" onclick="downloadPDFComite()">' + ic('file', 14) + ' PDF</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="comCardsGrid" class="grid g2" style="gap:12px"></div>', 700
+  );
+
+  filterComiteCards();
+
+  if (activeSearchId) {
+    const inputEl = $(activeSearchId);
+    if (inputEl) {
+      inputEl.focus();
+      if (selStart !== null && selEnd !== null) {
+        inputEl.setSelectionRange(selStart, selEnd);
+      }
+    }
+  }
+}
+
+function openComiteView(id) {
+  const reg = (CACHE.comite || []).find(x => x.id === id);
+  if (!reg) return toast('Registro no encontrado', 'err');
+  const p = padBy(reg.cedula) || reg;
+  const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (reg.nombre || reg.cedula);
+  const letra = p.letra || reg.letra || 'V';
+  const ci = fC(letra, reg.cedula);
+  const tel = reg.telefono ? reg.telefono : '';
+  const dir = reg.direccion ? reg.direccion : '';
+  const problemas = problemasTextoComite(reg.id);
+
+  win(ic('eye', 18) + ' Expediente — Comité Vecinal (' + esc(reg.comunidad) + ')',
+    '<div class="alert ok" style="margin-bottom:14px;display:flex;gap:12px;align-items:center">' +
+      '<span class="uava" style="width:42px;height:42px;font-size:14px;border-radius:8px">' + ini(nomComp) + '</span>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:16px;font-weight:700;color:var(--navy)">' + esc(nomComp) + '</div>' +
+        '<div style="font-size:12px;font-weight:600;color:var(--teal)">Cargo: ' + esc(reg.cargo || 'Comité Vecinal') + ' — ' + esc(reg.comunidad) + '</div>' +
+        '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:2px">C.I.: <b>' + ci + '</b></div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="background:var(--bg2);padding:14px;border-radius:8px;border:1px solid var(--line2)">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;border-bottom:1px solid var(--line2);padding-bottom:6px">INFORMACIÓN COMPLETA DEL PADRÓN CNE</div>' +
+      '<div class="grid g2" style="gap:8px;font-size:12px">' +
+        '<div><b>Cédula:</b> <span class="mono">' + ci + '</span></div>' +
+        '<div><b>Fecha de Nacimiento:</b> ' + esc(fmtFn(p.fecha_nac) || 'N/D') + '</div>' +
+        '<div><b>Apellidos:</b> ' + esc(apeP(p) || '-') + '</div>' +
+        '<div><b>Nombres:</b> ' + esc(nomP(p) || '-') + '</div>' +
+        '<div><b>Edad:</b> ' + ((edadDe(p.fecha_nac) || p.edad) ? (edadDe(p.fecha_nac) || p.edad) + ' años' : 'N/D') + '</div>' +
+        '<div><b>Sexo:</b> ' + (p.sexo === 'M' ? 'Masculino (M)' : p.sexo === 'F' ? 'Femenino (F)' : '-') + '</div>' +
+        '<div><b>Estado:</b> ' + esc(p.estado || '-') + '</div>' +
+        '<div><b>Municipio:</b> ' + esc(p.municipio || '-') + '</div>' +
+        '<div><b>Parroquia:</b> ' + esc(p.parroquia || '-') + '</div>' +
+        '<div><b>Código Centro:</b> <span class="mono">' + esc(p.centro_votacion || '-') + '</span></div>' +
+        '<div style="grid-column:1/-1"><b>Centro de Votación:</b> ' + esc(p.nombre_cv || '-') + '</div>' +
+      '</div>' +
+      '<div style="font-size:12px;font-weight:700;color:var(--navy);margin:14px 0 8px;border-bottom:1px solid var(--line2);padding-bottom:6px">DATOS COMPLEMENTARIOS DE CONTACTO Y UBICACIÓN</div>' +
+      '<div class="grid g2" style="gap:8px;font-size:12px">' +
+        '<div><b>Teléfono:</b> ' + (tel ? '<a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + ic('chat', 12) + ' ' + esc(tel) + '</a>' : '<span style="color:var(--mut)">No registrado</span>') + '</div>' +
+        '<div><b>Dirección:</b> ' + esc(dir || 'No registrada') + '</div>' +
+        '<div><b>Número de calle:</b> ' + esc(reg.numero_calle || 'No registrado') + '</div>' +
+        '<div><b>Número de casa:</b> ' + esc(reg.numero_casa || 'No registrado') + '</div>' +
+      '</div>' +
+      '<div style="margin-top:12px;padding:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;font-size:12px"><b style="color:#8d6e00">Problemáticas seleccionadas:</b><div style="margin-top:4px;white-space:pre-wrap">' + esc(problemas || 'Ninguna seleccionada') + '</div><div style="margin-top:8px"><b style="color:#8d6e00">Observación adicional:</b><div style="margin-top:4px;white-space:pre-wrap">' + esc(reg.problematica_actual || 'Sin observación adicional') + '</div></div></div>' +
+    '</div>',
+    '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 640
+  );
+}
+
+function openComiteManual(preComunidad) {
+  const comunidades = getComunidadesCatalogo();
+  win('Asignar Comité Vecinal por Comunidad',
+    '<label class="fl">Comunidad (catálogo oficial)</label>' +
+    '<select class="inp" id="comComunidad"><option value="">Seleccionar comunidad...</option>' +
+      comunidades.map(c => '<option value="' + esc(c) + '" ' + (preComunidad === c ? 'selected' : '') + '>' + esc(c) + '</option>').join('') +
+    '</select>' +
+    '<div style="margin-top:10px">' +
+      '<label class="fl">Cargo a asignar</label><select class="inp" id="comCargo"><option value="">Seleccionar cargo...</option><option>COORDINADOR</option><option>RESPONSABLE DE ORGANIZACIÓN</option><option>RESPONSABLE ELECTORAL</option><option>RESPONSABLE DE JUVENTUD</option><option>RESPONSABLE DE ACCIÓN SOCIAL</option></select><label class="fl">Número de Cédula de Identidad del Responsable</label>' +
+      '<div style="display:flex;gap:6px">' +
+        '<input class="inp mono" id="comCed" placeholder="V-12.345.678" onkeydown="if(event.key===\'Enter\')comiteBuscarCedula()">' +
+        '<button type="button" class="btn btn-navy" id="btnComiteBuscarCne">' + ic('search', 14) + ' Buscar CNE</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="comResultArea" style="margin-top:14px"></div>',
+    '<button class="btn btn-w" onclick="closeModal()">Cancelar</button>', 640
+  );
+  setTimeout(() => {
+    const el = $('comCed');
+    if (el) el.focus();
+    const btn = $('btnComiteBuscarCne');
+    if (btn) btn.addEventListener('click', comiteBuscarCedula);
+  }, 50);
+}
+
+async function comiteBuscarCedula() {
+  try {
+    const input = $('comCed');
+    const resArea = $('comResultArea');
+    if (!input || !resArea) return;
+    const ced = normC(input.value);
+    if (!ced || ced.length < 5) return toast('Ingrese una cédula válida (al menos 5 dígitos)', 'err');
+
+    // Primero usa la caché; si no está cargada, consulta Turso directamente.
+    let p = padBy(ced);
+    if (!p) {
+      const rows = await q('SELECT * FROM padron WHERE cedula = ? LIMIT 1', [ced]);
+      p = rows[0] || null;
+    }
+
+    if (p) {
+    resArea.innerHTML =
+      '<div class="alert ok" style="margin-bottom:12px;display:flex;gap:10px;align-items:flex-start">' +
+        '<div class="a-ic">' + ic('check', 20) + '</div>' +
+        '<div style="flex:1">' +
+          '<div style="font-size:14px;font-weight:700">' + esc(apeP(p) + ', ' + nomP(p)) + '</div>' +
+          '<div class="mono" style="font-size:12px;margin-top:3px;color:var(--navy)">' +
+            'C.I.: <b>' + fC(p.letra, p.cedula) + '</b> &nbsp;&bull;&nbsp; Edad: <b>' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a</b> &nbsp;&bull;&nbsp; Sexo: <b>' + (p.sexo || '-') + '</b> &nbsp;&bull;&nbsp; F.Nac: <b>' + (fmtFn(p.fecha_nac) || '-') + '</b>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--mut);margin-top:4px">' +
+            '<b>Centro de Votación:</b> ' + esc(p.nombre_cv || '-') + '<br>' +
+            '<b>Municipio / Parroquia:</b> ' + esc(p.municipio || '') + ' / ' + esc(p.parroquia || '') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="grid g3" style="gap:10px">' +
+        '<div><label class="fl">Teléfono (opcional)</label><input class="inp mono" id="comTel" placeholder="0412-2232523" maxlength="12"></div>' +
+        '<div><label class="fl">Número de calle</label><input class="inp" id="comNroCalle" placeholder="Ej. 5"></div>' +
+        '<div><label class="fl">Número de casa</label><input class="inp" id="comNroCasa" placeholder="Ej. 12"></div>' +
+        '<div style="grid-column:1/-1"><label class="fl">Dirección (opcional)</label><input class="inp" id="comDir" placeholder="Urbanización, sector, referencia..."></div>' +
+      '</div>' +
+      comiteProblemasHTML('com', [], '') +
+      '<div style="margin-top:14px;text-align:right">' +
+        '<button class="btn btn-navy" onclick="saveComiteAuto(\'' + p.cedula + '\')">Guardar y Asignar Comité Vecinal ➜</button>' +
+      '</div>';
+    renderComiteProblemasSelected('com');
+  } else {
+    resArea.innerHTML =
+      '<div class="alert warn" style="display:flex;gap:10px;align-items:center">' +
+        '<div class="a-ic">' + ic('db', 22) + '</div>' +
+        '<div style="flex:1">' +
+          '<b>No aparece en el padrón CNE</b>' +
+          '<div style="font-size:12px;color:var(--mut);margin-top:2px">La C.I. <b class="mono">' + fC('V', ced) + '</b> no existe en el sistema.</div>' +
+        '</div>' +
+        '<button class="btn btn-navy btn-xs" onclick="openComiteManualForm(\'' + ced + '\')">' + ic('up', 12) + ' Registrar manualmente</button>' +
+      '</div>';
+    }
+  } catch (e) {
+    console.error('Error buscando CNE para Comité Vecinal:', e);
+    toast('No se pudo realizar la búsqueda en CNE: ' + (e.message || 'Error desconocido'), 'err', 8000);
+  }
+}
+
+async function saveComiteAuto(cedula) {
+  cedula = normC(cedula);
+  const comSelect = $('comComunidad');
+  const comunidad = comSelect ? comSelect.value.trim() : '';
+  const cargoEl=$('comCargo'); const cargo=cargoEl ? cargoEl.value.trim() : '';
+  if (!cargo) return toast('Seleccione el cargo que ocupará la persona', 'err');
+  if (!comunidad) {
+    if (comSelect) { comSelect.style.border = '2px solid var(--red)'; comSelect.focus(); }
+    return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
+  }
+  const tel = ($('comTel') ? $('comTel').value : '').trim();
+  const dir = ($('comDir') ? $('comDir').value : '').trim();
+  const nroCalle = ($('comNroCalle') ? $('comNroCalle').value : '').trim();
+  const nroCasa = ($('comNroCasa') ? $('comNroCasa').value : '').trim();
+  const problematica = ($('comProblematica') ? $('comProblematica').value : '').trim();
+  const problemas = selectedComiteProblemas('com');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+
+  const dupGlobal = await verificarDuplicidadPersona(cedula, 'comite');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(cedula, dupGlobal), 'err', 8000);
+
+  const p = padBy(cedula);
+  const nomComp = p ? (apeP(p) + ', ' + nomP(p)) : cedula;
+
+  try {
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion:dir,problematica,centro_codigo:(p&&p.centro_votacion)||'' ,letra:(p&&p.letra)||'V',p_apellido:(p&&p.p_apellido)||'',s_apellido:(p&&p.s_apellido)||'',p_nombre:(p&&p.p_nombre)||'',s_nombre:(p&&p.s_nombre)||'',sexo:(p&&p.sexo)||'',fecha_nac:(p&&p.fecha_nac)||''})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo asignar el comité');
+    if(rd.id) await guardarProblemasComite(rd.id, problemas);
+    await refreshAll();
+    renderComite();
+    closeModal();
+    toast('Comité Vecinal asignado a "' + comunidad + '" exitosamente', 'ok');
+  } catch (e) {
+    console.error('Error guardando Comité Vecinal:', e);
+    toast('Error al guardar: ' + e.message, 'err');
+  }
+}
+
+function openComiteManualForm(ced) {
+  const resArea = $('comResultArea');
+  if (!resArea) return;
+
+  resArea.innerHTML =
+    '<div class="alert warn" style="margin-bottom:12px;font-size:12px">' +
+      '<b>Formulario de Registro Manual CNE:</b> Ingrese los datos del elector. Se incluirá en el padrón del sistema y se le asignará el comité vecinal.' +
+    '</div>' +
+    '<div class="grid g3" style="gap:10px">' +
+      '<div><label class="fl">LETRA_CEDULA</label><select class="inp" id="cmLet"><option>V</option><option>E</option></select></div>' +
+      '<div><label class="fl">CEDULA_IDENTIDAD *</label><input class="inp mono" id="cmCed" value="' + esc(ced) + '"></div>' +
+      '<div><label class="fl">SEXO *</label><select class="inp" id="cmSex"><option value="F">Femenino (F)</option><option value="M">Masculino (M)</option></select></div>' +
+      '<div><label class="fl">P_APELLIDO (Primer Apellido) *</label><input class="inp" id="cmPa"></div>' +
+      '<div><label class="fl">S_APELLIDO (Segundo Apellido)</label><input class="inp" id="cmSa"></div>' +
+      '<div><label class="fl">FECHA_NACIMIENTO</label><input class="inp" type="date" id="cmFn"></div>' +
+      '<div><label class="fl">P_NOMBRE (Primer Nombre) *</label><input class="inp" id="cmPn"></div>' +
+      '<div><label class="fl">S_NOMBRE (Segundo Nombre)</label><input class="inp" id="cmSn"></div>' +
+      '<div><label class="fl">CENTRO_VOTACION</label><select class="inp" id="cmCv">' +
+        CACHE.centros.map(x => '<option value="' + x.codigo + '">' + esc(x.nombre) + '</option>').join('') +
+      '</select></div>' +
+    '</div>' +
+    '<div class="grid g3" style="gap:10px;margin-top:10px">' +
+      '<div><label class="fl">TELÉFONO</label><input class="inp mono" id="cmTel" placeholder="0412-2232523" maxlength="12"></div>' +
+      '<div><label class="fl">NÚMERO DE CALLE</label><input class="inp" id="cmNroCalle" placeholder="Ej. 5"></div>' +
+      '<div><label class="fl">NÚMERO DE CASA</label><input class="inp" id="cmNroCasa" placeholder="Ej. 12"></div>' +
+      '<div style="grid-column:1/-1"><label class="fl">DIRECCIÓN</label><input class="inp" id="cmDir" placeholder="Urbanización, sector, referencia..."></div>' +
+    '</div>' +
+    comiteProblemasHTML('cm', [], '') +
+    '<div style="margin-top:14px;text-align:right">' +
+      '<button class="btn btn-navy" onclick="saveComiteManualFull()">' + ic('check', 14) + ' Guardar y Registrar ➜</button>' +
+    '</div>';
+  renderComiteProblemasSelected('cm');
+}
+
+async function saveComiteManualFull() {
+  const comSelect = $('comComunidad');
+  const comunidad = comSelect ? comSelect.value.trim() : '';
+  if (!comunidad) {
+    if (comSelect) { comSelect.style.border = '2px solid var(--red)'; comSelect.focus(); }
+    return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
+  }
+
+  const cargoEl=$('comCargo'); const cargo=cargoEl ? cargoEl.value.trim() : '';
+  if (!cargo) return toast('Seleccione el cargo que ocupará la persona', 'err');
+  const ced = normC($('cmCed').value), letra = $('cmLet').value;
+  const pa = $('cmPa').value.trim(), sa = $('cmSa').value.trim();
+  const pn = $('cmPn').value.trim(), sn = $('cmSn').value.trim();
+  const sexo = $('cmSex').value, fn = $('cmFn').value;
+  const cvCod = $('cmCv').value;
+  const tel = ($('cmTel') ? $('cmTel').value : '').trim();
+  const dir = ($('cmDir') ? $('cmDir').value : '').trim();
+  const nroCalle = ($('cmNroCalle') ? $('cmNroCalle').value : '').trim();
+  const nroCasa = ($('cmNroCasa') ? $('cmNroCasa').value : '').trim();
+  const problematica = ($('cmProblematica') ? $('cmProblematica').value : '').trim();
+  const problemas = selectedComiteProblemas('cm');
+
+  if (!/^\d{5,9}$/.test(ced)) return toast('Cédula inválida (debe tener entre 5 y 9 dígitos)', 'err');
+  if (!pa || !pn) return toast('Complete el primer apellido y primer nombre', 'err');
+  if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+
+  const dupGlobal = await verificarDuplicidadPersona(ced, 'comite');
+  if (dupGlobal) return toast(mensajeDuplicidadPersona(ced, dupGlobal), 'err', 8000);
+
+  const cv = cenBy(cvCod) || CACHE.centros[0] || {};
+  const p = padBy(ced);
+  if (p && p.centro_votacion && (p.centro_votacion !== cvCod && p.nombre_cv !== cv.nombre)) {
+    return toast('⛔ Registro rechazado: La persona C.I. V-' + ced + ' ya pertenece en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se acepta el registro manual en un centro distinto (' + (cv.nombre || cvCod) + ').', 'err', 8000);
+  }
+  const edad = edadDe(fn);
+
+  try {
+    const nomComp = pa + (sa ? ' ' + sa : '') + ', ' + pn + (sn ? ' ' + sn : '');
+    const rr=await fetch('/api/comite/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'guardar',comunidad,cargo,cedula:ced,letra,p_apellido:pa,s_apellido:sa,p_nombre:pn,s_nombre:sn,sexo,fecha_nac:fn,telefono:tel,numero_calle:nroCalle,numero_casa:nroCasa,direccion:dir,problematica,centro_codigo:cvCod})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo registrar el comité');
+    if(rd.id) await guardarProblemasComite(rd.id, problemas);
+    await refreshAll();
+    renderComite();
+    closeModal();
+    toast('Registrado exitosamente en Comité Vecinal', 'ok');
+  } catch (e) {
+    console.error('Error en registro manual Comité Vecinal:', e);
+    toast('Error al guardar: ' + e.message, 'err');
+  }
+}
+
 async function delComite(id) {
   const reg = (CACHE.comite || []).find(x => x.id === id);
   const nom = reg ? (reg.nombre || reg.comunidad) : 'registro';
