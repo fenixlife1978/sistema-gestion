@@ -1,0 +1,43 @@
+{
+  "name": "sistema-gestion-electoral",
+  "version": "1.0.0",
+  "description": "Sistema de Gestión Electoral",
+  "main": "electron/main.js",
+  "author": "Sistema de Gestión",
+  "license": "UNLICENSED",
+  "scripts": {
+    "electron:start": "electron .",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^38.2.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.sistemagestion.electoral",
+    "productName": "Sistema de Gestión Electoral",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sistema de Gestión Electoral"
+    }
+  }
+}
