@@ -47,6 +47,12 @@ module.exports=async function(req,res){
       if(!a.length) return fail(res,409,'La persona ya figura en otra función y requiere autorización J/A para este destino');
     }
     if(tipo==='centro'){
+      const pertenece=rowsFrom(await turso([{
+        q:'SELECT cedula FROM padron WHERE cedula=? AND centro_votacion=? LIMIT 1',
+        params:[cedula,centro]
+      }]));
+      if(!pertenece.length) return fail(res,409,'Está persona no Pertenece al padrón CNE de este Centro');
+
       const cen=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo=? LIMIT 1',params:[centro]}])); if(!cen.length) return fail(res,404,'Centro electoral no encontrado');
       // Todo cargo de centro exige que la persona pertenezca al padrón CNE
       // del mismo centro electoral. No se permite asignar por nombre ni por
