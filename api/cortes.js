@@ -41,8 +41,10 @@ async function calcularCorte(centro_codigo){
   const vF=vs.filter(x=>String(x.sexo||'').toUpperCase()==='F').length;
 
   const mesas=Math.max(1,Number(centro.mesas||1));
+  // Solo las actas de mesas CERRADAS entran en la conciliación del corte.
+  // Un acta cargada pero todavía abierta no representa el resultado definitivo.
   const actas=rowsFrom(await turso([{
-    q:'SELECT mesa,votos_partido FROM actas_mesa WHERE centro_codigo=? ORDER BY CAST(mesa AS INTEGER),mesa',
+    q:'SELECT a.mesa,a.votos_partido FROM actas_mesa a JOIN mesa_operativa m ON m.centro_codigo=a.centro_codigo AND m.mesa=a.mesa WHERE a.centro_codigo=? AND m.estado=\'CERRADA\' ORDER BY CAST(a.mesa AS INTEGER),a.mesa',
     params:[centro_codigo]
   }]));
   const actaByMesa=new Map(actas.map(a=>[String(a.mesa),Number(a.votos_partido||0)]));
@@ -71,7 +73,9 @@ async function calcularCorte(centro_codigo){
     mesas_total:mesas,
     mesas_con_acta:mesasConActa,
     votos_partido_acta:votosPartido,
-    diferencia_acta:mesasConActa?verifConActa-votosPartido:null,
+    // Brecha positiva = votos CNE por encima de los verificados del centro.
+    // Sin mesas cerradas, la brecha permanece neutra.
+    diferencia_acta:mesasConActa?votosPartido-verificadosCount:null,
     detalle_json:JSON.stringify(detalle)
   };
 }
