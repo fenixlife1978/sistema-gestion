@@ -3252,7 +3252,7 @@ function renderControlElectoral() {
         '<label style="display:flex;gap:5px;align-items:center;margin-top:4px"><input type="radio" name="mesaTestigos_' + esc(x.mesa) + '" value="NO" ' + (Number(mo.testigos_asistieron||0)!==1?'checked':'') + ' ' + (locked?'disabled':'') + '> NO</label>' +
       '</td>' +
       '<td><button id="mesaGuardar_' + esc(x.mesa) + '" class="btn btn-g btn-xs" ' + (locked?'disabled':'') + ' onclick="guardarControlMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Guardar</button> ' +
-        '<button class="btn btn-w btn-xs" onclick="editarActaMesa(\'' + esc(centro.codigo) + '\',\'' + esc(x.mesa) + '\')">Acta</button></td>' +
+        '<button class="btn btn-w btn-xs" onclick="abrirMesaCierre(\' + esc(centro.codigo) + \',\' + esc(x.mesa) + \')">Mesa</button></td>' +
     '</tr>';
   }).join('');
 
@@ -3773,6 +3773,58 @@ async function saveComiteManualFull() {
     console.error('Error en registro manual Comité Vecinal:', e);
     toast('Error al guardar: ' + e.message, 'err');
   }
+}
+
+
+function abrirMesaCierre(codigo, mesa) {
+  const centro=cenBy(codigo);
+  if(!centro) return toast('Centro electoral no encontrado','err');
+  const mo=mesaOperativa(codigo,mesa);
+  const acta=(CACHE.actasMesa||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.mesa)===String(mesa));
+  const cerrada=mo?.estado==='CERRADA';
+  const constituida=!!mo?.hora_constitucion;
+  if(!constituida) return toast('Primero debe constituirse la Mesa '+mesa+' antes de registrar el Acta CNE y cerrarla','err',8000);
+  const cierre=mo?.hora_cierre ? horaVE(mo.hora_cierre) : '';
+  const actaVal=acta ? Number(acta.votos_partido||0) : '';
+  win(ic('lock',18)+' Mesa '+esc(mesa)+' • Acta CNE y cierre',
+    '<div class="alert '+(cerrada?'ok':'warn')+'" style="margin-top:0"><b>'+esc(centro.nombre)+'</b><br>Mesa '+esc(mesa)+' • Constitución: <b>'+esc(mo.hora_constitucion||'registrada')+'</b> • '+(cerrada?'<b>MESA CERRADA</b>':'<b>MESA ABIERTA</b>')+'</div>' +
+    '<div style="margin-top:14px"><label class="fl" style="font-size:13px">Votos obtenidos por nuestro partido según Acta CNE</label><input class="inp mono" id="mesaActaCierreVotos" type="number" min="0" step="1" value="'+esc(actaVal)+'" placeholder="Ej. 120" '+(cerrada?'disabled':'')+'><div style="font-size:12px;color:var(--mut);margin-top:7px">Registre exactamente la cantidad de votos del partido que aparece en el Acta CNE física de esta Mesa.</div></div>' +
+    (acta ? '<div class="kcard" style="margin-top:12px;padding:10px"><b>Acta registrada:</b> '+Number(acta.votos_partido||0)+' votos del partido</div>' : '<div class="alert warn" style="margin-top:12px"><b>Acta pendiente.</b> Debe registrar los resultados antes de poder cerrar la Mesa.</div>') +
+    (cerrada ? '<div class="alert ok" style="margin-top:12px"><b>Mesa cerrada</b><br>Hora de cierre: <span class="mono">'+esc(cierre||mo.hora_cierre||'registrada')+'</span><br>Los resultados de esta Mesa quedan bloqueados.</div>' : ''),
+    cerrada
+      ? '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>'
+      : '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" onclick="guardarActaDesdeMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">Guardar Acta</button><button class="btn btn-red" onclick="cerrarMesa(\''+esc(codigo)+'\',\''+esc(mesa)+'\')">'+ic('lock',14)+' Cerrar Mesa</button>',
+    520
+  );
+}
+
+async function guardarActaDesdeMesa(codigo,mesa) {
+  const val=Number($('mesaActaCierreVotos')?.value);
+  if(!Number.isInteger(val)||val<0) return toast('Ingrese una cantidad válida de votos del partido','err');
+  try {
+    const rr=await fetch('/api/actas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({centro_codigo:String(codigo),centro_nombre:(cenBy(codigo)||{}).nombre||'',mesa:String(mesa),votos_partido:val})});
+    const d=await rr.json().catch(()=>({}));
+    if(!rr.ok) return toast(d.error||'No se pudo guardar el Acta CNE','err',8000);
+    await refreshAll();
+    abrirMesaCierre(codigo,mesa);
+    toast('Resultados del Acta CNE guardados','ok');
+  } catch(e) { toast('Error guardando el Acta CNE: '+e.message,'err',8000); }
+}
+
+async function cerrarMesa(codigo,mesa) {
+  const mo=mesaOperativa(codigo,mesa);
+  const acta=(CACHE.actasMesa||[]).find(x=>String(x.centro_codigo)===String(codigo)&&String(x.mesa)===String(mesa));
+  if(!mo?.hora_constitucion) return toast('Primero debe constituirse la Mesa','err',8000);
+  if(mo?.estado==='CERRADA') return toast('La Mesa ya está cerrada','err');
+  if(!acta) return toast('Registre primero los resultados del Acta CNE para poder cerrar la Mesa','err',8000);
+  if(!window.confirm('¿Confirma el cierre definitivo de la Mesa '+mesa+'? Después del cierre no se podrán modificar sus resultados.')) return;
+  try {
+    const rr=await fetch('/api/mesas/miembros',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'cerrar',centro_codigo:String(codigo),mesa:String(mesa)})});
+    const d=await rr.json().catch(()=>({}));
+    if(!rr.ok) return toast(d.error||'No se pudo cerrar la Mesa','err',8000);
+    await refreshAll(); closeModal(); renderControlElectoral();
+    toast('Mesa '+mesa+' cerrada correctamente • resultados bloqueados','ok',7000);
+  } catch(e) { toast('Error cerrando la Mesa: '+e.message,'err',8000); }
 }
 
 function renderComite() {
