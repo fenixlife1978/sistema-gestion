@@ -3,6 +3,7 @@ function ci(v){return String(v||'').replace(/\D/g,'').slice(0,20)}
 function st(v,n){return String(v??'').trim().slice(0,n)}
 function tel(v){return st(v,20).replace(/\D/g,'')}
 function fail(res,code,error){return res.status(code).json({error})}
+function rowsAt(batch,index){ return rowsFrom([batch?.statements?.[index]||{}]); }
 module.exports=async function(req,res){
   res.setHeader('Cache-Control','no-store'); res.setHeader('X-Content-Type-Options','nosniff');
   if(req.method!=='POST') return fail(res,405,'Method not allowed');
@@ -14,17 +15,25 @@ module.exports=async function(req,res){
     if(!['direccion','centro'].includes(tipo)||!/^[0-9]{5,9}$/.test(cedula)||!cargo) return fail(res,400,'Datos de asignación inválidos');
     if(tipo==='centro'&&!centro) return fail(res,400,'Centro electoral obligatorio');
     if(telefono&&!/^0[0-9]{10}$/.test(telefono)) return fail(res,400,'Teléfono inválido');
-    // No usar posiciones de rowsFrom() para representar cada consulta: rowsFrom()
-    // aplana los resultados y una consulta sin filas desplaza las siguientes.
-    const roles=rowsFrom(await turso([{
-      q:`SELECT tipo,id,cargo,centro_codigo FROM (
-        SELECT 'MOVILIZADOR' AS tipo,id,NULL AS cargo,NULL AS centro_codigo FROM reclutadores WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'COMPROMETIDO',id,NULL,NULL FROM asignaciones WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'DIRECCIÓN EJECUTIVA',id,cargo,NULL FROM direccion_ejecutiva WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'COMITÉ VECINAL',id,cargo,NULL FROM comite_vecinal WHERE cedula=? LIMIT 1
-        UNION ALL SELECT 'CARGO DE CENTRO',id,cargo,centro_codigo FROM centro_cargos WHERE cedula=? LIMIT 1
-      )`,params:[cedula,cedula,cedula,cedula,cedula]
-    }]));
+    /*
+     * Consultamos cada función por separado. No usar UNION aquí: el parser
+     * SQL de Turso puede rechazar esta construcción aunque cada SELECT sea
+     * válido por separado. Además, rowsAt() conserva la correspondencia
+     * sentencia -> resultado aunque alguna consulta no devuelva filas.
+     */
+    const rolesBatch=await turso([
+      {q:'SELECT id,NULL AS cargo,NULL AS centro_codigo FROM reclutadores WHERE cedula=? LIMIT 1',params:[cedula]},
+      {q:'SELECT id,NULL AS cargo,NULL AS centro_codigo FROM asignaciones WHERE cedula=? LIMIT 1',params:[cedula]},
+      {q:'SELECT id,cargo,NULL AS centro_codigo FROM direccion_ejecutiva WHERE cedula=? LIMIT 1',params:[cedula]},
+      {q:'SELECT id,cargo,NULL AS centro_codigo FROM comite_vecinal WHERE cedula=? LIMIT 1',params:[cedula]},
+      {q:'SELECT id,cargo,centro_codigo FROM centro_cargos WHERE cedula=? LIMIT 1',params:[cedula]}
+    ]);
+    const roles=[];
+    const roleNames=['MOVILIZADOR','COMPROMETIDO','DIRECCIÓN EJECUTIVA','COMITÉ VECINAL','CARGO DE CENTRO'];
+    for(let i=0;i<roleNames.length;i++){
+      const row=rowsAt(rolesBatch,i)[0];
+      if(row) roles.push({tipo:roleNames[i],id:row.id,cargo:row.cargo,centro_codigo:row.centro_codigo});
+    }
     const padronRows=rowsFrom(await turso([{q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[cedula]}]));
     const destino=tipo==='direccion'?'DIRECCIÓN EJECUTIVA':'CARGO DE CENTRO';
     const conflicts=roles.map(x=>String(x.tipo||'')).filter(Boolean);
