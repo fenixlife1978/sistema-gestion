@@ -648,7 +648,8 @@ async function refreshAll(skipPadron = false) {
     { q: 'SELECT a.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.municipio, p.centro_votacion, p.nombre_cv FROM asignaciones a LEFT JOIN padron p ON p.cedula = a.cedula ORDER BY a.reclutador_id, a.posicion' }
   ];
   const results = await turso(statements);
-  const rows = results.map(x => {
+  const statementResults = Array.isArray(results?.statements) ? results.statements : [];
+  const rows = statementResults.map(x => {
     const rr = x?.results || {};
     const cols = rr.columns || [], rows = rr.rows || [];
     return rows.map(row => Object.fromEntries(cols.map((col,i) => [col,row[i]])));
