@@ -3224,7 +3224,8 @@ function renderControlElectoral() {
   const actasCargadas = mesaRows.filter(x => !!x.acta).length;
   const totalActa = mesaRows.reduce((sum, x) => sum + (x.acta ? Number(x.acta.votos_partido || 0) : 0), 0);
   const verificadosMesasConActa = mesaRows.filter(x => !!x.acta).reduce((sum, x) => sum + x.vv, 0);
-  const diffTotal = actasCargadas ? verificadosMesasConActa - totalActa : null;
+  const mesasCerradas = mesaRows.filter(x => (mesaOperativa(centro.codigo,x.mesa)||{}).estado === 'CERRADA').length;
+  const diffTotal = mesasCerradas ? totalActa - verificados.length : null;
 
   const centroOptions = CACHE.centros.map(x =>
     '<option value="' + esc(x.codigo) + '" ' + (x.codigo === centro.codigo ? 'selected' : '') + '>' + esc(x.nombre) + '</option>'
