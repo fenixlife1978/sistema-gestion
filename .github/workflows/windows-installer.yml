@@ -5,6 +5,12 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'electron/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'icono.png'
+      - '.github/workflows/windows-installer.yml'
 
 permissions:
   contents: read
@@ -24,15 +30,23 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Prepare application icon
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          New-Item -ItemType Directory -Force -Path electron | Out-Null
+          Copy-Item icono.png electron/icono.png -Force
+          magick icono.png -define icon:auto-resize=256,128,64,48,32,16 build/icon.ico
 
       - name: Build Windows installer
         run: npm run dist:win
 
-      - name: Upload Windows installer
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: sistema-gestion-windows-installer
+          name: Sistema-Gestion-Electoral-Windows
           path: dist/*.exe
           if-no-files-found: error
           retention-days: 30
