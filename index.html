@@ -2447,6 +2447,8 @@ function openDirView(id) {
       '<div class="grid g2" style="gap:8px;font-size:12px">' +
         '<div><b>Teléfono:</b> ' + (tel ? '<a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + ic('chat', 12) + ' ' + esc(tel) + '</a>' : '<span style="color:var(--mut)">No registrado</span>') + '</div>' +
         '<div><b>Dirección:</b> ' + esc(dir || 'No registrada') + '</div>' +
+        '<div><b>Número de calle:</b> ' + esc(reg.numero_calle || 'No registrado') + '</div>' +
+        '<div><b>Número de casa:</b> ' + esc(reg.numero_casa || 'No registrado') + '</div>' +
       '</div>' +
     '</div>',
     '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 640
