@@ -444,18 +444,6 @@ function _pdfTable(headers, rows) {
   h += '</tbody></table>';
   return h;
 }
-function vistaPreviaPantallaActual() {
-  const main = document.getElementById('main');
-  if (!main) return toast('No se encontró el contenido de la pantalla actual', 'err');
-  const visible = Array.from(main.querySelectorAll('.sec')).find(x => x.classList.contains('on')) || main;
-  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Vista previa • Pantalla actual</title>' +
-    '<style>body{font:12px/1.5 Arial,sans-serif;color:#22303e;background:#fff;padding:20px}.no-print{display:none!important}@media print{body{padding:0}}</style>' +
-    '</head><body>'+visible.innerHTML+'</body></html>';
-  window.__previewDocHtml=html;
-  vistaPreviaDocumento('Vista previa • Pantalla actual',html,
-    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
-    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'pantalla_actual\')">'+ic('file',13)+' Descargar PDF</button>');
-}
 function printSection(elId, title) {
   const el = document.getElementById(elId);
   if (!el) return;
