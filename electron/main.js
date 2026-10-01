@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell, session } = require('electron');
+const path = require('path');
 
 const PRODUCTION_URL = 'https://gestion-erp-electoral.vercel.app/';
 
@@ -10,6 +11,7 @@ function createWindow() {
     minHeight: 650,
     show: false,
     autoHideMenuBar: true,
+    icon: path.join(__dirname, 'icono.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
