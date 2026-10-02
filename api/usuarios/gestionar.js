@@ -11,7 +11,7 @@ module.exports=async function(req,res){
     if(action==='save'){
       const id=Number(b.id||0), usuario=String(b.usuario||'').trim(), nombre=String(b.nombre||'').trim();
       const rol=String(b.rol||'').trim(), cargo=String(b.cargo||'').trim(), telefono=b.telefono?String(b.telefono):null, clave=String(b.clave||'');
-      if(!usuario||!nombre||!['J','A','O'].includes(rol)) return res.status(400).json({error:'Datos de usuario inválidos'});
+      if(!usuario||!nombre||!['J','A','O','C'].includes(rol)) return res.status(400).json({error:'Datos de usuario inválidos'});
       if(id){
         const target=rowsFrom(await turso([{q:'SELECT id,usuario,rol,activo FROM usuarios WHERE id=? LIMIT 1',params:[id]}]))[0];
         if(!target) return res.status(404).json({error:'Usuario no encontrado'});
