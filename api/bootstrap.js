@@ -6,7 +6,7 @@ const SCHEMA = [
     usuario TEXT NOT NULL UNIQUE,
     clave_hash TEXT NOT NULL,
     nombre TEXT NOT NULL,
-    rol TEXT NOT NULL CHECK(rol IN ('J','A','O')),
+    rol TEXT NOT NULL CHECK(rol IN ('J','A','O','C')),
     cargo TEXT,
     telefono TEXT,
     activo INTEGER NOT NULL DEFAULT 1,
@@ -350,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-09-30-c4';
+const BOOTSTRAP_VERSION = '2026-10-02-c';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -453,6 +453,20 @@ async function execSchema() {
       await turso([{q:'ALTER TABLE direccion_ejecutiva_v2 RENAME TO direccion_ejecutiva',params:[]}]);
       await turso([{q:'CREATE INDEX IF NOT EXISTS idx_dir_cargo ON direccion_ejecutiva(cargo)',params:[]}]);
     }
+  }
+
+  // Migración de compatibilidad del nuevo rol Controlador. Las bases existentes
+  // conservan el CHECK original de usuarios y CREATE TABLE IF NOT EXISTS no lo modifica.
+  // Actualizamos únicamente el SQL de esa tabla en sqlite_master para ampliar el
+  // conjunto permitido, preservando todos los registros y las tablas relacionadas.
+  const userTableSql=rowsFrom(await turso([{q:"SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios' LIMIT 1',params:[]}]));
+  const userSql=String(userTableSql[0]?.sql||'');
+  if(userSql && /CHECK\\s*\\(\\s*rol\\s+IN\\s*\\(\\s*'J'\\s*,\\s*'A'\\s*,\\s*'O'\\s*\\)\\s*\\)/i.test(userSql)){
+    const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
+    await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
+    await turso([{q:"UPDATE sqlite_master SET sql=replace(sql, \"CHECK(rol IN ('J','A','O'))\", \"CHECK(rol IN ('J','A','O','C'))\") WHERE type='table' AND name='usuarios'",params:[]}]);
+    await turso([{q:'PRAGMA schema_version='+String(schemaVer+1),params:[]}]);
+    await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
   }
 
   const warnings=[];
