@@ -25,6 +25,31 @@ module.exports=async function(req,res){
         }
       }else{
         if(!clave) return res.status(400).json({error:'La clave es obligatoria al crear'});
+        // Compatibilidad directa del alta de Controlador: bases Turso antiguas
+        // pueden conservar CHECK(rol IN ('J','A','O')). No dependemos de
+        // bootstrap para esta operación; corregimos el esquema justo antes
+        // del INSERT que necesita admitir el rol C.
+        if(rol==='C'){
+          const schemaRows=rowsFrom(await turso([{q:"SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios' LIMIT 1",params:[]}]));
+          const schemaSql=String(schemaRows[0]?.sql||'');
+          const legacyCheck=schemaSql.includes("CHECK(rol IN ('J','A','O'))") ||
+            schemaSql.includes("CHECK(rol IN ('J', 'A', 'O'))") ||
+            schemaSql.includes('CHECK(rol IN ("J","A","O"))') ||
+            schemaSql.includes('CHECK(rol IN ("J", "A", "O"))');
+          const alreadyC=schemaSql.includes("'C'") || schemaSql.includes('"C"');
+          if(legacyCheck && !alreadyC){
+            const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
+            await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
+            await turso([{q:`UPDATE sqlite_master
+              SET sql=replace(replace(replace(sql,
+                'CHECK(rol IN (''J'',''A'',''O''))','CHECK(rol IN (''J'',''A'',''O'',''C''))'),
+                'CHECK(rol IN (''J'', ''A'', ''O''))','CHECK(rol IN (''J'', ''A'', ''O'', ''C''))'),
+                'CHECK(rol IN ("J","A","O"))','CHECK(rol IN ("J","A","O","C"))')
+              WHERE type='table' AND name='usuarios'`,params:[]}]);
+            await turso([{q:'PRAGMA schema_version='+String(schemaVer+1),params:[]}]);
+            await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
+          }
+        }
         await turso([{q:'INSERT INTO usuarios(usuario,clave_hash,nombre,rol,cargo,telefono) VALUES(?,?,?,?,?,?)',params:[usuario,modernHash(clave),nombre,rol,cargo,telefono]}]);
       }
       return res.json({ok:true});
