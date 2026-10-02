@@ -456,29 +456,20 @@ async function execSchema() {
   }
 
   // Migración de compatibilidad del nuevo rol Controlador. Las bases existentes
-  // conservan el CHECK original de usuarios y CREATE TABLE IF NOT EXISTS no lo modifica.
-  // Actualizamos únicamente el SQL de esa tabla en sqlite_master para ampliar el
-  // conjunto permitido, preservando todos los registros y las tablas relacionadas.
-  const userTableSql=rowsFrom(await turso([{q:"SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios' LIMIT 1',params:[]}]));
-  const userSql=String(userTableSql[0]?.sql||'');
-  if(userSql && /CHECK\\s*\\(\\s*rol\\s+IN\\s*\\(\\s*'J'\\s*,\\s*'A'\\s*,\\s*'O'\\s*\\)\\s*\\)/i.test(userSql)){
+  // pueden conservar el CHECK original de usuarios (J/A/O). CREATE TABLE IF NOT EXISTS
+  // no modifica una tabla existente, por lo que ampliamos únicamente su definición.
+  const userSchemaRows=rowsFrom(await turso([{q:"SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios' LIMIT 1",params:[]}]));
+  const userSchemaSql=String(userSchemaRows[0]?.sql||'');
+  if(userSchemaSql && /rol\\s+IN\\s*\\(.*?['\\\"]O['\\\"].*?\\)/i.test(userSchemaSql) && !/rol\\s+IN\\s*\\(.*?['\\\"]C['\\\"].*?\\)/i.test(userSchemaSql)){
     const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
     await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
-    await turso([{q:"UPDATE sqlite_master SET sql=replace(sql, \"CHECK(rol IN ('J','A','O'))\", \"CHECK(rol IN ('J','A','O','C'))\") WHERE type='table' AND name='usuarios'",params:[]}]);
-    await turso([{q:'PRAGMA schema_version='+String(schemaVer+1),params:[]}]);
-    await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
-  }
-
-  // Compatibilidad del rol Controlador: algunas bases antiguas conservan el
-  // CHECK original con comillas simples o dobles y distintos espacios.
-  // CREATE TABLE IF NOT EXISTS no modifica una tabla ya existente, por lo que
-  // corregimos únicamente la definición almacenada de usuarios.
-  const userSchema=rowsFrom(await turso([{q:"SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios' LIMIT 1",params:[]}]))[0];
-  const userSchemaSql=String(userSchema?.sql||'');
-  if(userSchemaSql && /rol\s+IN\s*\(.*?['\"]O['\"].*?\)/i.test(userSchemaSql) && !/rol\s+IN\s*\(.*?['\"]C['\"].*?\)/i.test(userSchemaSql)){
-    const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
-    await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
-    await turso([{q:"UPDATE sqlite_master SET sql=replace(replace(replace(replace(sql, 'CHECK(rol IN (\\\"J\\\", \\\"A\\\", \\\"O\\\"))', 'CHECK(rol IN (\\\"J\\\", \\\"A\\\", \\\"O\\\", \\\"C\\\"))'), 'CHECK(rol IN (\\\"J\\\",\\\"A\\\",\\\"O\\\"))', 'CHECK(rol IN (\\\"J\\\",\\\"A\\\",\\\"O\\\",\\\"C\\\"))'), 'CHECK(rol IN (\\\'J\\\', \\\'A\\\', \\\'O\\\'))', 'CHECK(rol IN (\\\'J\\\', \\\'A\\\', \\\'O\\\', \\\'C\\\'))'), 'CHECK(rol IN (\\\'J\\\',\\\'A\\\',\\\'O\\\'))', 'CHECK(rol IN (\\\'J\\\',\\\'A\\\',\\\'O\\\',\\\'C\\\'))') WHERE type='table' AND name='usuarios'",params:[]}]);
+    await turso([{q:`UPDATE sqlite_master
+      SET sql=replace(replace(replace(replace(sql,
+        'CHECK(rol IN ('J','A','O'))','CHECK(rol IN ('J','A','O','C'))'),
+        'CHECK(rol IN ("J","A","O"))','CHECK(rol IN ("J","A","O","C"))'),
+        'CHECK(rol IN ("J", "A", "O"))','CHECK(rol IN ("J", "A", "O", "C"))'),
+        'CHECK(rol IN (\'J\', \'A\', \'O\'))','CHECK(rol IN (\'J\', \'A\', \'O\', \'C\'))')
+      WHERE type='table' AND name='usuarios'`,params:[]}]);
     await turso([{q:'PRAGMA schema_version='+String(schemaVer+1),params:[]}]);
     await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
   }
