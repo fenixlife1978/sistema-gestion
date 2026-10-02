@@ -96,12 +96,24 @@ module.exports=async function handler(req,res){
     comite.forEach(x=>conflictos.push('Ya está asignada a Comité Vecinal en la comunidad "'+String(x.comunidad||'')+'" como "'+String(x.cargo||'')+'".'));
     cargosCentro.forEach(x=>conflictos.push('Ya ocupa el cargo "'+String(x.cargo||'')+'" en el centro electoral "'+String(x.centro_codigo||'')+'".'));
 
+    let autorizacionId=null;
     if(conflictos.length){
-      return res.status(409).json({
-        error:conflictos.join(' '),
-        tipo_conflicto:otraLista?'OTRA_LISTA':(cargosDireccionEjecutiva.length||comite.length||cargosCentro.length||movilizadorExistente?'FUNCION':'DUPLICIDAD'),
-        conflictos
-      });
+      // Comité Vecinal ya no bloquea por sí solo: con autorización previa
+      // Jefe/Administrador puede registrarse además en esta lista 1x10.
+      // Cualquier otra función también requiere la misma autorización.
+      const auth=rowsFrom(await turso([{
+        q:'SELECT id FROM autorizaciones_duplicidad_persona WHERE cedula=? AND contexto_destino=? AND consumida_en IS NULL ORDER BY id DESC LIMIT 1',
+        params:[cedula,'COMPROMETIDO']
+      }]))[0];
+      if(!auth){
+        return res.status(409).json({
+          error:conflictos.join(' ')+' Para registrarla también como comprometido se requiere autorización de un Jefe de Comando o Administrador.',
+          tipo_conflicto:otraLista?'OTRA_LISTA':'FUNCION',
+          conflictos,
+          requiere_autorizacion:true
+        });
+      }
+      autorizacionId=Number(auth.id);
     }
 
     if(asignacion){
@@ -114,13 +126,20 @@ module.exports=async function handler(req,res){
     if(telefono && telDup) return res.status(409).json({error:'Teléfono duplicado en '+telDup.origen});
 
     const pos=Number(cupos?.n||0)+1;
+    const now=new Date().toISOString();
     await turso([{
       q:'INSERT INTO asignaciones(reclutador_id,cedula,posicion,telefono,numero_calle,numero_casa,direccion) VALUES(?,?,?,?,?,?,?)',
       params:[reclutadorId,cedula,pos,telefono||null,calle||null,casa||null,direccionPersona||null]
     }]);
+    if(autorizacionId){
+      await turso([{
+        q:'UPDATE autorizaciones_duplicidad_persona SET consumida_en=?, consumida_por=? WHERE id=? AND consumida_en IS NULL',
+        params:[now,session.uid,autorizacionId]
+      }]);
+    }
     await turso([{
       q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',
-      params:['user','C.I. '+cedula+' registrada en lista de movilizador #'+reclutadorId+' (posición '+pos+')',session.uid]
+      params:['user','C.I. '+cedula+' registrada en lista de movilizador #'+reclutadorId+' (posición '+pos+')'+(autorizacionId?' • autorización #'+autorizacionId+' consumida':''),session.uid]
     }]);
     return res.status(201).json({ok:true,posicion:pos,cedula});
   }catch(e){
