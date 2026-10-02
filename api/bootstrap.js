@@ -350,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-10-02-d';
+const BOOTSTRAP_VERSION = '2026-10-02-e';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
