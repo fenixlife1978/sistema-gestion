@@ -8,15 +8,23 @@ module.exports=async function(req,res){
   try{
     const session=verify(getCookie(req,'erp_session'));
     if(!session) return fail(res,401,'Sesión no válida o expirada');
-    if(!['J','A','O'].includes(session.rol)) return fail(res,403,'Rol de sesión no permitido');
+    if(!['J','A','O','C'].includes(session.rol)) return fail(res,403,'Rol de sesión no permitido');
+    const obsCol=rowsFrom(await turso([{q:"PRAGMA table_info(mesa_operativa)",params:[]}])).some(x=>String(x.name||'')==='observacion');
+    if(!obsCol) await turso([{q:'ALTER TABLE mesa_operativa ADD COLUMN observacion TEXT',params:[]}]);
     const b=parseBody(req), accion=clean(b.accion,20).toLowerCase();
     const centro=clean(b.centro_codigo,80), mesa=clean(b.mesa,30);
     if(!centro||!mesa) return fail(res,400,'Centro y mesa son obligatorios');
     const cen=rowsFrom(await turso([{q:'SELECT codigo FROM centros WHERE codigo=? LIMIT 1',params:[centro]}]));
     if(!cen.length) return fail(res,404,'Centro electoral no encontrado');
-    const mo=rowsFrom(await turso([{q:'SELECT id,estado,hora_constitucion,testigos_asistieron,hora_cierre FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
+    const mo=rowsFrom(await turso([{q:'SELECT id,estado,hora_constitucion,testigos_asistieron,hora_cierre,observacion FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
     let mesaId=mo[0]?.id;
     if(mo[0]?.estado==='CERRADA' && accion!=='cerrar') return fail(res,409,'La mesa ya está cerrada y no admite modificaciones');
+    if(accion==='observacion'){
+      const observacion=clean(b.observacion,2000);
+      if(!mesaId) return fail(res,404,'Mesa no encontrada');
+      await turso([{q:'UPDATE mesa_operativa SET observacion=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:[observacion,new Date().toISOString(),session.uid,mesaId]}]);
+      return res.status(200).json({ok:true,observacion});
+    }
     if(accion==='control'){
       if(mo[0]?.hora_constitucion) return fail(res,409,'La constitución de la mesa ya fue guardada y no puede modificarse');
       const constituida=String(b.constituida||'').toLowerCase()==='si';
