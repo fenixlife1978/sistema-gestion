@@ -82,16 +82,10 @@ module.exports=async function(req,res){
       if(rowsFrom([crossSets[2]]).length) cross.push('COMITÉ VECINAL');
       if(rowsFrom([crossSets[3]]).length) cross.push('CARGO DE CENTRO');
 
-      // Comité Vecinal es incompatible con Movilizador y NO admite excepción.
-      if(cross.includes('COMITÉ VECINAL')){
-        return res.status(409).json({
-          error:'Registro rechazado: la persona ya está registrada en Comité Vecinal. Una persona con cargo de Comité Vecinal no puede ser registrada como Movilizador, ni siquiera mediante autorización.',
-          bloqueado:true,
-          motivo_bloqueo:'COMITÉ VECINAL',
-          cargos_existentes:cross
-        });
-      }
-
+      // Una persona que ya tiene Comité Vecinal puede asumir otro cargo,
+      // incluido Movilizador, siempre que exista una autorización previa J/A.
+      // La misma regla de autorización se mantiene para cualquier otra función
+      // existente; nunca se permite la duplicidad sin autorización.
       let autorizacionId=null;
       if(cross.length){
         const auth=rowsFrom(await exec([{
