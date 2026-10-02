@@ -21,8 +21,14 @@ module.exports=async function(req,res){
     if(mo[0]?.estado==='CERRADA' && accion!=='cerrar') return fail(res,409,'La mesa ya está cerrada y no admite modificaciones');
     if(accion==='observacion'){
       const observacion=clean(b.observacion,2000);
-      if(!mesaId) return fail(res,404,'Mesa no encontrada');
-      await turso([{q:'UPDATE mesa_operativa SET observacion=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:[observacion,new Date().toISOString(),session.uid,mesaId]}]);
+      const now=new Date().toISOString();
+      if(mesaId){
+        await turso([{q:'UPDATE mesa_operativa SET observacion=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:[observacion,now,session.uid,mesaId]}]);
+      }else{
+        const ins=await turso([{q:'INSERT INTO mesa_operativa(centro_codigo,mesa,observacion,actualizado_en,actualizado_por) VALUES(?,?,?,?,?)',params:[centro,mesa,observacion,now,session.uid]}]);
+        const confirm=rowsFrom(await turso([{q:'SELECT id,observacion FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]));
+        if(!confirm[0]?.id) return fail(res,500,'Turso no confirmó la observación de la mesa');
+      }
       return res.status(200).json({ok:true,observacion});
     }
     if(accion==='control'){
