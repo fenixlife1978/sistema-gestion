@@ -783,7 +783,7 @@ const MODS = [
   { id: 'data', l: 'Configuración', i: 'up', adm: ['J', 'A'] },
   { id: 'direccion', l: 'Dirección Ejecutiva', i: 'users' },
   { id: 'comite', l: 'Comités Vecinales', i: 'users' },
-  { id: 'control', l: 'Control Electoral', i: 'check', adm: ['C'] }
+  { id: 'control', l: 'Control Electoral', i: 'check' }
 ];
 function buildTabs() {
   $('tabs').innerHTML = MODS.filter(m => USER.rol === 'C' ? m.id === 'control' : (!m.adm || m.adm.includes(USER.rol))).map(m =>
