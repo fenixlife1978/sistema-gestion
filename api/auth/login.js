@@ -43,14 +43,14 @@ module.exports=async function handler(req,res){
     const usuario=String(body.usuario||'').trim();
     const clave=String(body.clave||'');
     const rol=String(body.rol||'').trim().toUpperCase();
-    if(!usuario||!clave||!['J','A','O'].includes(rol)) return res.status(400).json({error:'Credenciales incompletas'});
+    if(!usuario||!clave||!['J','A','O','C'].includes(rol)) return res.status(400).json({error:'Credenciales incompletas'});
     if(usuario.length>120||clave.length>512) return res.status(400).json({error:'Credenciales inválidas'});
     const initialized=await ensureInitialized(req,res);
     if(initialized && res.writableEnded) return;
     const rows=rowsFrom(await turso([{q:'SELECT id,usuario,clave_hash,nombre,rol,cargo,telefono,activo FROM usuarios WHERE usuario=? AND activo=1 LIMIT 1',params:[usuario]}]));
     if(!rows.length||!verifyHash(clave,String(rows[0].clave_hash||''))) return res.status(401).json({error:'Usuario o clave incorrectos'});
     const user=rows[0];
-    const roleOk=(rol==='J'&&user.rol==='J')||(rol==='A'&&['J','A'].includes(user.rol))||(rol==='O'&&user.rol==='O');
+    const roleOk=(rol==='J'&&user.rol==='J')||(rol==='A'&&['J','A'].includes(user.rol))||(rol==='O'&&user.rol==='O')||(rol==='C'&&user.rol==='C');
     if(!roleOk) return res.status(403).json({error:'El rol seleccionado no corresponde al usuario'});
     if(!String(user.clave_hash||'').startsWith('pbkdf2$')){
       const upgraded=modernHash(clave);
