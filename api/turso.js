@@ -30,7 +30,7 @@ module.exports = async function handler(req, res) {
   try {
     const session = verify(getCookie(req,'erp_session'));
     if (!session) return res.status(401).json({ error: 'Sesión requerida' });
-    if (!['J','A','O'].includes(session.rol)) {
+    if (!['J','A','O','C'].includes(session.rol)) {
       return res.status(403).json({ error: 'Rol de sesión no permitido' });
     }
 
