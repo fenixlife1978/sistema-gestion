@@ -350,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-10-02-c';
+const BOOTSTRAP_VERSION = '2026-10-02-d';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -465,6 +465,19 @@ async function execSchema() {
     const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
     await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
     await turso([{q:"UPDATE sqlite_master SET sql=replace(sql, \"CHECK(rol IN ('J','A','O'))\", \"CHECK(rol IN ('J','A','O','C'))\") WHERE type='table' AND name='usuarios'",params:[]}]);
+    await turso([{q:'PRAGMA schema_version='+String(schemaVer+1),params:[]}]);
+    await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
+  }
+
+  // Compatibilidad del rol Controlador: algunas bases antiguas conservan el
+  // CHECK con comillas dobles ("J", "A", "O"), por lo que la migración
+  // anterior no lo detectaba. Actualizamos ambas formas del SQL almacenado.
+  const userSchema=rowsFrom(await turso([{q:"SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios' LIMIT 1",params:[]}]))[0];
+  const userSchemaSql=String(userSchema?.sql||'');
+  if(userSchemaSql && /(CHECK\\s*\\(\\s*rol\\s+IN\\s*\\(.*?[\\\"']J[\\\"'].*?[\\\"']A[\\\"'].*?[\\\"']O[\\\"'].*?\\)\\s*\\))/i.test(userSchemaSql) && !/['\\\"]C['\\\"]\\s*\\)/i.test(userSchemaSql)){
+    const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
+    await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
+    await turso([{q:"UPDATE sqlite_master SET sql=replace(replace(sql, 'CHECK(rol IN (\\\"J\\\",\\\"A\\\",\\\"O\\\"))', 'CHECK(rol IN (\\\"J\\\",\\\"A\\\",\\\"O\\\",\\\"C\\\"))'), 'CHECK(rol IN (\\\'J\\\',\\\'A\\\',\\\'O\\\'))', 'CHECK(rol IN (\\\'J\\\',\\\'A\\\',\\\'O\\\',\\\'C\\\'))') WHERE type='table' AND name='usuarios'",params:[]}]);
     await turso([{q:'PRAGMA schema_version='+String(schemaVer+1),params:[]}]);
     await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
   }
