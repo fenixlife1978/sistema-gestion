@@ -460,9 +460,12 @@ async function execSchema() {
   // no modifica una tabla existente, por lo que ampliamos únicamente su definición.
   const userSchemaRows=rowsFrom(await turso([{q:"SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios' LIMIT 1",params:[]}]));
   const userSchemaSql=String(userSchemaRows[0]?.sql||'');
-  const legacyRoleCheck=/CHECK\\s*\\(\\s*rol\\s+IN\\s*\\(\\s*['\"]J['\"]\\s*,\\s*['\"]A['\"]\\s*,\\s*['\"]O['\"]\\s*\\)\\s*\\)/i;
-  const hasControladorCheck=/CHECK\\s*\\(\\s*rol\\s+IN\\s*\\(.*?['\"]C['\"].*?\\)/i.test(userSchemaSql);
-  if(userSchemaSql && legacyRoleCheck.test(userSchemaSql) && !hasControladorCheck){
+  const legacyRoleCheck = userSchemaSql.includes("CHECK(rol IN ('J','A','O'))") ||
+    userSchemaSql.includes("CHECK(rol IN ('J', 'A', 'O'))") ||
+    userSchemaSql.includes('CHECK(rol IN ("J","A","O"))') ||
+    userSchemaSql.includes('CHECK(rol IN ("J", "A", "O"))');
+  const hasControladorCheck = userSchemaSql.includes("'C'") || userSchemaSql.includes('"C"');
+  if(userSchemaSql && legacyRoleCheck && !hasControladorCheck){
     const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
     await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
     await turso([{q:`UPDATE sqlite_master
