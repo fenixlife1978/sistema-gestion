@@ -12,7 +12,7 @@ module.exports=async function(req,res){
   try{
     const session=verify(getCookie(req,'erp_session'));
     if(!session) return fail(res,401,'Sesión no válida o expirada');
-    if(!['J','A','O'].includes(session.rol)) return fail(res,403,'Rol de sesión no permitido');
+    if(!['J','A','O','C'].includes(session.rol)) return fail(res,403,'Rol de sesión no permitido');
 
     const b=parseBody(req);
     const cedula=ci(b.cedula);
