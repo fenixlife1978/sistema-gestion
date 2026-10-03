@@ -200,6 +200,8 @@ body.controller-mode #toolbar .tb{display:none}
 body.controller-mode #toolbar .tb-controller-search{display:flex;min-width:150px;padding:10px 28px 8px;font-size:15px;gap:6px}
 body.controller-mode #toolbar .tb-controller-search .g{height:42px}
 body.controller-mode #toolbar .tb-controller-search svg{width:34px;height:34px}
+body.controller-mode #toolbar .tb-controller-logout{display:flex;min-width:150px;padding:10px 20px 8px;font-size:15px;gap:6px}
+body.controller-mode #toolbar .tb-controller-logout .g{height:24px}
 body.controller-mode #tabs{justify-content:center;align-items:center;padding:6px 10px 0}
 body.controller-mode #tabs .tab{display:flex;min-width:210px;justify-content:center;padding:10px 24px 11px;font-size:15px}
 body.controller-mode #tabs .tab svg{width:20px;height:20px}
@@ -237,7 +239,7 @@ body.controller-mode #tabs .tab svg{width:20px;height:20px}
   <button class="tb" onclick="tbSave()"><span class="g" id="gSave"></span>Guardar</button>
   <button class="tb" onclick="tbEdit()"><span class="g" id="gEdit"></span>Editar</button>
   <button class="tb" onclick="tbDel()"><span class="g" id="gDel"></span>Eliminar</button>
-  <button class="tb tb-controller-search" onclick="openSearch()" aria-label="Buscar persona"><span class="g" id="gSearch"></span></button>
+  <button class="tb tb-controller-search" onclick="openSearch()" aria-label="Búsqueda Global"><span class="g" id="gSearch"></span><span>Búsqueda Global</span></button><button class="tb tb-controller-logout" onclick="logout()" aria-label="Cerrar Sesión"><span class="g" id="gLogout"></span><span>Cerrar Sesión</span></button>
   <button class="tb" onclick="refreshAll();go(CUR)"><span class="g" id="gRef"></span>Actualizar</button>
   <button class="tb" onclick="openHist()"><span class="g" id="gHist"></span>Historial</button>
   <button class="tb" onclick="openDocs()"><span class="g" id="gDocs"></span>Documentos</button>
@@ -902,13 +904,7 @@ function openAbout() {
 }
 let _sq = null;
 function openSearch() {
-  if (USER?.rol === 'C') {
-    if (!CONTROL_ELECTORAL.fixed) return toast('Primero seleccione el Centro Electoral y pulse Fijar', 'err', 5000);
-    const el = $('ctlSearch');
-    if (el) { el.focus(); el.select(); return; }
-    return;
-  }
-  win(ic('search', 18) + ' úsqueda global',
+  win(ic('search', 18) + ' Búsqueda Global',
     '<input class="inp" id="sqIn" placeholder="Cédula o "" oninput="clearTimeout(_sq);_sq=setTimeout(sqRun,250)"><div id="sqRes" style="margin-top:12px"></div>', '', 600);
   $('sqIn').focus();
 }
