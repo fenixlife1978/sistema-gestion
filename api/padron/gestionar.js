@@ -1,4 +1,4 @@
-const {parseBody,turso,rowsFrom,verify,getCookie}=require('../../lib/auth');
+const {parseBody,turso,rowsFrom,verify,getCookie,modernHash}=require('../../lib/auth');
 const s=v=>v==null?'':String(v).trim(); const ci=v=>s(v).replace(/\D/g,'').slice(0,20);
 const edad=f=>{if(!f)return 0;const d=new Date(s(f)+'T00:00:00');if(Number.isNaN(d.getTime()))return 0;const n=new Date();let e=n.getFullYear()-d.getFullYear();const m=n.getMonth()-d.getMonth();if(m<0||(m===0&&n.getDate()<d.getDate()))e--;return e>=0&&e<=130?e:0};
 async function actor(req){const se=verify(getCookie(req,'erp_session'));if(!se)return null;return rowsFrom(await turso([{q:'SELECT id,usuario,rol FROM usuarios WHERE id=? AND activo=1 LIMIT 1',params:[se.uid]}]))[0]||null}
