@@ -237,7 +237,7 @@ body.controller-mode #tabs .tab svg{width:20px;height:20px}
   <button class="tb" onclick="tbSave()"><span class="g" id="gSave"></span>Guardar</button>
   <button class="tb" onclick="tbEdit()"><span class="g" id="gEdit"></span>Editar</button>
   <button class="tb" onclick="tbDel()"><span class="g" id="gDel"></span>Eliminar</button>
-  <button class="tb tb-controller-search" onclick="openSearch()"><span class="g" id="gSearch"></span>Buscar</button>
+  <button class="tb tb-controller-search" onclick="openSearch()" aria-label="Buscar persona"><span class="g" id="gSearch"></span></button>
   <button class="tb" onclick="refreshAll();go(CUR)"><span class="g" id="gRef"></span>Actualizar</button>
   <button class="tb" onclick="openHist()"><span class="g" id="gHist"></span>Historial</button>
   <button class="tb" onclick="openDocs()"><span class="g" id="gDocs"></span>Documentos</button>
@@ -3377,8 +3377,28 @@ function renderControlElectoral() {
   }
   if (!CONTROL_ELECTORAL.centro) CONTROL_ELECTORAL.centro = centro.codigo;
   const controllerFixed = !isController || CONTROL_ELECTORAL.fixed;
+  const centroOptions = CACHE.centros.map(x =>
+    '<option value="' + esc(x.codigo) + '" ' + (x.codigo === centro.codigo ? 'selected' : '') + '>' + esc(x.nombre) + '</option>'
+  ).join('');
 
-  const personas = controllerFixed ? controlPersonasCentro(centro.codigo) : [];
+  if (isController && !controllerFixed) {
+    $('sec-control').innerHTML =
+      panel(
+        'Control Electoral',
+        '<div class="controller-lock" style="margin-bottom:14px">' +
+          '<div class="lock-title">Seleccione el Centro Electoral donde va a trabajar</div>' +
+          '<div>El Centro debe fijarse antes de habilitar la búsqueda y la verificación de personas.</div>' +
+        '</div>' +
+        '<div class="controller-center-row">' +
+          '<div><label class="fl">Centro electoral</label><select class="inp" id="ctlCentro">' + centroOptions + '</select></div>' +
+          '<button class="btn btn-g btn-big" onclick="fijarCentroControl()">Fijar</button>' +
+        '</div>',
+        900
+      );
+    return;
+  }
+
+  const personas = controlPersonasCentro(centro.codigo);
   const verificados = personas.filter(x => !!controlVerif(x.l.cedula, centro.codigo));
   const pendientes = Math.max(0, personas.length - verificados.length);
   const pct = personas.length ? (verificados.length / personas.length * 100) : 0;
