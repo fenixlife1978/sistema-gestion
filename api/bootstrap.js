@@ -350,7 +350,7 @@ async function migrateComiteRoles(){
 
 const COMITE_CARGOS=['COORDINADOR','RESPONSABLE DE ORGANIZACIÓN','RESPONSABLE ELECTORAL','RESPONSABLE DE JUVENTUD','RESPONSABLE DE ACCIÓN SOCIAL'];
 
-const BOOTSTRAP_VERSION = '2026-10-02-e';
+const BOOTSTRAP_VERSION = '2026-10-02-f';
 
 async function execSchema() {
   // La tabla de metadatos debe existir antes de consultarla. En una base
@@ -466,7 +466,6 @@ async function execSchema() {
     userSchemaSql.includes('CHECK(rol IN ("J", "A", "O"))');
   const hasControladorCheck = userSchemaSql.includes("'C'") || userSchemaSql.includes('"C"');
   if(userSchemaSql && legacyRoleCheck && !hasControladorCheck){
-    const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
     await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
     await turso([{q:`UPDATE sqlite_master
       SET sql=replace(replace(replace(sql,
@@ -474,7 +473,6 @@ async function execSchema() {
         'CHECK(rol IN (''J'', ''A'', ''O''))','CHECK(rol IN (''J'', ''A'', ''O'', ''C''))'),
         'CHECK(rol IN ("J","A","O"))','CHECK(rol IN ("J","A","O","C"))')
       WHERE type='table' AND name='usuarios'`,params:[]}]);
-    await turso([{q:'PRAGMA schema_version='+String(schemaVer+1),params:[]}]);
     await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
   }
 
