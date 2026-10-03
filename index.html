@@ -194,6 +194,18 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
 .gC{grid-template-columns:1fr}
 .g2,.g3,.g4{grid-template-columns:1fr}
 @media(min-width:761px){.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.gC{grid-template-columns:330px 1fr}}
+/* Modo exclusivo Controlador */
+body.controller-mode #toolbar{justify-content:center;align-items:center;min-height:86px;padding:12px}
+body.controller-mode #toolbar .tb{display:none}
+body.controller-mode #toolbar .tb-controller-search{display:flex;min-width:150px;padding:10px 28px 8px;font-size:15px;gap:6px}
+body.controller-mode #toolbar .tb-controller-search .g{height:42px}
+body.controller-mode #toolbar .tb-controller-search svg{width:34px;height:34px}
+body.controller-mode #tabs{justify-content:center;align-items:center;padding:6px 10px 0}
+body.controller-mode #tabs .tab{display:flex;min-width:210px;justify-content:center;padding:10px 24px 11px;font-size:15px}
+body.controller-mode #tabs .tab svg{width:20px;height:20px}
+.controller-lock{border:1px solid var(--line);background:#f7f9fb;border-radius:8px;padding:18px;text-align:center;color:var(--mut)}
+.controller-lock .lock-title{font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.controller-center-row{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px;align-items:end}
 @media(max-width:600px){#hdr{padding:10px 12px;gap:10px}#hdr h1{font-size:15px}#clock{font-size:14px}#hdrInfo{font-size:11px}.tab{min-width:0;padding:6px 10px;font-size:11.5px}#main{padding:10px 8px 50px}.panel-b{padding:10px}.kcard{padding:10px}.filter-bar{flex-direction:column}.filter-bar>div{min-width:0;flex:1 1 100%}.btn{padding:7px 12px;font-size:12px}.qchips{grid-template-columns:1fr}.win{max-width:96vw}.kcard h3{font-size:14px}.kcard .kv{font-size:18px}.inp{max-width:100%}}
 @media(max-width:900px){.filter-bar{flex-wrap:wrap}.filter-bar>div{min-width:120px;flex:1 1 45%}.kcard{padding:10px 12px}.kcard .kv{font-size:20px}}
 </style>
@@ -225,7 +237,7 @@ html,body{width:100%;overflow-x:hidden;max-width:100vw}
   <button class="tb" onclick="tbSave()"><span class="g" id="gSave"></span>Guardar</button>
   <button class="tb" onclick="tbEdit()"><span class="g" id="gEdit"></span>Editar</button>
   <button class="tb" onclick="tbDel()"><span class="g" id="gDel"></span>Eliminar</button>
-  <button class="tb" onclick="openSearch()"><span class="g" id="gSearch"></span>Buscar</button>
+  <button class="tb tb-controller-search" onclick="openSearch()"><span class="g" id="gSearch"></span>Buscar</button>
   <button class="tb" onclick="refreshAll();go(CUR)"><span class="g" id="gRef"></span>Actualizar</button>
   <button class="tb" onclick="openHist()"><span class="g" id="gHist"></span>Historial</button>
   <button class="tb" onclick="openDocs()"><span class="g" id="gDocs"></span>Documentos</button>
@@ -535,7 +547,7 @@ let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], di
 // que el snapshot de Turso las refleje, evitando que la sincronización
 // automática las haga desaparecer por una lectura momentáneamente atrasada.
 const PENDING_RECL = new Map();
-let CONTROL_ELECTORAL = { centro: '', search: '' };
+let CONTROL_ELECTORAL = { centro: '', search: '', fixed: false };
 
 /* ----------- ESQUEMA TURSO (AUTO-MIGRACIÓN) ----------- */
 const COMITE_PROBLEMAS_BASE = [
@@ -754,7 +766,8 @@ async function doLogin() {
     }
     if (!r.ok) return toast((data.error || ('HTTP ' + r.status + ' al autenticar')), 'err', 8000);
     USER = data.user;
-    localStorage.setItem('curTab', 'dash');
+    CONTROL_ELECTORAL = { centro: '', search: '', fixed: false };
+    localStorage.setItem('curTab', USER.rol === 'C' ? 'control' : 'dash');
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
     await refreshAll();
     enterApp('dash');
@@ -765,9 +778,10 @@ async function doLogin() {
 function enterApp(tab) {
   $('vLogin').style.display = 'none';
   $('vApp').style.display = 'block';
+  document.body.classList.toggle('controller-mode', USER.rol === 'C');
   buildTabs(); buildMore();
   $('hdrInfo').innerHTML = 'Usuario: ' + esc(USER.nombre.toUpperCase()) + ' • <span class="yel">TURSO • ' + CACHE.pad.length + ' electores  ' + CACHE.recl.length + ' movilizadores</span>';
-  go(tab || 'dash'); startSync();
+  go(USER.rol === 'C' ? 'control' : (tab || 'dash')); startSync();
 }
 $('lgP').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() });
 
@@ -800,6 +814,9 @@ function buildMore() {
 function toggleMore() { $('moreMenu').classList.toggle('on') }
 document.addEventListener('click', e => { if (!e.target.closest('#moreMenu') && !e.target.closest('.tb')) $('moreMenu').classList.remove('on') });
 function go(id) {
+  if (USER?.rol === 'C' && id === 'control' && !CONTROL_ELECTORAL.fixed) {
+    CONTROL_ELECTORAL.search = '';
+  }
   const m = MODS.find(x => x.id === id);
   if (USER.rol === 'C' && id !== 'control') return toast('El rol Controlador solo tiene acceso a Control Electoral', 'err');
   if (m.adm && !m.adm.includes(USER.rol) && USER.rol !== 'C') return toast('Módulo restringido a ' + m.adm.join('/'), 'err');
@@ -885,6 +902,12 @@ function openAbout() {
 }
 let _sq = null;
 function openSearch() {
+  if (USER?.rol === 'C') {
+    if (!CONTROL_ELECTORAL.fixed) return toast('Primero seleccione el Centro Electoral y pulse Fijar', 'err', 5000);
+    const el = $('ctlSearch');
+    if (el) { el.focus(); el.select(); return; }
+    return;
+  }
   win(ic('search', 18) + ' úsqueda global',
     '<input class="inp" id="sqIn" placeholder="Cédula o "" oninput="clearTimeout(_sq);_sq=setTimeout(sqRun,250)"><div id="sqRes" style="margin-top:12px"></div>', '', 600);
   $('sqIn').focus();
@@ -3346,14 +3369,16 @@ function renderCortesPanel(codigo) {
 }
 
 function renderControlElectoral() {
+  const isController = USER?.rol === 'C';
   const centro = controlCentroActual();
   if (!centro) {
     $('sec-control').innerHTML = panel('Control Electoral', '<div class="empty">No hay centros de votación cargados.</div>');
     return;
   }
   if (!CONTROL_ELECTORAL.centro) CONTROL_ELECTORAL.centro = centro.codigo;
+  const controllerFixed = !isController || CONTROL_ELECTORAL.fixed;
 
-  const personas = controlPersonasCentro(centro.codigo);
+  const personas = controllerFixed ? controlPersonasCentro(centro.codigo) : [];
   const verificados = personas.filter(x => !!controlVerif(x.l.cedula, centro.codigo));
   const pendientes = Math.max(0, personas.length - verificados.length);
   const pct = personas.length ? (verificados.length / personas.length * 100) : 0;
@@ -3382,9 +3407,19 @@ function renderControlElectoral() {
   // Brecha positiva = votos CNE por encima de los verificados del centro.
   const diffTotal = mesasCerradas ? totalActa - verificados.length : null;
 
+  const isController = USER?.rol === 'C';
+  const controllerFixed = !isController || CONTROL_ELECTORAL.fixed;
   const centroOptions = CACHE.centros.map(x =>
     '<option value="' + esc(x.codigo) + '" ' + (x.codigo === centro.codigo ? 'selected' : '') + '>' + esc(x.nombre) + '</option>'
   ).join('');
+  const controllerCenterBox = isController
+    ? '<div class="controller-center-row">' +
+        '<div><label class="fl">Centro electoral</label><select class="inp" id="ctlCentro" ' + (controllerFixed ? 'disabled' : '') + '>' + centroOptions + '</select></div>' +
+        (controllerFixed
+          ? '<div><span class="chip chip-g" style="font-size:13px;padding:8px 12px">✓ CENTRO FIJADO</span></div>'
+          : '<button class="btn btn-g btn-big" onclick="fijarCentroControl()">Fijar</button>') +
+      '</div>'
+    : '<div class="grid g2" style="gap:10px;align-items:end"><div><label class="fl">Centro de votación</label><select class="inp" id="ctlCentro" onchange="cambiarCentroControl(this.value)">' + centroOptions + '</select></div><div><label class="fl">Buscar persona</label><input class="inp" id="ctlSearch" value="' + esc(CONTROL_ELECTORAL.search) + '" placeholder="Nombre, palabra clave del nombre o cédula..." oninput="filtrarControlElectoral()" autocomplete="off"></div></div>';
 
   const mesaHtml = mesaRows.map(x => {
     const mo = mesaOperativa(centro.codigo,x.mesa) || {};
@@ -3453,11 +3488,13 @@ function renderControlElectoral() {
       '</div>' +
 
       '<div class="panel" style="margin-top:0"><div class="panel-h">' + ic('search',15) + ' Verificar asistencia individual</div><div class="panel-b">' +
-        '<div class="grid g2" style="gap:10px;align-items:end">' +
-          '<div><label class="fl">Centro de votación</label><select class="inp" id="ctlCentro" onchange="cambiarCentroControl(this.value)">' + centroOptions + '</select></div>' +
-          '<div><label class="fl">Buscar persona</label><input class="inp" id="ctlSearch" value="' + esc(CONTROL_ELECTORAL.search) + '" placeholder="Nombre, palabra clave del nombre o cédula..." oninput="filtrarControlElectoral()" autocomplete="off"></div>' +
-        '</div>' +
-        '<div id="ctlResults" style="margin-top:12px"></div>' +
+        controllerCenterBox +
+        (isController
+          ? (controllerFixed
+              ? '<div style="margin-top:10px"><label class="fl">Buscar persona</label><input class="inp" id="ctlSearch" value="' + esc(CONTROL_ELECTORAL.search) + '" placeholder="Nombre, palabra clave del nombre o cédula..." oninput="filtrarControlElectoral()" autocomplete="off"></div>'
+              : '<div class="controller-lock" style="margin-top:10px"><div class="lock-title">Búsqueda bloqueada</div><div>Seleccione el centro electoral y pulse <b>Fijar</b> para habilitar la búsqueda y el control de asistencia.</div></div>')
+          : '') +
+        (controllerFixed || !isController ? '<div id="ctlResults" style="margin-top:12px"></div>' : '') +
       '</div></div>' +
 
       '<div class="grid g2">' +
@@ -3489,10 +3526,29 @@ function renderControlElectoral() {
       900
     );
 
-  filtrarControlElectoral();
+  if (controllerFixed || !isController) filtrarControlElectoral();
+}
+
+function fijarCentroControl() {
+  if (USER?.rol !== 'C') return;
+  const codigo = String($('ctlCentro')?.value || '').trim();
+  const centro = cenBy(codigo);
+  if (!centro) return toast('Seleccione un Centro Electoral válido', 'err');
+  CONTROL_ELECTORAL.centro = codigo;
+  CONTROL_ELECTORAL.search = '';
+  CONTROL_ELECTORAL.fixed = true;
+  renderControlElectoral();
+  toast('Centro Electoral fijado: ' + centro.nombre, 'ok', 5000);
 }
 
 function cambiarCentroControl(codigo) {
+  if (USER?.rol === 'C') {
+    if (CONTROL_ELECTORAL.fixed) return toast('El Centro Electoral ya está fijado para esta sesión', 'err');
+    CONTROL_ELECTORAL.centro = codigo;
+    CONTROL_ELECTORAL.search = '';
+    renderControlElectoral();
+    return;
+  }
   CONTROL_ELECTORAL.centro = codigo;
   CONTROL_ELECTORAL.search = '';
   renderControlElectoral();
