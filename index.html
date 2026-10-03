@@ -3427,11 +3427,6 @@ function renderControlElectoral() {
   // Brecha positiva = votos CNE por encima de los verificados del centro.
   const diffTotal = mesasCerradas ? totalActa - verificados.length : null;
 
-  const isController = USER?.rol === 'C';
-  const controllerFixed = !isController || CONTROL_ELECTORAL.fixed;
-  const centroOptions = CACHE.centros.map(x =>
-    '<option value="' + esc(x.codigo) + '" ' + (x.codigo === centro.codigo ? 'selected' : '') + '>' + esc(x.nombre) + '</option>'
-  ).join('');
   const controllerCenterBox = isController
     ? '<div class="controller-center-row">' +
         '<div><label class="fl">Centro electoral</label><select class="inp" id="ctlCentro" ' + (controllerFixed ? 'disabled' : '') + '>' + centroOptions + '</select></div>' +
