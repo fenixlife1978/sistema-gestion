@@ -38,7 +38,6 @@ module.exports=async function(req,res){
             schemaSql.includes('CHECK(rol IN ("J", "A", "O"))');
           const alreadyC=schemaSql.includes("'C'") || schemaSql.includes('"C"');
           if(legacyCheck && !alreadyC){
-            const schemaVer=Number(rowsFrom(await turso([{q:'PRAGMA schema_version',params:[]}]))[0]?.schema_version||0);
             await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
             await turso([{q:`UPDATE sqlite_master
               SET sql=replace(replace(replace(sql,
@@ -46,7 +45,6 @@ module.exports=async function(req,res){
                 'CHECK(rol IN (''J'', ''A'', ''O''))','CHECK(rol IN (''J'', ''A'', ''O'', ''C''))'),
                 'CHECK(rol IN ("J","A","O"))','CHECK(rol IN ("J","A","O","C"))')
               WHERE type='table' AND name='usuarios'`,params:[]}]);
-            await turso([{q:'PRAGMA schema_version='+String(schemaVer+1),params:[]}]);
             await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
           }
         }
