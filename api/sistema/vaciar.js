@@ -10,8 +10,6 @@ module.exports=async(req,res)=>{
   let u=rowsFrom(await turso([{q:'SELECT id FROM usuarios WHERE usuario=? LIMIT 1',params:['admin@comando.com']}]))[0];
   if(!u){await turso([{q:'INSERT INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:['admin@comando.com',modernHash('admin123'),'Administrador del Sistema','A','Administrador']}]);}
   u=rowsFrom(await turso([{q:'SELECT id FROM usuarios WHERE usuario=? LIMIT 1',params:['admin@comando.com']}]))[0];
-  const seeds=[['jefe','jefe123','Gualberto Martinez','J','Jefe de Comando'],['operador','operador123','Pedro Rivas','O','Operador de Sala'],['cdiaz','operador123','Carmen Díaz','O','Operadora Territorial']];
-  for(const [u0,p,n,r,c] of seeds)await turso([{q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:[u0,modernHash(p),n,r,c]}]);
   await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['sys','Sistema reiniciado por usuario #'+se.uid,u?.id||null]}]);
   return res.json({ok:true});
  }catch(e){console.error(e);return res.status(500).json({error:e.message||'No se pudo reiniciar el sistema'});}
