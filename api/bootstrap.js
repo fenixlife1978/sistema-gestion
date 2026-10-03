@@ -455,25 +455,20 @@ async function execSchema() {
     }
   }
 
-  // Migración de compatibilidad del nuevo rol Controlador. Las bases existentes
-  // pueden conservar el CHECK original de usuarios (J/A/O). CREATE TABLE IF NOT EXISTS
-  // no modifica una tabla existente, por lo que ampliamos únicamente su definición.
+  // Migración segura del rol Controlador para bases creadas con el CHECK J/A/O.
+  // Turso no permite writable_schema ni schema_version, por lo que se conserva
+  // la columna antigua como rol_legacy y se crea una columna rol nueva sin ese CHECK.
   const userSchemaRows=rowsFrom(await turso([{q:"SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios' LIMIT 1",params:[]}]));
   const userSchemaSql=String(userSchemaRows[0]?.sql||'');
   const legacyRoleCheck = userSchemaSql.includes("CHECK(rol IN ('J','A','O'))") ||
     userSchemaSql.includes("CHECK(rol IN ('J', 'A', 'O'))") ||
     userSchemaSql.includes('CHECK(rol IN ("J","A","O"))') ||
     userSchemaSql.includes('CHECK(rol IN ("J", "A", "O"))');
-  const hasControladorCheck = userSchemaSql.includes("'C'") || userSchemaSql.includes('"C"');
-  if(userSchemaSql && legacyRoleCheck && !hasControladorCheck){
-    await turso([{q:'PRAGMA writable_schema=ON',params:[]}]);
-    await turso([{q:`UPDATE sqlite_master
-      SET sql=replace(replace(replace(sql,
-        'CHECK(rol IN (''J'',''A'',''O''))','CHECK(rol IN (''J'',''A'',''O'',''C''))'),
-        'CHECK(rol IN (''J'', ''A'', ''O''))','CHECK(rol IN (''J'', ''A'', ''O'', ''C''))'),
-        'CHECK(rol IN ("J","A","O"))','CHECK(rol IN ("J","A","O","C"))')
-      WHERE type='table' AND name='usuarios'`,params:[]}]);
-    await turso([{q:'PRAGMA writable_schema=OFF',params:[]}]);
+  const alreadyMigrated = userSchemaSql.includes('rol_legacy') && /\\brol\\s+TEXT\\s+NOT NULL/.test(userSchemaSql);
+  if(userSchemaSql && legacyRoleCheck && !alreadyMigrated){
+    await turso([{q:'ALTER TABLE usuarios RENAME COLUMN rol TO rol_legacy',params:[]}]);
+    await turso([{q:"ALTER TABLE usuarios ADD COLUMN rol TEXT NOT NULL DEFAULT 'O'",params:[]}]);
+    await turso([{q:'UPDATE usuarios SET rol=rol_legacy',params:[]}]);
   }
 
   const warnings=[];
