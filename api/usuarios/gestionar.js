@@ -19,7 +19,7 @@ module.exports=async function(req,res){
         if(target.rol==='J' && rol!=='J' && target.activo){const nJ=Number(rowsFrom(await turso([{q:'SELECT COUNT(*) n FROM usuarios WHERE activo=1 AND rol=\'J\'',params:[]}]))[0]?.n||0);if(nJ<=1)return res.status(409).json({error:'No puede retirar el último Jefe activo'});}
         if(target.rol==='A' && rol!=='A' && target.activo){const nA=Number(rowsFrom(await turso([{q:'SELECT COUNT(*) n FROM usuarios WHERE activo=1 AND rol=\'A\'',params:[]}]))[0]?.n||0);if(nA<=1)return res.status(409).json({error:'No puede retirar el último Administrador activo'});}
         if(clave){
-          await turso([{q:'UPDATE usuarios SET nombre=?,rol=?,rol_legacy=?,cargo=?,telefono=?,clave_hash=? WHERE id=?',params:[nombre,rol,cargo,telefono,modernHash(clave),id]}]);
+          await turso([{q:'UPDATE usuarios SET nombre=?,rol=?,rol_legacy=?,cargo=?,telefono=?,clave_hash=? WHERE id=?',params:[nombre,rol,rol==='C'?'O':rol,cargo,telefono,modernHash(clave),id]}]);
         }else{
           await turso([{q:'UPDATE usuarios SET nombre=?,rol=?,rol_legacy=?,cargo=?,telefono=? WHERE id=?',params:[nombre,rol,rol==='C'?'O':rol,cargo,telefono,id]}]);
         }
