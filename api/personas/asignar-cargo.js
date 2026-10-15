@@ -35,6 +35,14 @@ module.exports=async function(req,res){
       if(row) roles.push({tipo:roleNames[i],id:row.id,cargo:row.cargo,centro_codigo:row.centro_codigo});
     }
     const padronRows=rowsFrom(await turso([{q:'SELECT cedula,centro_votacion FROM padron WHERE cedula=? LIMIT 1',params:[cedula]}]));
+    // Los cargos de centro solo pueden asignarse a personas cuyo código de
+    // centro electoral en el padrón CNE coincida exactamente con el destino.
+    if(tipo==='centro'){
+      const centroPadron=String(padronRows[0]?.centro_votacion||padron?.cvCod||padron?.centro_votacion||'').trim();
+      if(!padronRows.length || !centroPadron || centroPadron!==centro){
+        return fail(res,409,'Está persona no Pertenece al padrón CNE de este Centro');
+      }
+    }
     const destino=tipo==='direccion'?'DIRECCIÓN EJECUTIVA':'CARGO DE CENTRO';
     const conflicts=roles.map(x=>String(x.tipo||'')).filter(Boolean);
     const sameTarget=roles.some(x=>
