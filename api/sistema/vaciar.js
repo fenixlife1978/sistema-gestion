@@ -4,13 +4,15 @@ module.exports=async(req,res)=>{
  const se=verify(getCookie(req,'erp_session')); if(!se||!['J','A'].includes(se.rol))return res.status(403).json({error:'Se requiere autorización J/A'});
  const b=parseBody(req); if(String(b.confirm||'')!=='VACIAR_SISTEMA')return res.status(400).json({error:'Confirmación requerida'});
  try{
-  const tables=['comite_problemas','mesa_maquina_historial','mesa_miembros','cortes_electorales','verificaciones_votacion','actas_mesa','mesa_operativa','autorizaciones_duplicidad_persona','comite_vecinal','direccion_ejecutiva','centro_cargos','asignaciones','reclutadores','actividad','padron','centros'];
+  // El reinicio limpia los datos operativos, pero nunca elimina el padrón CNE
+  // ni los centros importados: ambos son datos maestros persistentes.
+  const tables=['comite_problemas','mesa_maquina_historial','mesa_miembros','cortes_electorales','verificaciones_votacion','actas_mesa','mesa_operativa','autorizaciones_duplicidad_persona','comite_vecinal','direccion_ejecutiva','centro_cargos','asignaciones','reclutadores','actividad'];
   for(const t of tables)await turso([{q:'DELETE FROM '+t}]);
   await turso([{q:'DELETE FROM usuarios WHERE usuario != ?',params:['admin@comando.com']}]);
   let u=rowsFrom(await turso([{q:'SELECT id FROM usuarios WHERE usuario=? LIMIT 1',params:['admin@comando.com']}]))[0];
   if(!u){await turso([{q:'INSERT INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',params:['admin@comando.com',modernHash('admin123'),'Administrador del Sistema','A','Administrador']}]);}
   u=rowsFrom(await turso([{q:'SELECT id FROM usuarios WHERE usuario=? LIMIT 1',params:['admin@comando.com']}]))[0];
-  await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['sys','Sistema reiniciado por usuario #'+se.uid,u?.id||null]}]);
-  return res.json({ok:true});
+  await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['sys','Sistema reiniciado por usuario #'+se.uid+'; padrón CNE y centros conservados',u?.id||null]}]);
+  return res.json({ok:true,padron_preservado:true,centros_preservados:true});
  }catch(e){console.error(e);return res.status(500).json({error:e.message||'No se pudo reiniciar el sistema'});}
 };
