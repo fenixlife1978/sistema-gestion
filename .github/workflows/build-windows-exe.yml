@@ -11,7 +11,7 @@ on:
       - '.github/workflows/build-windows-exe.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows:
@@ -32,10 +32,11 @@ jobs:
       - name: Build Windows installer
         run: npm run dist:win
 
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
+      - name: Publish installer as a GitHub Release asset
+        uses: softprops/action-gh-release@v2
         with:
-          name: sistema-gestion-electoral-windows-x64
-          path: dist/*.exe
-          if-no-files-found: error
-          retention-days: 14
+          tag_name: exe-build-${{ github.run_number }}
+          name: Sistema de Gestión Electoral - Compilación ${{ github.run_number }}
+          body: Instalador de Windows x64 generado automáticamente desde main. Compilación ${{ github.sha }}.
+          prerelease: true
+          files: dist/*.exe
