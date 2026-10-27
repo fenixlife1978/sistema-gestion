@@ -10,7 +10,7 @@ let syncInFlight = false;
 let offlinePageLoaded = false;
 
 function isOnline() {
-  return Boolean(app.isOnline());
+  return Boolean(net.isOnline());
 }
 
 async function syncPending() {
