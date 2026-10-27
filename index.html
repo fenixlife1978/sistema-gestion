@@ -291,12 +291,12 @@ async function turso(stmts) {
     if(j.error){const msg=typeof j.error==='string'?j.error:(j.error.message||'Error Turso');throw new Error(msg);}
     if(Array.isArray(j)){const errItem=j.find(item=>item&&item.error);if(errItem){const msg=typeof errItem.error==='string'?errItem.error:(errItem.error.message||'Error Turso');throw new Error(msg);}}
     // Solo se cachean SELECT confirmados; la caché nunca se usa como autoridad de escritura.
-    if(window.desktopBridge && normalized.every(s=>/^SELECT\\b/i.test(String(s.q||'').trim()))){
+    if(window.desktopBridge && normalized.every(s=>/^SELECT\b/i.test(String(s.q||'').trim()))){
       await window.desktopBridge.setCached(cacheKey,{array:Array.isArray(j),value:j});
     }
     return Array.isArray(stmts)?j:j[0];
   } catch(error) {
-    if(window.desktopBridge && normalized.every(s=>/^SELECT\\b/i.test(String(s.q||'').trim()))){
+    if(window.desktopBridge && normalized.every(s=>/^SELECT\b/i.test(String(s.q||'').trim()))){
       const cached=await window.desktopBridge.getCached(cacheKey).catch(()=>null);
       if(cached?.value?.value!==undefined){
         const saved=cached.value.value;
