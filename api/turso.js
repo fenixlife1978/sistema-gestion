@@ -34,6 +34,14 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Rol de sesión no permitido' });
     }
 
+    const activeUser = rowsFrom(await turso([{
+      q:'SELECT id,usuario,rol,activo FROM usuarios WHERE id=? LIMIT 1',
+      params:[session.uid]
+    }]))[0];
+    if (!activeUser || Number(activeUser.activo)!==1 || activeUser.usuario!==session.usuario || activeUser.rol!==session.rol) {
+      return res.status(401).json({ error: 'La sesión fue revocada o el usuario está inactivo' });
+    }
+
     let body = req.body || {};
     if (typeof body === 'string') {
       try { body = JSON.parse(body); } catch(e) {}
