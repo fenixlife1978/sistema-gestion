@@ -56,11 +56,17 @@ module.exports = async function handler(req, res) {
     // Las mutaciones pasan por endpoints de negocio autenticados y nunca deben
     // exponerse como SQL arbitrario desde el navegador.
     const readonly = stmts.every(({ q }) => {
-      const normalized = q.trim().replace(/^\uFEFF/, '');
-      return /^(SELECT|PRAGMA)\b/i.test(normalized);
+      const normalized = q.trim().replace(/^\\uFEFF/, '');
+      // Solo una consulta SELECT por sentencia; no exponer metadatos ni secretos.
+      if (!/^SELECT\\b/i.test(normalized)) return false;
+      if (/[;]|--|\\/\\*|\\*\\//.test(normalized)) return false;
+      if (/\\b(PRAGMA|ATTACH|DETACH|VACUUM|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|LOAD_EXTENSION)\\b/i.test(normalized)) return false;
+      if (/\\b(sqlite_master|sqlite_schema|clave_hash|session_secret|desktop_sync_events)\\b/i.test(normalized)) return false;
+      if (/SELECT\\s+\\*\\s+FROM\\s+usuarios\\b/i.test(normalized)) return false;
+      return true;
     });
     if (!readonly) {
-      return res.status(403).json({ error: 'El proxy Turso solo permite consultas de lectura' });
+      return res.status(403).json({ error: 'Consulta no permitida por el proxy de solo lectura' });
     }
 
     // Usar exactamente el mismo cliente Turso que las demás rutas del sistema.
