@@ -272,6 +272,12 @@ body.controller-mode #tabs .tab svg{width:20px;height:20px}
 <script>
 /* ----------- CLIENTE TURSO (vía API proxy) ----------- */
 const API_URL = '/api/turso';
+function showDesktopOfflineBanner(){
+  if(!window.desktopBridge||!document.body)return;
+  let b=document.getElementById('desktopOfflineBanner');
+  if(!b){b=document.createElement('div');b.id='desktopOfflineBanner';b.textContent='SIN CONEXIÓN · Se muestran datos guardados en este equipo. Las escrituras requieren confirmación de sincronización.';b.style.cssText='position:sticky;top:0;z-index:99999;padding:9px 14px;background:#fff3cd;color:#754c00;border-bottom:1px solid #e5c76b;font-weight:700;text-align:center';document.body.prepend(b);}
+}
+function hideDesktopOfflineBanner(){document.getElementById('desktopOfflineBanner')?.remove();}
 const desktopCacheKey = value => {
   let h=2166136261; const s=String(value);
   for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
@@ -292,14 +298,16 @@ async function turso(stmts) {
     if(Array.isArray(j)){const errItem=j.find(item=>item&&item.error);if(errItem){const msg=typeof errItem.error==='string'?errItem.error:(errItem.error.message||'Error Turso');throw new Error(msg);}}
     // Solo se cachean SELECT confirmados; la caché nunca se usa como autoridad de escritura.
     if(window.desktopBridge && normalized.every(s=>/^SELECT\b/i.test(String(s.q||'').trim()))){
-      await window.desktopBridge.setCached(cacheKey,{array:Array.isArray(j),value:j});
+      await window.desktopBridge.setCached(cacheKey,{array:Array.isArray(j),value:j}).catch(()=>{});
     }
+    hideDesktopOfflineBanner();
     return Array.isArray(stmts)?j:j[0];
   } catch(error) {
     if(window.desktopBridge && normalized.every(s=>/^SELECT\b/i.test(String(s.q||'').trim()))){
       const cached=await window.desktopBridge.getCached(cacheKey).catch(()=>null);
       if(cached?.value?.value!==undefined){
         const saved=cached.value.value;
+        showDesktopOfflineBanner();
         return Array.isArray(stmts)?saved:(Array.isArray(saved)?saved[0]:saved);
       }
     }
