@@ -3624,6 +3624,7 @@ async function guardarVerificacion(cedula) {
   const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
   if(!persona) return toast('La persona no aparece en el padrón CNE del centro seleccionado', 'err');
 
+  let serverConfirmed=false;
   try {
     const r=await fetch('/api/verificaciones', {
       method:'POST',
@@ -3637,7 +3638,8 @@ async function guardarVerificacion(cedula) {
     });
     let data={};
     try{data=await r.json()}catch(e){}
-    if(!r.ok) return toast(data.error||'No se pudo guardar la verificación','err',8000);
+    if(!r.ok){if(r.status>=500)throw new Error(data.error||'Servidor no disponible');return toast(data.error||'No se pudo guardar la verificación','err',8000);}
+    serverConfirmed=true;
 
     await refreshAll();
     closeModal();
@@ -3647,7 +3649,7 @@ async function guardarVerificacion(cedula) {
   } catch(e) {
     // En escritorio, si el servidor no responde, persistir la operación en SQLite.
     // El estado queda explícitamente pendiente hasta la confirmación del servidor.
-    if(window.desktopBridge){
+    if(window.desktopBridge&&!serverConfirmed){
       try{
         await window.desktopBridge.enqueue({type:'verificacion',payload:{cedula:normC(cedula),centro_codigo:String(centro.codigo),mesa}});
         closeModal();
@@ -4050,14 +4052,16 @@ async function guardarObservacionMesa(codigo,mesa) {
 async function guardarActaDesdeMesa(codigo,mesa) {
   const val=Number($('mesaActaCierreVotos')?.value);
   if(!Number.isInteger(val)||val<0) return toast('Ingrese una cantidad válida de votos','err');
+  let serverConfirmed=false;
   try {
     const rr=await fetch('/api/actas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({centro_codigo:String(codigo),centro_nombre:(cenBy(codigo)||{}).nombre||'',mesa:String(mesa),votos_partido:val})});
     const d=await rr.json().catch(()=>({}));
-    if(!rr.ok) return toast(d.error||'No se pudo guardar el Acta CNE','err',8000);
+    if(!rr.ok){if(rr.status>=500)throw new Error(d.error||'Servidor no disponible');return toast(d.error||'No se pudo guardar el Acta CNE','err',8000);}
+    serverConfirmed=true;
     await refreshAll(); abrirMesaCierre(codigo,mesa); toast('Acta CNE guardada','ok');
   } catch(e) {
     // La operación solo se encola si falló la petición de red; nunca se marca como confirmada.
-    if(window.desktopBridge){
+    if(window.desktopBridge&&!serverConfirmed){
       try{
         await window.desktopBridge.enqueue({type:'acta',payload:{centro_codigo:String(codigo),mesa:String(mesa),votos_partido:val}});
         closeModal();
