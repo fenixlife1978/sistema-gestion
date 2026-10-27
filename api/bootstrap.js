@@ -530,12 +530,16 @@ async function execSchema() {
 
   const users=rowsFrom(await turso([{q:'SELECT COUNT(*) AS n FROM usuarios',params:[]}]));
   if(Number(users[0]?.n||0)===0){
-    // Único acceso inicial: un administrador semilla. Los demás usuarios
-    // administrativos/operativos deben ser creados desde Gestión de Usuarios.
-    // El administrador semilla puede eliminarse después de crear otro A activo.
+    // No crear credenciales públicas/conocidas. El administrador inicial debe
+    // definirse por el operador del despliegue mediante un secreto temporal.
+    const initialPassword=String(process.env.INITIAL_ADMIN_PASSWORD||'');
+    const initialUser=String(process.env.INITIAL_ADMIN_USER||'').trim();
+    if(!initialUser || initialUser.length>120 || initialPassword.length<16){
+      throw new Error('Base sin usuarios: configure INITIAL_ADMIN_USER e INITIAL_ADMIN_PASSWORD (mínimo 16 caracteres) para el primer acceso seguro.');
+    }
     await turso([{
       q:'INSERT OR IGNORE INTO usuarios(usuario,clave_hash,nombre,rol,cargo) VALUES(?,?,?,?,?)',
-      params:['admin@comando.com',modernHash('admin123'),'Administrador del Sistema','A','Administrador']
+      params:[initialUser,modernHash(initialPassword),'Administrador del Sistema','A','Administrador']
     }]);
   }
   await turso([{q:"INSERT OR REPLACE INTO erp_bootstrap_meta(id,version) VALUES(1,?)",params:[BOOTSTRAP_VERSION]}]);
