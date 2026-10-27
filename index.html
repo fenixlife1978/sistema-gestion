@@ -3645,6 +3645,16 @@ async function guardarVerificacion(cedula) {
     renderControlElectoral();
     toast('Asistencia verificada • VOTÓ • Mesa '+mesa,'ok',6000);
   } catch(e) {
+    // En escritorio, si el servidor no responde, persistir la operación en SQLite.
+    // El estado queda explícitamente pendiente hasta la confirmación del servidor.
+    if(window.desktopBridge){
+      try{
+        await window.desktopBridge.enqueue({type:'verificacion',payload:{cedula:normC(cedula),centro_codigo:String(centro.codigo),mesa}});
+        closeModal();
+        toast('Verificación guardada en este equipo. Pendiente de sincronización y validación del servidor.','warn',9000);
+        return;
+      }catch(queueError){console.error('No se pudo guardar en la cola local',queueError);}
+    }
     console.error(e);
     toast('No se pudo guardar la verificación: '+e.message,'err',8000);
   }
@@ -4045,7 +4055,18 @@ async function guardarActaDesdeMesa(codigo,mesa) {
     const d=await rr.json().catch(()=>({}));
     if(!rr.ok) return toast(d.error||'No se pudo guardar el Acta CNE','err',8000);
     await refreshAll(); abrirMesaCierre(codigo,mesa); toast('Acta CNE guardada','ok');
-  } catch(e) { toast('Error guardando Acta: '+e.message,'err',8000); }
+  } catch(e) {
+    // La operación solo se encola si falló la petición de red; nunca se marca como confirmada.
+    if(window.desktopBridge){
+      try{
+        await window.desktopBridge.enqueue({type:'acta',payload:{centro_codigo:String(codigo),mesa:String(mesa),votos_partido:val}});
+        closeModal();
+        toast('Acta guardada en este equipo. Pendiente de sincronización; no cierre la mesa hasta confirmar el envío.','warn',9000);
+        return;
+      }catch(queueError){console.error('No se pudo guardar el acta en la cola local',queueError);}
+    }
+    toast('Error guardando Acta: '+e.message,'err',8000);
+  }
 }
 async function cerrarMesa(codigo,mesa) {
   const mo=mesaOperativa(codigo,mesa);
