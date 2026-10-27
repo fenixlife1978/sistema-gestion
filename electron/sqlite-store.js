@@ -40,6 +40,8 @@ function openStore(userDataPath) {
     VALUES(@event_id,@event_type,@payload_json,'pending',@now,@now)`);
   const list = db.prepare(`SELECT event_id,event_type,payload_json,status,attempts,created_at,last_error
     FROM desktop_outbox WHERE status IN ('pending','failed','conflict') ORDER BY created_at LIMIT 500`);
+  const listSyncable = db.prepare(`SELECT event_id,event_type,payload_json,status,attempts,created_at,last_error
+    FROM desktop_outbox WHERE status IN ('pending','failed') ORDER BY created_at LIMIT 25`);
   const update = db.prepare(`UPDATE desktop_outbox SET status=@status,attempts=attempts+@attempt,
     updated_at=@now,last_error=@error WHERE event_id=@id`);
   return {
@@ -56,6 +58,9 @@ function openStore(userDataPath) {
     },
     listEvents() {
       return list.all().map(row => ({...row, payload: JSON.parse(row.payload_json)}));
+    },
+    listSyncableEvents() {
+      return listSyncable.all().map(row => ({...row, payload: JSON.parse(row.payload_json)}));
     },
     setEventStatus(id, status, error = null) {
       if (!['pending','syncing','synced','conflict','failed'].includes(status)) throw new Error('Estado de sincronización inválido');
