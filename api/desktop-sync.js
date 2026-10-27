@@ -30,7 +30,10 @@ module.exports=async function handler(req,res){
       if(!/^[a-zA-Z0-9_-]{12,100}$/.test(eventId)||!['verificacion','acta'].includes(type)){
         results.push({event_id:eventId||null,status:'failed',error:'Identificador o tipo de operación inválido'});continue;
       }
-      const previous=rowsFrom(await turso([{q:'SELECT status,result_json FROM desktop_sync_events WHERE event_id=? LIMIT 1',params:[eventId]}]))[0];
+      const previous=rowsFrom(await turso([{q:'SELECT status,result_json,actor_id,event_type FROM desktop_sync_events WHERE event_id=? LIMIT 1',params:[eventId]}]))[0];
+      if(previous && (Number(previous.actor_id)!==Number(actor.id) || previous.event_type!==type)){
+        results.push({event_id:eventId,status:'failed',error:'El identificador ya pertenece a otra operación o usuario'});continue;
+      }
       if(previous?.status==='applied'){
         results.push({event_id:eventId,status:'synced',duplicate:true,result:previous.result_json?JSON.parse(previous.result_json):null});continue;
       }
