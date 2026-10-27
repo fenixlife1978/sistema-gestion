@@ -77,6 +77,7 @@ function createWindow() {
 
 ipcMain.handle('desktop:status', async () => ({
   online:isOnline(), pending:store ? store.pendingCount() : 0,
+  queue:store ? store.queueSummary() : {pending:0,failed:0,conflict:0,syncing:0,toSync:0,totalUnresolved:0},
   mode:mainWindow && mainWindow.webContents.getURL().startsWith('file://')?'offline-fallback':'web'
 }));
 ipcMain.handle('desktop:queue:list', () => store ? store.listEvents().map(x=>({
