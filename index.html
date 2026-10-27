@@ -278,14 +278,13 @@ function showDesktopOfflineBanner(){
   if(!b){b=document.createElement('div');b.id='desktopOfflineBanner';b.textContent='SIN CONEXIÓN · Se muestran datos guardados en este equipo. Las escrituras requieren confirmación de sincronización.';b.style.cssText='position:sticky;top:0;z-index:99999;padding:9px 14px;background:#fff3cd;color:#754c00;border-bottom:1px solid #e5c76b;font-weight:700;text-align:center';document.body.prepend(b);}
 }
 function hideDesktopOfflineBanner(){document.getElementById('desktopOfflineBanner')?.remove();}
-const desktopCacheKey = value => {
-  let h=2166136261; const s=String(value);
-  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
-  return 'sqlcache:'+ (h>>>0).toString(16);
-};
+async function desktopCacheKey(value){
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(value)));
+  return 'sqlcache:'+Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 async function turso(stmts) {
   const normalized = Array.isArray(stmts) ? stmts.map(s => ({ q:s.sql||s.q, params:s.args||s.params||[] })) : [{q:stmts.sql||stmts.q,params:stmts.args||stmts.params||[]}];
-  const cacheKey=desktopCacheKey(JSON.stringify(normalized));
+  const cacheKey=await desktopCacheKey(JSON.stringify(normalized));
   try {
     const r = await fetch(API_URL, {
       method:'POST', credentials:'include',
