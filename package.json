@@ -40,5 +40,8 @@
       "shortcutName": "Sistema de Gestión Electoral"
     },
     "asar": true
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.2.0"
   }
 }
