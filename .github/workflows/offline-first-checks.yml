@@ -1,16 +1,6 @@
 name: Offline-first desktop checks
 
 on:
-  push:
-    branches:
-      - offline-first-hardening
-    paths:
-      - 'electron/**'
-      - 'api/**'
-      - 'lib/**'
-      - 'index.html'
-      - 'package.json'
-      - '.github/workflows/offline-first-checks.yml'
   workflow_dispatch:
 
 permissions:
