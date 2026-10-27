@@ -300,7 +300,7 @@ async function turso(stmts) {
       const cached=await window.desktopBridge.getCached(cacheKey).catch(()=>null);
       if(cached?.value?.value!==undefined){
         const saved=cached.value.value;
-        return Array.isArray(stmts)?saved:saved[0];
+        return Array.isArray(stmts)?saved:(Array.isArray(saved)?saved[0]:saved);
       }
     }
     throw error;
