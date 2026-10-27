@@ -56,13 +56,13 @@ module.exports = async function handler(req, res) {
     // Las mutaciones pasan por endpoints de negocio autenticados y nunca deben
     // exponerse como SQL arbitrario desde el navegador.
     const readonly = stmts.every(({ q }) => {
-      const normalized = q.trim().replace(/^\\uFEFF/, '');
+      const normalized = q.trim().replace(/^\uFEFF/, '');
       // Solo una consulta SELECT por sentencia; no exponer metadatos ni secretos.
-      if (!/^SELECT\\b/i.test(normalized)) return false;
-      if (/[;]|--|\\/\\*|\\*\\//.test(normalized)) return false;
-      if (/\\b(PRAGMA|ATTACH|DETACH|VACUUM|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|LOAD_EXTENSION)\\b/i.test(normalized)) return false;
-      if (/\\b(sqlite_master|sqlite_schema|clave_hash|session_secret|desktop_sync_events)\\b/i.test(normalized)) return false;
-      if (/SELECT\\s+\\*\\s+FROM\\s+usuarios\\b/i.test(normalized)) return false;
+      if (!/^SELECT\b/i.test(normalized)) return false;
+      if (/[;]|--|\/\*|\*\//.test(normalized)) return false;
+      if (/\b(PRAGMA|ATTACH|DETACH|VACUUM|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|LOAD_EXTENSION)\b/i.test(normalized)) return false;
+      if (/\b(sqlite_master|sqlite_schema|clave_hash|session_secret|desktop_sync_events)\b/i.test(normalized)) return false;
+      if (/SELECT\s+\*\s+FROM\s+usuarios\b/i.test(normalized)) return false;
       return true;
     });
     if (!readonly) {
