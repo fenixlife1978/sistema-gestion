@@ -272,30 +272,39 @@ body.controller-mode #tabs .tab svg{width:20px;height:20px}
 <script>
 /* ----------- CLIENTE TURSO (vía API proxy) ----------- */
 const API_URL = '/api/turso';
+const desktopCacheKey = value => {
+  let h=2166136261; const s=String(value);
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
+  return 'sqlcache:'+ (h>>>0).toString(16);
+};
 async function turso(stmts) {
-  const r = await fetch(API_URL, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ statements: Array.isArray(stmts) ? stmts.map(s => ({ q: s.sql || s.q, params: s.args || s.params || [] })) : [{ q: stmts.sql || stmts.q, params: stmts.args || stmts.params || [] }] })
-  });
-  if (!r.ok) {
-    const txt = await r.text();
-    throw new Error('HTTP ' + r.status + ': ' + txt);
-  }
-  const j = await r.json();
-  if (j.error) {
-    const errMsg = typeof j.error === 'string' ? j.error : (j.error.message || 'Error Turso');
-    throw new Error(errMsg);
-  }
-  if (Array.isArray(j)) {
-    const errItem = j.find(item => item && item.error);
-    if (errItem) {
-      const msg = typeof errItem.error === 'string' ? errItem.error : (errItem.error.message || 'Error Turso');
-      throw new Error(msg);
+  const normalized = Array.isArray(stmts) ? stmts.map(s => ({ q:s.sql||s.q, params:s.args||s.params||[] })) : [{q:stmts.sql||stmts.q,params:stmts.args||stmts.params||[]}];
+  const cacheKey=desktopCacheKey(JSON.stringify(normalized));
+  try {
+    const r = await fetch(API_URL, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({statements:normalized})
+    });
+    if (!r.ok) { const txt=await r.text(); throw new Error('HTTP '+r.status+': '+txt); }
+    const j=await r.json();
+    if(j.error){const msg=typeof j.error==='string'?j.error:(j.error.message||'Error Turso');throw new Error(msg);}
+    if(Array.isArray(j)){const errItem=j.find(item=>item&&item.error);if(errItem){const msg=typeof errItem.error==='string'?errItem.error:(errItem.error.message||'Error Turso');throw new Error(msg);}}
+    // Solo se cachean SELECT confirmados; la caché nunca se usa como autoridad de escritura.
+    if(window.desktopBridge && normalized.every(s=>/^SELECT\\b/i.test(String(s.q||'').trim()))){
+      await window.desktopBridge.setCached(cacheKey,{array:Array.isArray(j),value:j});
     }
+    return Array.isArray(stmts)?j:j[0];
+  } catch(error) {
+    if(window.desktopBridge && normalized.every(s=>/^SELECT\\b/i.test(String(s.q||'').trim()))){
+      const cached=await window.desktopBridge.getCached(cacheKey).catch(()=>null);
+      if(cached?.value?.value!==undefined){
+        const saved=cached.value.value;
+        return Array.isArray(stmts)?saved:saved[0];
+      }
+    }
+    throw error;
   }
-  return Array.isArray(stmts) ? j : j[0];
 }
 async function q(sql, args = []) {
   const r = await turso({ sql, args });
