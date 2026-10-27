@@ -14,10 +14,12 @@ El cliente Electron usa el servidor en tiempo real cuando hay conexión, pero co
 ## Estados
 - `pending`: guardado en SQLite, aún no enviado.
 - `failed`: intento de envío fallido; se reintenta.
+- `syncing`: reservado para indicar un envío en curso.
+- `conflict`: se conserva localmente y se excluye del reintento automático para que no bloquee otros eventos; debe resolverse manualmente.
 - `synced`: el servidor confirmó la operación.
 - `conflict`: el servidor rechazó la operación por conflicto; requiere resolución, no se sobrescribe automáticamente.
 
-Una operación local no debe mostrarse como confirmada por el servidor hasta que su estado sea `synced`. El servidor usa `event_id` para reconocer reintentos. Las actas con resultados distintos para la misma mesa se ponen en conflicto y no se sobrescriben.
+Una operación local no debe mostrarse como confirmada por el servidor hasta que su estado sea `synced`. El servidor usa `event_id` para reconocer reintentos y verifica que la clave corresponda al mismo usuario y tipo de operación. Los conflictos se cuentan por separado y no deben impedir el envío de eventos posteriores.
 
 ## Primer administrador
 La inicialización ya no debe crear `admin@comando.com / admin123`. Si una base está vacía, el operador debe configurar temporalmente `INITIAL_ADMIN_USER` y `INITIAL_ADMIN_PASSWORD` (mínimo 16 caracteres) para inicializar el primer acceso. No publicar ni registrar estos secretos. En una base existente con usuarios, esta configuración no es necesaria.
