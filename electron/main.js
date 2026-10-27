@@ -17,7 +17,7 @@ async function syncPending() {
   if (syncInFlight || !isOnline() || !store) return { ok:false, message:'Sin conexión; las operaciones permanecen guardadas localmente.' };
   syncInFlight = true;
   try {
-    const pending = store.listEvents().filter(x => ['pending','failed'].includes(x.status)).slice(0, 25);
+    const pending = store.listSyncableEvents();
     if (!pending.length) return { ok:true, message:'No hay operaciones pendientes.' };
     const cookies = await session.defaultSession.cookies.get({ url: PRODUCTION_URL, name:'erp_session' });
     if (!cookies.length) return { ok:false, message:'Conéctese e inicie sesión en el sistema para autorizar la sincronización.' };
