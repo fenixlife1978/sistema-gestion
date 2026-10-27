@@ -71,6 +71,7 @@ module.exports = async function handler(req, res) {
       if (/\b(PRAGMA|ATTACH|DETACH|VACUUM|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|LOAD_EXTENSION)\b/i.test(normalized)) return false;
       if (/\b(sqlite_master|sqlite_schema|clave_hash|session_secret|desktop_sync_events)\b/i.test(normalized)) return false;
       if (/SELECT\s+\*\s+FROM\s+usuarios\b/i.test(normalized)) return false;
+      if (/\busuarios\b/i.test(normalized) && /\*/.test(normalized)) return false;
       return true;
     });
     if (!readonly) {
