@@ -677,7 +677,7 @@ async function refreshAll(skipPadron = false) {
     { q: 'SELECT * FROM centros ORDER BY nombre' },
     { q: 'SELECT * FROM reclutadores ORDER BY creado DESC' },
     { q: 'SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100' },
-    { q: 'SELECT * FROM usuarios ORDER BY rol, nombre' },
+    { q: 'SELECT id, usuario, nombre, rol, cargo, telefono, activo, creado FROM usuarios ORDER BY rol, nombre' },
     { q: 'SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id' },
     { q: 'SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, d.numero_calle, d.numero_casa, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC' },
     { q: 'SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC' },
