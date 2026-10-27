@@ -45,6 +45,7 @@ function openStore(userDataPath) {
   return {
     addEvent(event) {
       const event_id = String(event.event_id || crypto.randomUUID());
+      if (!/^[a-zA-Z0-9_-]{12,100}$/.test(event_id)) throw new Error('Identificador de operación inválido');
       const event_type = String(event.type || '');
       if (!['verificacion','acta'].includes(event_type)) throw new Error('Tipo de operación no permitido para sincronización');
       if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) throw new Error('Datos de operación inválidos');
@@ -63,6 +64,14 @@ function openStore(userDataPath) {
     pendingCount() {
       return db.prepare("SELECT COUNT(*) AS n FROM desktop_outbox WHERE status IN ('pending','failed')").get().n;
     },
+    queueSummary() {
+      const rows = db.prepare("SELECT status,COUNT(*) AS n FROM desktop_outbox WHERE status IN ('pending','failed','conflict','syncing') GROUP BY status").all();
+      const summary = { pending:0, failed:0, conflict:0, syncing:0 };
+      for (const row of rows) summary[row.status] = row.n;
+      summary.toSync = summary.pending + summary.failed;
+      summary.totalUnresolved = summary.toSync + summary.conflict + summary.syncing;
+      return summary;
+    },
     setCache(key, value) {
       if (!/^[a-zA-Z0-9._:-]{1,120}$/.test(String(key))) throw new Error('Clave de caché inválida');
       db.prepare(`INSERT INTO desktop_cache(cache_key,value_json,updated_at) VALUES(?,?,?)
@@ -71,6 +80,7 @@ function openStore(userDataPath) {
       return true;
     },
     getCache(key) {
+      if (!/^[a-zA-Z0-9._:-]{1,120}$/.test(String(key))) return null;
       const row = db.prepare('SELECT value_json,updated_at FROM desktop_cache WHERE cache_key=?').get(String(key));
       return row ? { value: JSON.parse(row.value_json), updated_at: row.updated_at } : null;
     },
