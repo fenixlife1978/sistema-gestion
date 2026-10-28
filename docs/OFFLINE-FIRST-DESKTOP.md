@@ -1,29 +1,65 @@
 # Escritorio offline-first — sistema-gestion
 
-## Objetivo
-El cliente Electron usa el servidor en tiempo real cuando hay conexión, pero conserva una base SQLite local para caché de lecturas y una cola duradera de operaciones cuando la red falla. SQLite local permite continuidad operativa; no reemplaza la validación final del servidor.
+## Objetivo y autoridad de datos
+
+La aplicación Electron utiliza el servidor cuando hay conexión y mantiene SQLite local para la caché de lecturas confirmadas y una cola duradera de operaciones admitidas durante una caída de red. SQLite permite continuidad local, pero **no reemplaza la validación del servidor ni convierte una operación pendiente en confirmada**.
 
 ## Componentes
-- `electron/sqlite-store.js`: SQLite en el directorio de datos del usuario, WAL, cola duradera y caché de lecturas confirmadas.
-- `electron/preload.js`: API IPC limitada para consultar estado, leer cola, encolar operaciones y solicitar sincronización.
-- `electron/main.js`: fallback local cuando no carga el sitio remoto y reintentos de sincronización en segundo plano.
-- `electron/offline.html`: pantalla de contingencia para registrar verificaciones y actas mientras no haya conexión.
-- `api/desktop-sync.js`: valida sesión activa y roles, reclama cada evento con token temporal para evitar procesamiento concurrente del mismo identificador, recupera reclamaciones abandonadas después de dos minutos y devuelve conflictos.
-- `tests/offline-store.test.js`: pruebas automatizadas de persistencia SQLite, deduplicación local, separación de conflictos y caché.
-- `index.html`: almacena en SQLite los resultados SELECT que ya confirmó el servidor y los reutiliza como caché si falla la red. Los SELECT cacheados nunca se usan como autoridad para escrituras.
 
-## Estados
-- `pending`: guardado en SQLite, aún no enviado.
-- `failed`: intento de envío fallido; se reintenta.
-- `syncing`: reservado para indicar un envío en curso.
-- `conflict`: se conserva localmente y se excluye del reintento automático para que no bloquee otros eventos; debe resolverse manualmente.
+- `electron/sqlite-store.js`: SQLite en el directorio de datos del usuario, WAL, cola duradera, migraciones locales y caché.
+- `electron/sync-engine.js`: motor de sincronización con dependencias inyectables para probar desconexión, sesión, reintentos, conflictos y concurrencia.
+- `electron/preload.js`: puente IPC limitado para estado, cola, caché, usuario activo y sincronización.
+- `electron/main.js`: ventana Electron, pantalla de contingencia, validación remota del usuario activo y reintentos en segundo plano.
+- `electron/offline.html`: contingencia local para registrar **verificaciones y actas**; no representa todavía todos los módulos del ERP.
+- `api/desktop-sync.js`: valida sesión y rol, exige que `actor_id` coincida con la sesión autenticada, reclama eventos con token temporal, recupera reclamaciones abandonadas y devuelve conflictos.
+- `api/turso.js`: proxy de lectura endurecido; la caché solo guarda resultados SELECT que el servidor confirmó.
+- `index.html`: asocia el usuario activo con la sesión validada y limpia caché y propietario activo al cerrar sesión, sin borrar operaciones pendientes.
+- Pruebas: `tests/offline-store.test.js`, `tests/desktop-sync.test.js` y `tests/sync-engine.test.js`.
+
+## Propiedad y privacidad de la cola
+
+Cada evento nuevo contiene el identificador del usuario propietario. El proceso principal no confía en un identificador enviado libremente por el renderer: confirma el usuario contra `/api/auth/session` y la API vuelve a comprobar que el propietario del evento coincida con la sesión que lo envía.
+
+La sincronización solo selecciona eventos del usuario activo. La pantalla de contingencia oculta el contenido de eventos de otras cuentas. Las operaciones antiguas que no tengan propietario se convierten en `conflict` para revisión y no se aplican automáticamente bajo otra cuenta.
+
+Al cerrar sesión se elimina el usuario activo y se limpia la caché local, pero la cola permanece intacta. Esto evita tanto la pérdida silenciosa de operaciones como la reutilización de lecturas cacheadas por otra cuenta. Para continuar sincronizando una cola, debe autenticarse el mismo usuario propietario.
+
+## Estados de una operación
+
+- `pending`: guardada en SQLite, aún no confirmada por el servidor.
+- `failed`: intento fallido y susceptible de reintento.
+- `syncing`: envío en curso o reclamado temporalmente por el servidor.
+- `conflict`: requiere revisión; queda excluida del reintento automático.
 - `synced`: el servidor confirmó la operación.
-- `conflict`: el servidor rechazó la operación por conflicto; requiere resolución, no se sobrescribe automáticamente.
 
-Una operación local no debe mostrarse como confirmada por el servidor hasta que su estado sea `synced`. El servidor usa `event_id` para reconocer reintentos y verifica que la clave corresponda al mismo usuario y tipo de operación. Los conflictos se cuentan por separado y no deben impedir el envío de eventos posteriores.
+El servidor usa `event_id` para reconocer reintentos y evita que un mismo identificador se reutilice para otro usuario o tipo de operación. Los conflictos se conservan localmente y no deben bloquear el envío de otros eventos.
+
+## Validación automatizada
+
+`npm run test:offline` ejecuta pruebas para:
+
+- persistencia de SQLite tras reinicio, idempotencia y validación de datos;
+- migración segura de eventos antiguos sin propietario;
+- conservación de operaciones pendientes al limpiar caché;
+- lectura/escritura de un snapshot de padrón de 10.000 registros;
+- rechazo de sesiones vencidas, métodos HTTP no permitidos y eventos pertenecientes a otro usuario;
+- desconexión sin pérdida de cola, sesión ausente, sincronización exitosa, conflictos sin reintento automático y llamadas concurrentes.
+
+El workflow de GitHub Actions valida sintaxis JavaScript, ejecuta las pruebas y construye el instalador de Windows como artefacto descargable de Actions (retención de 14 días, sin necesidad de crear un Release).
 
 ## Primer administrador
+
 La inicialización ya no debe crear `admin@comando.com / admin123`. Si una base está vacía, el operador debe configurar temporalmente `INITIAL_ADMIN_USER` y `INITIAL_ADMIN_PASSWORD` (mínimo 16 caracteres) para inicializar el primer acceso. No publicar ni registrar estos secretos. En una base existente con usuarios, esta configuración no es necesaria.
 
-## Alcance pendiente
-Esta rama incorpora la base técnica de contingencia y el encolado de verificaciones y actas. Se añadieron pruebas automatizadas de la cola SQLite (`npm run test:offline`); deben ejecutarse en CI antes de considerar validadas. Aún requiere pruebas reales de caída de red, reinicio del equipo con cola pendiente, sesión expirada, duplicidad/reintentos, conflictos entre operadores y volumen de padrón. La pantalla offline es de contingencia: los demás módulos todavía no están adaptados para todas las operaciones offline. No declarar el escritorio completamente offline-first hasta terminar esas pruebas y adaptar cada operación crítica con un endpoint específico e idempotente.
+## Alcance pendiente — no declarar finalizado todavía
+
+La pantalla de contingencia permite actualmente encolar verificaciones y actas. **Los demás módulos y sus escrituras todavía no están adaptados para operar completamente offline.** Antes de declarar el escritorio completamente offline-first, faltan pruebas E2E con la aplicación instalada y un entorno de prueba real para:
+
+- cortar y restablecer la red mientras se usa la interfaz;
+- reiniciar la aplicación/equipo con operaciones pendientes y verificar su sincronización posterior;
+- probar sesión vencida, cierre de sesión y cambio entre dos operadores en el mismo equipo;
+- probar conflictos reales contra datos ya modificados en el servidor y su resolución operativa;
+- validar volúmenes representativos de padrón, latencia, límites y recuperación ante fallos de Turso;
+- adaptar cada operación crítica restante a un endpoint específico, idempotente y con permisos verificados.
+
+No presentar una operación local como confirmada por el servidor hasta recibir estado `synced`.

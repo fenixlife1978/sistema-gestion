@@ -108,10 +108,29 @@ test('legacy queue entries without an owner become conflicts and are never auto-
   assert.equal(store.listSyncableEvents(1).length,0);
 });
 
-test('clearCache removes cached records on logout', t => {
+test('clearCache removes cached records on logout without deleting queued operations', t => {
   const f = fixture(t);
+  f.store.setActiveUserId(7);
   f.store.setCache('padron:v1', [{cedula:'12345678'}]);
+  f.store.addEvent({actor_id:7,event_id:'evt_logout_queue_001',type:'acta',payload:{centro_codigo:'C01',mesa:'1',votos_partido:4}});
   assert.notEqual(f.store.getCache('padron:v1'), null);
+  assert.equal(f.store.pendingCount(), 1);
   assert.equal(f.store.clearCache(), true);
   assert.equal(f.store.getCache('padron:v1'), null);
+  assert.equal(f.store.pendingCount(), 1);
+});
+
+test('SQLite cache stores and retrieves a large padrón snapshot without truncation', t => {
+  const f = fixture(t);
+  const padron = Array.from({length:10000},(_,i)=>({
+    cedula:String(10000000+i),
+    nombre:'Elector de prueba '+i,
+    centro_codigo:'C'+String((i%250)+1).padStart(3,'0'),
+    mesa:String((i%25)+1)
+  }));
+  f.store.setCache('padron:large:v1',padron);
+  const restored=f.store.getCache('padron:large:v1').value;
+  assert.equal(restored.length,10000);
+  assert.deepEqual(restored[0],padron[0]);
+  assert.deepEqual(restored[9999],padron[9999]);
 });
