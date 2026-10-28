@@ -53,7 +53,7 @@ La inicialización ya no debe crear `admin@comando.com / admin123`. Si una base 
 
 ## Alcance pendiente — no declarar finalizado todavía
 
-La pantalla de contingencia permite actualmente encolar verificaciones y actas. **Los demás módulos y sus escrituras todavía no están adaptados para operar completamente offline.** Antes de declarar el escritorio completamente offline-first, faltan pruebas E2E con la aplicación instalada y un entorno de prueba real para:
+La pantalla de contingencia permite encolar verificaciones, actas y operaciones de mesa (control de constitución, observación y cierre). **Los demás módulos y sus escrituras todavía no están adaptados para operar completamente offline.** Antes de declarar el escritorio completamente offline-first, faltan pruebas E2E con la aplicación instalada y un entorno de prueba real para:
 
 - cortar y restablecer la red mientras se usa la interfaz;
 - reiniciar la aplicación/equipo con operaciones pendientes y verificar su sincronización posterior;
