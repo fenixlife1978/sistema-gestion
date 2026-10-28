@@ -6,7 +6,7 @@ const vm=require('node:vm');
 
 test('offline fallback inline script parses and exposes the supported contingency forms',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../electron/offline.html'),'utf8');
-  const scripts=[...html.matchAll(/<script>([\\s\\S]*?)<\\/script>/g)];
+  const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   assert.equal(scripts.length,1,'expected one inline script in offline fallback');
   assert.doesNotThrow(()=>new vm.Script(scripts[0][1]));
   for(const id of ['verification','acta','mesaControl','mesaObservacion','mesaCierre','sync']){
@@ -17,7 +17,7 @@ test('offline fallback inline script parses and exposes the supported contingenc
 
 test('offline mesa forms enqueue only the supported generic mesa action type',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../electron/offline.html'),'utf8');
-  assert.match(html,/type:'mesa',payload:\\{accion:'control'/);
-  assert.match(html,/type:'mesa',payload:\\{accion:'observacion'/);
-  assert.match(html,/type:'mesa',payload:\\{accion:'cerrar'/);
+  assert.match(html,/type:'mesa',payload:\{accion:'control'/);
+  assert.match(html,/type:'mesa',payload:\{accion:'observacion'/);
+  assert.match(html,/type:'mesa',payload:\{accion:'cerrar'/);
 });
