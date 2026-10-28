@@ -852,6 +852,8 @@ function go(id) {
 }
 async function logout() {
   try { await fetch('/api/auth/logout', { method:'POST', credentials:'include' }); } catch(e) {}
+  // En equipos compartidos no conservar datos de lectura de la sesión anterior.
+  try { await window.desktopBridge?.clearCache?.(); } catch(e) {}
   localStorage.removeItem('curTab');
   USER = null;
   location.reload();
