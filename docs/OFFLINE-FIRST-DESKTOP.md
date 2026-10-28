@@ -10,17 +10,17 @@ La aplicación Electron utiliza el servidor cuando hay conexión y mantiene SQLi
 - `electron/sync-engine.js`: motor de sincronización con dependencias inyectables para probar desconexión, sesión, reintentos, conflictos y concurrencia.
 - `electron/preload.js`: puente IPC limitado para estado, cola, caché, usuario activo y sincronización.
 - `electron/main.js`: ventana Electron, pantalla de contingencia, validación remota del usuario activo y reintentos en segundo plano.
-- `electron/offline.html`: contingencia local para registrar **verificaciones y actas**; no representa todavía todos los módulos del ERP.
+- `electron/offline.html`: contingencia local para registrar verificaciones, actas y operaciones de mesa; además permite consultar copias de lecturas previas en modo solo lectura.
 - `api/desktop-sync.js`: valida sesión y rol, exige que `actor_id` coincida con la sesión autenticada, reclama eventos con token temporal, recupera reclamaciones abandonadas y devuelve conflictos.
 - `api/turso.js`: proxy de lectura endurecido; la caché solo guarda resultados SELECT que el servidor confirmó.
-- `index.html`: asocia el usuario activo con la sesión validada y limpia caché y propietario activo al cerrar sesión, sin borrar operaciones pendientes.
+- `index.html`: asocia el usuario activo con la sesión validada, etiqueta consultas cacheadas y limpia caché y propietario activo al cerrar sesión, sin borrar operaciones pendientes.
 - Pruebas: `tests/offline-store.test.js`, `tests/desktop-sync.test.js`, `tests/sync-engine.test.js` y `tests/offline-ui.test.js`.
 
 ## Propiedad y privacidad de la cola
 
 Cada evento nuevo contiene el identificador del usuario propietario. El proceso principal no confía en un identificador enviado libremente por el renderer: confirma el usuario contra `/api/auth/session` y la API vuelve a comprobar que el propietario del evento coincida con la sesión que lo envía.
 
-La sincronización solo selecciona eventos del usuario activo. La pantalla de contingencia oculta el contenido de eventos de otras cuentas. Las operaciones antiguas que no tengan propietario se convierten en `conflict` para revisión y no se aplican automáticamente bajo otra cuenta.
+La sincronización solo selecciona eventos del usuario activo. El índice de caché expone solo etiquetas, fechas y conteos; el payload se solicita por separado y solo si hay un usuario activo. La pantalla de contingencia oculta el contenido de eventos de otras cuentas. Las operaciones antiguas que no tengan propietario se convierten en `conflict` para revisión y no se aplican automáticamente bajo otra cuenta.
 
 Al cerrar sesión se elimina el usuario activo y se limpia la caché local, pero la cola permanece intacta. Esto evita tanto la pérdida silenciosa de operaciones como la reutilización de lecturas cacheadas por otra cuenta. Para continuar sincronizando una cola, debe autenticarse el mismo usuario propietario.
 
@@ -53,7 +53,7 @@ La inicialización ya no debe crear `admin@comando.com / admin123`. Si una base 
 
 ## Alcance pendiente — no declarar finalizado todavía
 
-La pantalla de contingencia permite encolar verificaciones, actas y operaciones de mesa (control de constitución, observación y cierre). **Los demás módulos y sus escrituras todavía no están adaptados para operar completamente offline.** Antes de declarar el escritorio completamente offline-first, faltan pruebas E2E con la aplicación instalada y un entorno de prueba real para:
+La pantalla de contingencia permite encolar verificaciones, actas y operaciones de mesa (control de constitución, observación y cierre). También muestra consultas SELECT confirmadas anteriormente como copias de solo lectura, limitadas a 100 filas y 12 columnas por vista. **Los demás módulos y sus escrituras todavía no están adaptados para operar completamente offline.** Antes de declarar el escritorio completamente offline-first, faltan pruebas E2E con la aplicación instalada y un entorno de prueba real para:
 
 - cortar y restablecer la red mientras se usa la interfaz;
 - reiniciar la aplicación/equipo con operaciones pendientes y verificar su sincronización posterior;
