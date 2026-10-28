@@ -46,9 +46,9 @@ module.exports=async function handler(req,res){
       const claimToken=crypto.randomUUID();
       try{
         if(previous){
-          await turso([{q:'UPDATE desktop_sync_events SET status=\\'processing\\',claim_token=?,updated_at=datetime(\\'now\\') WHERE event_id=? AND status=? AND COALESCE(claim_token,\\'\\')=?',params:[claimToken,eventId,previous.status,previous.claim_token||'']}]);
+          await turso([{q:"UPDATE desktop_sync_events SET status='processing',claim_token=?,updated_at=datetime('now') WHERE event_id=? AND status=? AND COALESCE(claim_token,'')=?",params:[claimToken,eventId,previous.status,previous.claim_token||'']}]);
         }else{
-          await turso([{q:'INSERT OR IGNORE INTO desktop_sync_events(event_id,event_type,actor_id,status,claim_token,created_at,updated_at) VALUES(?,?,?,\\'processing\\',?,datetime(\\'now\\'),datetime(\\'now\\'))',params:[eventId,type,actor.id,claimToken]}]);
+          await turso([{q:"INSERT OR IGNORE INTO desktop_sync_events(event_id,event_type,actor_id,status,claim_token,created_at,updated_at) VALUES(?,?,?,'processing',?,datetime('now'),datetime('now'))",params:[eventId,type,actor.id,claimToken]}]);
         }
         const claim=rowsFrom(await turso([{q:'SELECT status,claim_token,actor_id,event_type FROM desktop_sync_events WHERE event_id=? LIMIT 1',params:[eventId]}]))[0];
         if(!claim||claim.status!=='processing'||claim.claim_token!==claimToken||Number(claim.actor_id)!==Number(actor.id)||claim.event_type!==type){
@@ -92,12 +92,12 @@ module.exports=async function handler(req,res){
           event.result={id,centro_codigo:centro,mesa,votos_partido:votos};
         }
         const resultJson=JSON.stringify(event.result||{ok:true});
-        await turso([{q:'UPDATE desktop_sync_events SET status=\'applied\',result_json=?,updated_at=datetime(\'now\') WHERE event_id=?',params:[resultJson,eventId,claimToken]}]);
+        await turso([{q:"UPDATE desktop_sync_events SET status='applied',result_json=?,updated_at=datetime('now') WHERE event_id=? AND claim_token=? AND status='processing'",params:[resultJson,eventId,claimToken]}]);
         await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['desktop-sync','Operación local sincronizada: '+type+' • evento '+eventId,actor.id]}]);
         results.push({event_id:eventId,status:'synced',result:event.result});
       }catch(e){
         const status=e.status===409?'conflict':'failed';
-        await turso([{q:'UPDATE desktop_sync_events SET status=?,updated_at=datetime(\'now\') WHERE event_id=?',params:[status,eventId,claimToken]}]).catch(()=>{});
+        await turso([{q:"UPDATE desktop_sync_events SET status=?,updated_at=datetime('now') WHERE event_id=? AND claim_token=? AND status='processing'",params:[status,eventId,claimToken]}]).catch(()=>{});
         results.push({event_id:eventId,status,error:e.message||'No se pudo aplicar la operación'});
       }
     }
