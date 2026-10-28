@@ -114,8 +114,8 @@ module.exports=async function handler(req,res){
             const testigos=['si','true','1'].includes(String(p.testigos_asistieron??'').toLowerCase())?1:0;
             if(constituida&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(hc)) throw Object.assign(new Error('Debe indicar la hora de constitución cuando la mesa está constituida'),{status:400});
             if(!constituida&&hc) throw Object.assign(new Error('No debe indicar hora si la mesa no está constituida'),{status:400});
-            if(mo && mo.testigos_asistieron!==null && mo.testigos_asistieron!==undefined){
-              if(String(mo.hora_constitucion||'')!==String(constituida?hc:'')||Number(mo.testigos_asistieron)!==testigos)
+            if(mo && (mo.hora_constitucion || (mo.testigos_asistieron!==null && mo.testigos_asistieron!==undefined))){
+              if(String(mo.hora_constitucion||'')!==String(constituida?hc:'')||(mo.testigos_asistieron!==null&&mo.testigos_asistieron!==undefined&&Number(mo.testigos_asistieron)!==testigos))
                 throw Object.assign(new Error('La constitución ya existe con datos distintos; requiere resolución manual'),{status:409});
             }else{
               const now=new Date().toISOString();
