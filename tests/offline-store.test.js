@@ -67,3 +67,11 @@ test('outbox rejects unknown types, malformed ids, arrays and oversized payloads
   assert.throws(() => f.store.addEvent({type:'acta',payload:[]}), /Datos de operación/);
   assert.throws(() => f.store.addEvent({type:'acta',payload:{text:'x'.repeat(21000)}}), /supera el tamaño/);
 });
+
+test('logout cache clear removes locally cached records', t => {
+  const f = fixture(t);
+  f.store.setCache('padron:v1', [{cedula:'12345678'}]);
+  assert.notEqual(f.store.getCache('padron:v1'), null);
+  assert.equal(f.store.clearCache(), true);
+  assert.equal(f.store.getCache('padron:v1'), null);
+});
