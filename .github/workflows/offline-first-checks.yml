@@ -2,8 +2,6 @@ name: Offline-first desktop checks
 
 on:
   workflow_dispatch:
-  push:
-    branches: [offline-user-binding]
   pull_request:
     branches: [main]
 
