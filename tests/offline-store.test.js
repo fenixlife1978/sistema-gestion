@@ -32,8 +32,10 @@ test('offline outbox persists events across store restarts', t => {
 test('outbox is idempotent by event id and does not overwrite original payload', t => {
   const f = fixture(t);
   const id = 'evt_12345678901234567890';
-  f.store.addEvent({event_id:id,type:'acta',payload:{centro_codigo:'C01',mesa:'1',votos_partido:10}});
-  f.store.addEvent({event_id:id,type:'acta',payload:{centro_codigo:'C02',mesa:'2',votos_partido:99}});
+  const original = {event_id:id,type:'acta',payload:{centro_codigo:'C01',mesa:'1',votos_partido:10}};
+  assert.equal(f.store.addEvent(original).duplicate, false);
+  assert.equal(f.store.addEvent(original).duplicate, true);
+  assert.throws(() => f.store.addEvent({event_id:id,type:'acta',payload:{centro_codigo:'C02',mesa:'2',votos_partido:99}}), /datos distintos/);
   const rows = f.store.listSyncableEvents();
   assert.equal(rows.length, 1);
   assert.equal(rows[0].payload.centro_codigo, 'C01');
