@@ -1,49 +1,19 @@
 const { app, BrowserWindow, shell, session, ipcMain, net } = require('electron');
 const path = require('path');
 const { openStore } = require('./sqlite-store');
+const { createSyncEngine } = require('./sync-engine');
 
 const PRODUCTION_URL = 'https://gestion-erp-electoral.vercel.app/';
 const SYNC_URL = new URL('/api/desktop-sync', PRODUCTION_URL).toString();
 let store;
 let mainWindow;
-let syncInFlight = false;
 let offlinePageLoaded = false;
 
 function isOnline() {
   return Boolean(net.isOnline());
 }
 
-async function syncPending() {
-  if (syncInFlight || !isOnline() || !store) return { ok:false, message:'Sin conexión; las operaciones permanecen guardadas localmente.' };
-  syncInFlight = true;
-  try {
-    const activeUserId = store.getActiveUserId();
-    if (!activeUserId) return { ok:false, message:'Inicie sesión en línea con el usuario propietario de las operaciones para sincronizar.' };
-    const pending = store.listSyncableEvents(activeUserId);
-    if (!pending.length) return { ok:true, message:'No hay operaciones pendientes de este usuario. Las operaciones de otras cuentas permanecen separadas.' };
-    const cookies = await session.defaultSession.cookies.get({ url: PRODUCTION_URL, name:'erp_session' });
-    if (!cookies.length) return { ok:false, message:'Conéctese e inicie sesión en el sistema para autorizar la sincronización.' };
-    const response = await net.fetch(SYNC_URL, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Cookie':cookies.map(c => c.name+'='+c.value).join('; ')},
-      body:JSON.stringify({events:pending.map(x => ({event_id:x.event_id,actor_id:x.actor_id,type:x.event_type,payload:x.payload}))})
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) return { ok:false, message:data.error || 'El servidor rechazó la sincronización.' };
-    for (const result of (data.results || [])) {
-      if (result.status === 'synced') store.setEventStatus(result.event_id,'synced');
-      else if (result.status === 'conflict') store.setEventStatus(result.event_id,'conflict',result.error);
-      else store.setEventStatus(result.event_id,'failed',result.error);
-    }
-    const remaining = store.pendingCount();
-    return {ok:true, message:'Sincronización procesada. Pendientes por enviar: '+remaining+'.'};
-  } catch (error) {
-    return {ok:false, message:'No se pudo sincronizar; los datos siguen en este equipo. '+String(error.message||error)};
-  } finally {
-    syncInFlight = false;
-  }
-}
-
+let syncPending = async () => ({ ok:false, message:'La sincronización local aún no está inicializada.' });
 function showOfflinePage() {
   if (!mainWindow || mainWindow.isDestroyed() || offlinePageLoaded) return;
   offlinePageLoaded = true;
@@ -125,6 +95,19 @@ ipcMain.handle('desktop:cache:set', (_event,{key,value}) => {
 
 app.whenReady().then(()=>{
   store=openStore(app.getPath('userData'));
+  syncPending=createSyncEngine({
+    store,
+    isOnline,
+    getCookieHeader:async()=>{
+      const cookies=await session.defaultSession.cookies.get({url:PRODUCTION_URL,name:'erp_session'});
+      return cookies.length ? cookies.map(c=>c.name+'='+c.value).join('; ') : null;
+    },
+    postSync:({cookieHeader,events})=>net.fetch(SYNC_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Cookie':cookieHeader},
+      body:JSON.stringify({events})
+    })
+  });
   session.defaultSession.setPermissionRequestHandler((_webContents,permission,callback)=>callback(permission==='notifications'));
   createWindow();
   // Reintento de fondo. Nunca se descarta una operación por falta de conexión.

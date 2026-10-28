@@ -30,6 +30,7 @@ jobs:
             "electron/main.js",
             "electron/preload.js",
             "electron/sqlite-store.js",
+            "electron/sync-engine.js",
             "api/desktop-sync.js",
             "api/turso.js",
             "api/bootstrap.js",
