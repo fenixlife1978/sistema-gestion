@@ -784,6 +784,7 @@ async function doLogin() {
     }
     if (!r.ok) return toast((data.error || ('HTTP ' + r.status + ' al autenticar')), 'err', 8000);
     USER = data.user;
+    if(window.desktopBridge) await window.desktopBridge.setActiveUser(USER.id).catch(()=>{});
     CONTROL_ELECTORAL = { centro: '', search: '', fixed: false };
     localStorage.setItem('curTab', USER.rol === 'C' ? 'control' : 'dash');
     await registrarAct('login', 'Inicio de sesión: ' + USER.nombre + ' (' + USER.rol + ')', USER.id);
@@ -851,6 +852,10 @@ function go(id) {
   window.scrollTo({ top: 0 });
 }
 async function logout() {
+  if(window.desktopBridge){
+    await window.desktopBridge.clearCache().catch(()=>{});
+    await window.desktopBridge.setActiveUser(null).catch(()=>{});
+  }
   try { await fetch('/api/auth/logout', { method:'POST', credentials:'include' }); } catch(e) {}
   localStorage.removeItem('curTab');
   USER = null;
@@ -2481,6 +2486,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
         const sd = await sr.json();
         if (sd.authenticated && sd.user) {
           USER = sd.user;
+          if(window.desktopBridge) await window.desktopBridge.setActiveUser(USER.id).catch(()=>{});
           setLoad('Restaurando sesión...');
           await refreshAll();
           setLoad('Verificando datos...');
