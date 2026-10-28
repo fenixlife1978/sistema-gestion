@@ -115,6 +115,10 @@ function openStore(userDataPath) {
       const row = db.prepare('SELECT value_json,updated_at FROM desktop_cache WHERE cache_key=?').get(String(key));
       return row ? { value: JSON.parse(row.value_json), updated_at: row.updated_at } : null;
     },
+    clearCache() {
+      db.prepare('DELETE FROM desktop_cache').run();
+      return true;
+    },
     close() { db.close(); }
   };
 }
