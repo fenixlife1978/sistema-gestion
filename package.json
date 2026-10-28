@@ -7,7 +7,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "electron:start": "electron .",
-    "dist:win": "electron-builder --win nsis --publish never"
+    "dist:win": "electron-builder --win nsis --publish never",
+    "test:offline": "node --test tests/offline-store.test.js"
   },
   "devDependencies": {
     "electron": "^38.2.1",
