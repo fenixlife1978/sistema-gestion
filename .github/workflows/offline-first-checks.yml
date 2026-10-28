@@ -19,6 +19,8 @@ jobs:
           node-version: '22.x'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Run offline SQLite regression tests
+        run: npm run test:offline
       - name: Validate JavaScript syntax
         shell: pwsh
         run: |
