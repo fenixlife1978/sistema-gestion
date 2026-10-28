@@ -10,6 +10,7 @@ function loadHandler({ session = { uid:5, usuario:'admin', rol:'A' }, queryResul
   const originalAuth = require.cache[authPath];
   const originalApi = require.cache[apiPath];
   const queries = [];
+  const syncEvents = new Map();
   const fakeAuth = {
     parseBody: req => req.body,
     turso: async statements => {
@@ -17,6 +18,20 @@ function loadHandler({ session = { uid:5, usuario:'admin', rol:'A' }, queryResul
         queries.push(statement.q);
         if (statement.q.startsWith('SELECT id,usuario,rol,activo FROM usuarios')) {
           return [{ id:5, usuario:'admin', rol:'A', activo:1 }];
+        }
+        if (statement.q.startsWith('INSERT OR IGNORE INTO desktop_sync_events')) {
+          const [event_id,event_type,actor_id,claim_token]=statement.params;
+          if (!syncEvents.has(event_id)) syncEvents.set(event_id,{status:'processing',claim_token,actor_id,event_type});
+          return [];
+        }
+        if (statement.q.startsWith('SELECT status,claim_token,actor_id,event_type FROM desktop_sync_events')) {
+          const row=syncEvents.get(statement.params[0]);
+          return row ? [row] : [];
+        }
+        if (statement.q.startsWith("UPDATE desktop_sync_events SET status='applied'")) {
+          const row=syncEvents.get(statement.params[1]);
+          if(row) row.status='applied';
+          return [];
         }
         const prefix=Object.keys(queryResults).find(key=>statement.q.startsWith(key));
         if(prefix) return queryResults[prefix];
