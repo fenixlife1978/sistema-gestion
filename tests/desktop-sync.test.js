@@ -5,11 +5,12 @@ const path = require('node:path');
 const authPath = require.resolve('../lib/auth');
 const apiPath = require.resolve('../api/desktop-sync');
 
-function loadHandler({ session = { uid:5, usuario:'admin', rol:'A' } } = {}) {
+function loadHandler({ session = { uid:5, usuario:'admin', rol:'A' }, queryResults = {} } = {}) {
   const authModule = require(authPath);
   const originalAuth = require.cache[authPath];
   const originalApi = require.cache[apiPath];
   const queries = [];
+  const syncEvents = new Map();
   const fakeAuth = {
     parseBody: req => req.body,
     turso: async statements => {
@@ -18,6 +19,22 @@ function loadHandler({ session = { uid:5, usuario:'admin', rol:'A' } } = {}) {
         if (statement.q.startsWith('SELECT id,usuario,rol,activo FROM usuarios')) {
           return [{ id:5, usuario:'admin', rol:'A', activo:1 }];
         }
+        if (statement.q.startsWith('INSERT OR IGNORE INTO desktop_sync_events')) {
+          const [event_id,event_type,actor_id,claim_token]=statement.params;
+          if (!syncEvents.has(event_id)) syncEvents.set(event_id,{status:'processing',claim_token,actor_id,event_type});
+          return [];
+        }
+        if (statement.q.startsWith('SELECT status,claim_token,actor_id,event_type FROM desktop_sync_events')) {
+          const row=syncEvents.get(statement.params[0]);
+          return row ? [row] : [];
+        }
+        if (statement.q.startsWith("UPDATE desktop_sync_events SET status='applied'")) {
+          const row=syncEvents.get(statement.params[1]);
+          if(row) row.status='applied';
+          return [];
+        }
+        const prefix=Object.keys(queryResults).find(key=>statement.q.startsWith(key));
+        if(prefix) return queryResults[prefix];
       }
       return [];
     },
@@ -59,8 +76,8 @@ test('desktop sync rejects a queued event owned by a different authenticated use
     body:{events:[{
       event_id:'evt_owner_123456789012',
       actor_id:99,
-      type:'acta',
-      payload:{centro_codigo:'C01',mesa:'1',votos_partido:12}
+      type:'mesa',
+      payload:{accion:'control',centro_codigo:'C01',mesa:'1',constituida:'SI',hora_constitucion:'08:00',testigos_asistieron:'SI'}
     }]}
   },res);
   assert.equal(res.code,200);
@@ -88,4 +105,43 @@ test('desktop sync rejects non-POST requests without touching the database', asy
   await h.handler({method:'GET'},res);
   assert.equal(res.code,405);
   assert.equal(h.queries.length,0);
+});
+
+test('desktop sync applies a validated offline table-control event', async t => {
+  const h=loadHandler({queryResults:{
+    'SELECT codigo,mesas FROM centros':[{codigo:'C01',mesas:20}],
+    'SELECT id,estado,hora_constitucion,testigos_asistieron,hora_cierre,observacion FROM mesa_operativa':[],
+    'SELECT id FROM mesa_operativa WHERE centro_codigo=? AND mesa=? LIMIT 1':[{id:42}]
+  }});
+  t.after(h.restore);
+  const res=responseRecorder();
+  await h.handler({method:'POST',body:{events:[{
+    event_id:'evt_mesa_control_123',
+    actor_id:5,
+    type:'mesa',
+    payload:{accion:'control',centro_codigo:'C01',mesa:'2',constituida:'SI',hora_constitucion:'08:00',testigos_asistieron:'SI'}
+  }]}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.results[0].status,'synced');
+  assert.equal(res.body.results[0].result.mesa_id,42);
+  assert.ok(h.queries.some(q=>q.startsWith('INSERT INTO mesa_operativa')));
+});
+
+test('desktop sync rejects table control without a constitution time', async t => {
+  const h=loadHandler({queryResults:{
+    'SELECT codigo,mesas FROM centros':[{codigo:'C01',mesas:20}],
+    'SELECT id,estado,hora_constitucion,testigos_asistieron,hora_cierre,observacion FROM mesa_operativa':[]
+  }});
+  t.after(h.restore);
+  const res=responseRecorder();
+  await h.handler({method:'POST',body:{events:[{
+    event_id:'evt_mesa_control_bad',
+    actor_id:5,
+    type:'mesa',
+    payload:{accion:'control',centro_codigo:'C01',mesa:'2',constituida:'SI',hora_constitucion:'',testigos_asistieron:'NO'}
+  }]}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.results[0].status,'conflict');
+  assert.match(res.body.results[0].error,/hora de constitución/);
+  assert.equal(h.queries.some(q=>q.startsWith('INSERT INTO mesa_operativa')),false);
 });

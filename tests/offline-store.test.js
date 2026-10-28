@@ -106,6 +106,8 @@ test('legacy queue entries without an owner become conflicts and are never auto-
   assert.equal(row.status,'conflict');
   assert.match(row.last_error,/sin usuario propietario/);
   assert.equal(store.listSyncableEvents(1).length,0);
+  store.addEvent({actor_id:1,event_id:'evt_legacy_mesa_001',type:'mesa',payload:{accion:'control',centro_codigo:'C01',mesa:'1'}});
+  assert.equal(store.listSyncableEvents(1).length,1);
 });
 
 test('clearCache removes cached records on logout without deleting queued operations', t => {
