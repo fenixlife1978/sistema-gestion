@@ -1,4 +1,5 @@
 const {parseBody,turso,rowsFrom,verify,getCookie}=require('../lib/auth');
+const crypto=require('crypto');
 const clean=(v,n)=>String(v??'').trim().slice(0,n);
 const digits=v=>String(v??'').replace(/\D/g,'').slice(0,20);
 const fail=(res,status,error)=>res.status(status).json({ok:false,error});
@@ -20,8 +21,10 @@ module.exports=async function handler(req,res){
     if(!events.length||events.length>50) return fail(res,400,'Se requieren entre 1 y 50 operaciones');
     await turso([{q:`CREATE TABLE IF NOT EXISTS desktop_sync_events (
       event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, actor_id INTEGER NOT NULL,
-      status TEXT NOT NULL, result_json TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      status TEXT NOT NULL, result_json TEXT, claim_token TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     )`,params:[]}]);
+    // Compatibilidad con tablas creadas por versiones anteriores del endpoint.
+    await turso([{q:'ALTER TABLE desktop_sync_events ADD COLUMN claim_token TEXT',params:[]}]).catch(()=>{});
     const results=[];
     for(const event of events){
       const eventId=clean(event.event_id,100);
