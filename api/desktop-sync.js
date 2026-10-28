@@ -101,7 +101,7 @@ module.exports=async function handler(req,res){
         }else{
           const accion=clean(p.accion,20).toLowerCase();
           const centro=clean(p.centro_codigo,80), mesa=clean(p.mesa,4);
-          if(!centro||!/^\\d{1,4}$/.test(mesa)) throw Object.assign(new Error('Centro o mesa inválidos'),{status:400});
+          if(!centro||!/^\d{1,4}$/.test(mesa)) throw Object.assign(new Error('Centro o mesa inválidos'),{status:400});
           const c=rowsFrom(await turso([{q:'SELECT codigo,mesas FROM centros WHERE codigo=? LIMIT 1',params:[centro]}]))[0];
           if(!c) throw Object.assign(new Error('Centro no encontrado'),{status:404});
           if(Number(c.mesas||0)>0&&(Number(mesa)<1||Number(mesa)>Number(c.mesas))) throw Object.assign(new Error('La mesa no pertenece al centro'),{status:409});
@@ -112,7 +112,7 @@ module.exports=async function handler(req,res){
             const constituida=['si','true','1'].includes(String(p.constituida??'').toLowerCase());
             const hc=clean(p.hora_constitucion,5);
             const testigos=['si','true','1'].includes(String(p.testigos_asistieron??'').toLowerCase())?1:0;
-            if(constituida&&!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(hc)) throw Object.assign(new Error('Debe indicar la hora de constitución cuando la mesa está constituida'),{status:400});
+            if(constituida&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hc)) throw Object.assign(new Error('Debe indicar la hora de constitución cuando la mesa está constituida'),{status:400});
             if(!constituida&&hc) throw Object.assign(new Error('No debe indicar hora si la mesa no está constituida'),{status:400});
             if(mo && (mo.hora_constitucion || (mo.testigos_asistieron!==null && mo.testigos_asistieron!==undefined))){
               if(String(mo.hora_constitucion||'')!==String(constituida?hc:'')||(mo.testigos_asistieron!==null&&mo.testigos_asistieron!==undefined&&Number(mo.testigos_asistieron)!==testigos))
