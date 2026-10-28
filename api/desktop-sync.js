@@ -33,6 +33,10 @@ module.exports=async function handler(req,res){
       if(!/^[a-zA-Z0-9_-]{12,100}$/.test(eventId)||!['verificacion','acta'].includes(type)){
         results.push({event_id:eventId||null,status:'conflict',error:'Identificador o tipo de operación inválido; requiere revisión local'});continue;
       }
+      const requestedActorId=Number(event.actor_id);
+      if(!Number.isSafeInteger(requestedActorId)||requestedActorId<1||requestedActorId!==Number(actor.id)){
+        results.push({event_id:eventId,status:'conflict',error:'El usuario propietario de esta operación no coincide con la sesión autenticada; inicie sesión con la cuenta que la creó'});continue;
+      }
       const previous=rowsFrom(await turso([{q:'SELECT status,result_json,actor_id,event_type,claim_token,updated_at FROM desktop_sync_events WHERE event_id=? LIMIT 1',params:[eventId]}]))[0];
       if(previous && (Number(previous.actor_id)!==Number(actor.id) || previous.event_type!==type)){
         results.push({event_id:eventId,status:'conflict',error:'El identificador ya pertenece a otra operación o usuario; requiere revisión'});continue;
