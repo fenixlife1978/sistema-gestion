@@ -93,9 +93,19 @@ ipcMain.handle('desktop:queue:add', (_event, data) => {
   return store.addEvent({...data, actor_id});
 });
 ipcMain.handle('desktop:sync-now', () => syncPending());
-ipcMain.handle('desktop:user:set', (_event, userId) => {
+ipcMain.handle('desktop:user:set', async (_event, userId) => {
   if (!store) throw new Error('La base local no está disponible');
-  return store.setActiveUserId(userId);
+  if (userId === null || userId === undefined || userId === '') return store.setActiveUserId(null);
+  if (!isOnline()) throw new Error('La identidad del usuario solo se puede confirmar con conexión; se conserva el propietario local anterior.');
+  const cookies = await session.defaultSession.cookies.get({ url: PRODUCTION_URL, name:'erp_session' });
+  if (!cookies.length) throw new Error('No hay una sesión autenticada para vincular la cola local.');
+  const response = await net.fetch(new URL('/api/auth/session', PRODUCTION_URL).toString(), {
+    method:'GET', headers:{'Cookie':cookies.map(c => c.name+'='+c.value).join('; ')}
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.authenticated || !data.user || Number(data.user.id) !== Number(userId))
+    throw new Error('El servidor no confirmó que esta sesión pertenezca al usuario indicado.');
+  return store.setActiveUserId(data.user.id);
 });
 ipcMain.handle('desktop:cache:get', (_event,key) => store ? store.getCache(key) : null);
 ipcMain.handle('desktop:cache:set', (_event,{key,value}) => {
