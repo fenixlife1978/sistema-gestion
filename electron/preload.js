@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('desktopBridge', Object.freeze({
   enqueue: (event) => ipcRenderer.invoke('desktop:queue:add', event),
   syncNow: () => ipcRenderer.invoke('desktop:sync-now'),
   getCached: (key) => ipcRenderer.invoke('desktop:cache:get', key),
-  setCached: (key, value) => ipcRenderer.invoke('desktop:cache:set', { key, value })
+  setCached: (key, value) => ipcRenderer.invoke('desktop:cache:set', { key, value }),
+  clearCache: () => ipcRenderer.invoke('desktop:cache:clear')
 }));
