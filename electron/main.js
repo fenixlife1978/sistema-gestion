@@ -95,6 +95,8 @@ ipcMain.handle('desktop:cache:set', (_event,{key,value}) => {
   return store.setCache(key,value);
 });
 
+ipcMain.handle('desktop:cache:clear', () => { if (!store) throw new Error('Local database unavailable'); return store.clearCache(); });
+
 app.whenReady().then(()=>{
   store=openStore(app.getPath('userData'));
   session.defaultSession.setPermissionRequestHandler((_webContents,permission,callback)=>callback(permission==='notifications'));
