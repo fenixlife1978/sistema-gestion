@@ -1,0 +1,53 @@
+name: Offline-first desktop checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [offline-first-hardening]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-and-installer:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: offline-first-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run offline SQLite regression tests
+        run: npm run test:offline
+      - name: Validate JavaScript syntax
+        shell: pwsh
+        run: |
+          $files = @(
+            "electron/main.js",
+            "electron/preload.js",
+            "electron/sqlite-store.js",
+            "api/desktop-sync.js",
+            "api/turso.js",
+            "api/bootstrap.js",
+            "api/padron/gestionar.js",
+            "lib/auth.js"
+          )
+          foreach ($file in $files) {
+            node --check $file
+            if ($LASTEXITCODE -ne 0) { throw "Syntax check failed: $file" }
+          }
+      - name: Build Windows installer
+        run: npm run dist:win
+      - name: Publish installer as downloadable workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sistema-gestion-windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 14

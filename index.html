@@ -272,30 +272,46 @@ body.controller-mode #tabs .tab svg{width:20px;height:20px}
 <script>
 /* ----------- CLIENTE TURSO (vía API proxy) ----------- */
 const API_URL = '/api/turso';
+function showDesktopOfflineBanner(){
+  if(!window.desktopBridge||!document.body)return;
+  let b=document.getElementById('desktopOfflineBanner');
+  if(!b){b=document.createElement('div');b.id='desktopOfflineBanner';b.textContent='SIN CONEXIÓN · Se muestran datos guardados en este equipo. Las escrituras requieren confirmación de sincronización.';b.style.cssText='position:sticky;top:0;z-index:99999;padding:9px 14px;background:#fff3cd;color:#754c00;border-bottom:1px solid #e5c76b;font-weight:700;text-align:center';document.body.prepend(b);}
+}
+function hideDesktopOfflineBanner(){document.getElementById('desktopOfflineBanner')?.remove();}
+async function desktopCacheKey(value){
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(value)));
+  return 'sqlcache:'+Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 async function turso(stmts) {
-  const r = await fetch(API_URL, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ statements: Array.isArray(stmts) ? stmts.map(s => ({ q: s.sql || s.q, params: s.args || s.params || [] })) : [{ q: stmts.sql || stmts.q, params: stmts.args || stmts.params || [] }] })
-  });
-  if (!r.ok) {
-    const txt = await r.text();
-    throw new Error('HTTP ' + r.status + ': ' + txt);
-  }
-  const j = await r.json();
-  if (j.error) {
-    const errMsg = typeof j.error === 'string' ? j.error : (j.error.message || 'Error Turso');
-    throw new Error(errMsg);
-  }
-  if (Array.isArray(j)) {
-    const errItem = j.find(item => item && item.error);
-    if (errItem) {
-      const msg = typeof errItem.error === 'string' ? errItem.error : (errItem.error.message || 'Error Turso');
-      throw new Error(msg);
+  const normalized = Array.isArray(stmts) ? stmts.map(s => ({ q:s.sql||s.q, params:s.args||s.params||[] })) : [{q:stmts.sql||stmts.q,params:stmts.args||stmts.params||[]}];
+  const cacheKey=await desktopCacheKey(JSON.stringify(normalized));
+  try {
+    const r = await fetch(API_URL, {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({statements:normalized})
+    });
+    if (!r.ok) { const txt=await r.text(); throw new Error('HTTP '+r.status+': '+txt); }
+    const j=await r.json();
+    if(j.error){const msg=typeof j.error==='string'?j.error:(j.error.message||'Error Turso');throw new Error(msg);}
+    if(Array.isArray(j)){const errItem=j.find(item=>item&&item.error);if(errItem){const msg=typeof errItem.error==='string'?errItem.error:(errItem.error.message||'Error Turso');throw new Error(msg);}}
+    // Solo se cachean SELECT confirmados; la caché nunca se usa como autoridad de escritura.
+    if(window.desktopBridge && normalized.every(s=>/^SELECT\b/i.test(String(s.q||'').trim()))){
+      await window.desktopBridge.setCached(cacheKey,{array:Array.isArray(j),value:j}).catch(()=>{});
     }
+    hideDesktopOfflineBanner();
+    return Array.isArray(stmts)?j:j[0];
+  } catch(error) {
+    if(window.desktopBridge && normalized.every(s=>/^SELECT\b/i.test(String(s.q||'').trim()))){
+      const cached=await window.desktopBridge.getCached(cacheKey).catch(()=>null);
+      if(cached?.value?.value!==undefined){
+        const saved=cached.value.value;
+        showDesktopOfflineBanner();
+        return Array.isArray(stmts)?saved:(Array.isArray(saved)?saved[0]:saved);
+      }
+    }
+    throw error;
   }
-  return Array.isArray(stmts) ? j : j[0];
 }
 async function q(sql, args = []) {
   const r = await turso({ sql, args });
@@ -676,14 +692,14 @@ async function refreshAll(skipPadron = false) {
     skipPadron ? { q: 'SELECT cedula FROM padron WHERE 0' } : { q: 'SELECT * FROM padron ORDER BY p_apellido, p_nombre' },
     { q: 'SELECT * FROM centros ORDER BY nombre' },
     { q: 'SELECT * FROM reclutadores ORDER BY creado DESC' },
-    { q: 'SELECT a.*, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100' },
-    { q: 'SELECT * FROM usuarios ORDER BY rol, nombre' },
+    { q: 'SELECT a.id, a.tipo, a.texto, a.usuario_id, a.creado, u.nombre AS usuario_nom FROM actividad a LEFT JOIN usuarios u ON u.id = a.usuario_id ORDER BY a.id DESC LIMIT 100' },
+    { q: 'SELECT id, usuario, nombre, rol, cargo, telefono, activo, creado FROM usuarios ORDER BY rol, nombre' },
     { q: 'SELECT cc.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.edad, p.nombre_cv FROM centro_cargos cc LEFT JOIN padron p ON p.cedula = cc.cedula ORDER BY cc.centro_codigo, cc.id' },
     { q: 'SELECT d.id, d.cargo, d.cedula, d.nombre, d.telefono, d.direccion, d.numero_calle, d.numero_casa, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM direccion_ejecutiva d LEFT JOIN padron p ON p.cedula = d.cedula ORDER BY d.id DESC' },
     { q: 'SELECT cv.id, cv.comunidad, cv.cargo, cv.cedula, cv.nombre, cv.telefono, cv.direccion, cv.numero_calle, cv.numero_casa, cv.problematica_actual, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, p.sexo, p.fecha_nac, p.edad, p.codigo_estado, p.estado, p.codigo_municipio, p.municipio, p.codigo_parroquia, p.parroquia, p.centro_votacion, p.nombre_cv FROM comite_vecinal cv LEFT JOIN padron p ON p.cedula = cv.cedula ORDER BY cv.id DESC' },
     { q: 'SELECT id, categoria, nombre, orden FROM catalogo_problemas WHERE activo = 1 ORDER BY orden, id' },
     { q: 'SELECT cp.comite_id, cp.problema_id, c.categoria, c.nombre AS problema_nombre FROM comite_problemas cp JOIN catalogo_problemas c ON c.id = cp.problema_id ORDER BY cp.comite_id, c.orden, c.id' },
-    { q: 'SELECT v.*, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, u.nombre AS operador_nom FROM verificaciones_votacion v LEFT JOIN padron p ON p.cedula=v.cedula LEFT JOIN usuarios u ON u.id=v.verificado_por ORDER BY v.verificado_en DESC, v.id DESC' },
+    { q: 'SELECT v.id, v.cedula, v.centro_codigo, v.mesa, v.estado, v.verificado_en, v.verificado_por, p.letra, p.p_apellido, p.s_apellido, p.p_nombre, p.s_nombre, u.nombre AS operador_nom FROM verificaciones_votacion v LEFT JOIN padron p ON p.cedula=v.cedula LEFT JOIN usuarios u ON u.id=v.verificado_por ORDER BY v.verificado_en DESC, v.id DESC' },
     { q: 'SELECT * FROM actas_mesa ORDER BY centro_codigo, mesa' },
     { q: 'SELECT * FROM mesa_operativa ORDER BY centro_codigo, mesa' },
     { q: 'SELECT * FROM mesa_miembros ORDER BY mesa_operativa_id, id' },
@@ -3615,6 +3631,7 @@ async function guardarVerificacion(cedula) {
   const persona=controlPersonasCentro(centro.codigo).find(x=>normC(x.l.cedula)===normC(cedula));
   if(!persona) return toast('La persona no aparece en el padrón CNE del centro seleccionado', 'err');
 
+  let serverConfirmed=false;
   try {
     const r=await fetch('/api/verificaciones', {
       method:'POST',
@@ -3628,7 +3645,8 @@ async function guardarVerificacion(cedula) {
     });
     let data={};
     try{data=await r.json()}catch(e){}
-    if(!r.ok) return toast(data.error||'No se pudo guardar la verificación','err',8000);
+    if(!r.ok){if(r.status>=500)throw new Error(data.error||'Servidor no disponible');return toast(data.error||'No se pudo guardar la verificación','err',8000);}
+    serverConfirmed=true;
 
     await refreshAll();
     closeModal();
@@ -3636,6 +3654,16 @@ async function guardarVerificacion(cedula) {
     renderControlElectoral();
     toast('Asistencia verificada • VOTÓ • Mesa '+mesa,'ok',6000);
   } catch(e) {
+    // En escritorio, si el servidor no responde, persistir la operación en SQLite.
+    // El estado queda explícitamente pendiente hasta la confirmación del servidor.
+    if(window.desktopBridge&&!serverConfirmed){
+      try{
+        await window.desktopBridge.enqueue({type:'verificacion',payload:{cedula:normC(cedula),centro_codigo:String(centro.codigo),mesa}});
+        closeModal();
+        toast('Verificación guardada en este equipo. Pendiente de sincronización y validación del servidor.','warn',9000);
+        return;
+      }catch(queueError){console.error('No se pudo guardar en la cola local',queueError);}
+    }
     console.error(e);
     toast('No se pudo guardar la verificación: '+e.message,'err',8000);
   }
@@ -4031,12 +4059,25 @@ async function guardarObservacionMesa(codigo,mesa) {
 async function guardarActaDesdeMesa(codigo,mesa) {
   const val=Number($('mesaActaCierreVotos')?.value);
   if(!Number.isInteger(val)||val<0) return toast('Ingrese una cantidad válida de votos','err');
+  let serverConfirmed=false;
   try {
     const rr=await fetch('/api/actas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({centro_codigo:String(codigo),centro_nombre:(cenBy(codigo)||{}).nombre||'',mesa:String(mesa),votos_partido:val})});
     const d=await rr.json().catch(()=>({}));
-    if(!rr.ok) return toast(d.error||'No se pudo guardar el Acta CNE','err',8000);
+    if(!rr.ok){if(rr.status>=500)throw new Error(d.error||'Servidor no disponible');return toast(d.error||'No se pudo guardar el Acta CNE','err',8000);}
+    serverConfirmed=true;
     await refreshAll(); abrirMesaCierre(codigo,mesa); toast('Acta CNE guardada','ok');
-  } catch(e) { toast('Error guardando Acta: '+e.message,'err',8000); }
+  } catch(e) {
+    // La operación solo se encola si falló la petición de red; nunca se marca como confirmada.
+    if(window.desktopBridge&&!serverConfirmed){
+      try{
+        await window.desktopBridge.enqueue({type:'acta',payload:{centro_codigo:String(codigo),mesa:String(mesa),votos_partido:val}});
+        closeModal();
+        toast('Acta guardada en este equipo. Pendiente de sincronización; no cierre la mesa hasta confirmar el envío.','warn',9000);
+        return;
+      }catch(queueError){console.error('No se pudo guardar el acta en la cola local',queueError);}
+    }
+    toast('Error guardando Acta: '+e.message,'err',8000);
+  }
 }
 async function cerrarMesa(codigo,mesa) {
   const mo=mesaOperativa(codigo,mesa);

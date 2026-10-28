@@ -34,6 +34,14 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Rol de sesión no permitido' });
     }
 
+    const activeUser = rowsFrom(await turso([{
+      q:'SELECT id,usuario,rol,activo FROM usuarios WHERE id=? LIMIT 1',
+      params:[session.uid]
+    }]))[0];
+    if (!activeUser || Number(activeUser.activo)!==1 || activeUser.usuario!==session.usuario || activeUser.rol!==session.rol) {
+      return res.status(401).json({ error: 'La sesión fue revocada o el usuario está inactivo' });
+    }
+
     let body = req.body || {};
     if (typeof body === 'string') {
       try { body = JSON.parse(body); } catch(e) {}
@@ -57,10 +65,17 @@ module.exports = async function handler(req, res) {
     // exponerse como SQL arbitrario desde el navegador.
     const readonly = stmts.every(({ q }) => {
       const normalized = q.trim().replace(/^\uFEFF/, '');
-      return /^(SELECT|PRAGMA)\b/i.test(normalized);
+      // Solo una consulta SELECT por sentencia; no exponer metadatos ni secretos.
+      if (!/^SELECT\b/i.test(normalized)) return false;
+      if (/[;]|--|\/\*|\*\//.test(normalized)) return false;
+      if (/\b(PRAGMA|ATTACH|DETACH|VACUUM|INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|LOAD_EXTENSION)\b/i.test(normalized)) return false;
+      if (/\b(sqlite_master|sqlite_schema|clave_hash|session_secret|desktop_sync_events)\b/i.test(normalized)) return false;
+      if (/SELECT\s+\*\s+FROM\s+usuarios\b/i.test(normalized)) return false;
+      if (/\busuarios\b/i.test(normalized) && /\*/.test(normalized)) return false;
+      return true;
     });
     if (!readonly) {
-      return res.status(403).json({ error: 'El proxy Turso solo permite consultas de lectura' });
+      return res.status(403).json({ error: 'Consulta no permitida por el proxy de solo lectura' });
     }
 
     // Usar exactamente el mismo cliente Turso que las demás rutas del sistema.
