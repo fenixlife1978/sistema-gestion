@@ -16,7 +16,7 @@
 const bridge=window.desktopBridge;const el=id=>document.getElementById(id);
 function esc(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
 let cacheIndexLoaded=false;
-function cacheLabel(entry){const names=[...entry.query.join(' ').matchAll(/\\bFROM\\s+([a-zA-Z0-9_]+)/gi)].map(m=>m[1]);return [...new Set(names)].slice(0,3).join(', ')||'Consulta guardada';}
+function cacheLabel(entry){const names=[...entry.query.join(' ').matchAll(/\bFROM\s+([a-zA-Z0-9_]+)/gi)].map(m=>m[1]);return [...new Set(names)].slice(0,3).join(', ')||'Consulta guardada';}
 async function showCached(entry){
   const host=el('cachedDetail');host.replaceChildren();
   const cached=await bridge.getCached(entry.key).catch(()=>null);
