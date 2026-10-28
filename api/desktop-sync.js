@@ -115,8 +115,13 @@ module.exports=async function handler(req,res){
             if(constituida&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(hc)) throw Object.assign(new Error('Debe indicar la hora de constitución cuando la mesa está constituida'),{status:400});
             if(!constituida&&hc) throw Object.assign(new Error('No debe indicar hora si la mesa no está constituida'),{status:400});
             if(mo && (mo.hora_constitucion || (mo.testigos_asistieron!==null && mo.testigos_asistieron!==undefined))){
-              if(String(mo.hora_constitucion||'')!==String(constituida?hc:'')||(mo.testigos_asistieron!==null&&mo.testigos_asistieron!==undefined&&Number(mo.testigos_asistieron)!==testigos))
+              if(String(mo.hora_constitucion||'')!==String(constituida?hc:''))
                 throw Object.assign(new Error('La constitución ya existe con datos distintos; requiere resolución manual'),{status:409});
+              if(mo.testigos_asistieron===null || mo.testigos_asistieron===undefined){
+                await turso([{q:'UPDATE mesa_operativa SET testigos_asistieron=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:[testigos,new Date().toISOString(),actor.id,mesaId]}]);
+              }else if(Number(mo.testigos_asistieron)!==testigos){
+                throw Object.assign(new Error('La constitución ya existe con datos distintos; requiere resolución manual'),{status:409});
+              }
             }else{
               const now=new Date().toISOString();
               if(mesaId) await turso([{q:'UPDATE mesa_operativa SET hora_constitucion=?,testigos_asistieron=?,actualizado_en=?,actualizado_por=? WHERE id=?',params:[constituida?hc:null,testigos,now,actor.id,mesaId]}]);
