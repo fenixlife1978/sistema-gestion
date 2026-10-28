@@ -28,6 +28,7 @@ jobs:
         run: |
           $files = @(
             "electron/main.js",
+            "electron/active-user.js",
             "electron/preload.js",
             "electron/sqlite-store.js",
             "electron/sync-engine.js",
