@@ -38,6 +38,7 @@ function openStore(userDataPath) {
   const add = db.prepare(`INSERT OR IGNORE INTO desktop_outbox
     (event_id,event_type,payload_json,status,created_at,updated_at)
     VALUES(@event_id,@event_type,@payload_json,'pending',@now,@now)`);
+  const getEventById = db.prepare('SELECT event_id,event_type,payload_json,status FROM desktop_outbox WHERE event_id=?');
   const list = db.prepare(`SELECT event_id,event_type,payload_json,status,attempts,created_at,last_error
     FROM desktop_outbox WHERE status IN ('pending','failed','conflict') ORDER BY created_at LIMIT 500`);
   const listSyncable = db.prepare(`SELECT event_id,event_type,payload_json,status,attempts,created_at,last_error
@@ -54,7 +55,11 @@ function openStore(userDataPath) {
       const payload_json = JSON.stringify(event.payload);
       if (payload_json.length > 20000) throw new Error('La operación supera el tamaño permitido');
       add.run({ event_id, event_type, payload_json, now: now() });
-      return { event_id, queued: true };
+      const stored = getEventById.get(event_id);
+      if (!stored || stored.event_type !== event_type || stored.payload_json !== payload_json) {
+        throw new Error('El identificador ya existe con datos distintos; no se sobrescribió la operación original');
+      }
+      return { event_id, queued: true, duplicate: stored.status !== 'pending' };
     },
     listEvents() {
       return list.all().map(row => ({...row, payload: JSON.parse(row.payload_json)}));
