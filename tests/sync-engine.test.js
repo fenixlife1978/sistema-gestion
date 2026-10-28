@@ -143,3 +143,35 @@ test('concurrent sync calls do not send the same batch twice', async t => {
   assert.equal((await first).ok,true);
   assert.equal(store.pendingCount(),0);
 });
+
+test('missing active owner blocks sync and preserves all pending events', async t => {
+  const store=fixture(t);
+  addEvent(store,7,'evt_sync_no_owner_001');
+  let calls=0;
+  const sync=createSyncEngine({
+    store,isOnline:()=>true,
+    getCookieHeader:async()=> 'erp_session=valid',
+    postSync:async()=>{calls++;return response(true,{results:[]});}
+  });
+  const result=await sync();
+  assert.equal(result.ok,false);
+  assert.match(result.message,/usuario propietario/);
+  assert.equal(calls,0);
+  assert.equal(store.pendingCount(),1);
+});
+
+test('network failure during POST keeps the operation retryable', async t => {
+  const store=fixture(t);
+  store.setActiveUserId(7);
+  addEvent(store,7,'evt_sync_network_err_01');
+  const sync=createSyncEngine({
+    store,isOnline:()=>true,
+    getCookieHeader:async()=> 'erp_session=valid',
+    postSync:async()=>{throw new Error('connection reset');}
+  });
+  const result=await sync();
+  assert.equal(result.ok,false);
+  assert.match(result.message,/connection reset/);
+  assert.equal(store.pendingCount(),1);
+  assert.equal(store.listSyncableEvents(7)[0].status,'pending');
+});
