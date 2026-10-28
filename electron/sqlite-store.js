@@ -14,7 +14,7 @@ function openStore(userDataPath) {
     CREATE TABLE IF NOT EXISTS desktop_outbox (
       event_id TEXT PRIMARY KEY,
       actor_id INTEGER,
-      event_type TEXT NOT NULL CHECK(event_type IN ('verificacion','acta')),
+      event_type TEXT NOT NULL CHECK(event_type IN ('verificacion','acta','mesa')),
       payload_json TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','syncing','synced','conflict','failed')),
       attempts INTEGER NOT NULL DEFAULT 0,
@@ -39,15 +39,36 @@ function openStore(userDataPath) {
   const columns = db.prepare('PRAGMA table_info(desktop_outbox)').all().map(c => c.name);
   if (!columns.includes('actor_id')) db.exec('ALTER TABLE desktop_outbox ADD COLUMN actor_id INTEGER');
   db.prepare("UPDATE desktop_outbox SET status='conflict',last_error='Operación antigua sin usuario propietario; requiere revisión antes de sincronizar',updated_at=? WHERE actor_id IS NULL AND status IN ('pending','failed','syncing')").run(new Date().toISOString());
+  const outboxSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='desktop_outbox'").get()?.sql || '';
+  if (!outboxSql.includes("'mesa'")) {
+    db.exec(`
+      CREATE TABLE desktop_outbox_next (
+        event_id TEXT PRIMARY KEY,
+        actor_id INTEGER,
+        event_type TEXT NOT NULL CHECK(event_type IN ('verificacion','acta','mesa')),
+        payload_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','syncing','synced','conflict','failed')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_error TEXT
+      );
+      INSERT INTO desktop_outbox_next(event_id,actor_id,event_type,payload_json,status,attempts,created_at,updated_at,last_error)
+        SELECT event_id,actor_id,event_type,payload_json,status,attempts,created_at,updated_at,last_error FROM desktop_outbox;
+      DROP TABLE desktop_outbox;
+      ALTER TABLE desktop_outbox_next RENAME TO desktop_outbox;
+      CREATE INDEX IF NOT EXISTS idx_desktop_outbox_pending ON desktop_outbox(status,created_at);
+    `);
+  }
   const now = () => new Date().toISOString();
   const add = db.prepare(`INSERT OR IGNORE INTO desktop_outbox
     (event_id,actor_id,event_type,payload_json,status,created_at,updated_at)
     VALUES(@event_id,@actor_id,@event_type,@payload_json,'pending',@now,@now)`);
   const getEventById = db.prepare('SELECT event_id,actor_id,event_type,payload_json,status FROM desktop_outbox WHERE event_id=?');
   const list = db.prepare(`SELECT event_id,actor_id,event_type,payload_json,status,attempts,created_at,last_error
-    FROM desktop_outbox WHERE status IN ('pending','failed','conflict') ORDER BY created_at LIMIT 500`);
+    FROM desktop_outbox WHERE status IN ('pending','failed','conflict') ORDER BY created_at,rowid LIMIT 500`);
   const listSyncable = db.prepare(`SELECT event_id,actor_id,event_type,payload_json,status,attempts,created_at,last_error
-    FROM desktop_outbox WHERE status IN ('pending','failed') AND actor_id=? ORDER BY created_at LIMIT 25`);
+    FROM desktop_outbox WHERE status IN ('pending','failed') AND actor_id=? ORDER BY created_at,rowid LIMIT 25`);
   const update = db.prepare(`UPDATE desktop_outbox SET status=@status,attempts=attempts+@attempt,
     updated_at=@now,last_error=@error WHERE event_id=@id`);
   return {
@@ -57,7 +78,7 @@ function openStore(userDataPath) {
       const event_id = String(event.event_id || crypto.randomUUID());
       if (!/^[a-zA-Z0-9_-]{12,100}$/.test(event_id)) throw new Error('Identificador de operación inválido');
       const event_type = String(event.type || '');
-      if (!['verificacion','acta'].includes(event_type)) throw new Error('Tipo de operación no permitido para sincronización');
+      if (!['verificacion','acta','mesa'].includes(event_type)) throw new Error('Tipo de operación no permitido para sincronización');
       if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) throw new Error('Datos de operación inválidos');
       const payload_json = JSON.stringify(event.payload);
       if (payload_json.length > 20000) throw new Error('La operación supera el tamaño permitido');
