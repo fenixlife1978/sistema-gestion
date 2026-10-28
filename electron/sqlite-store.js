@@ -54,12 +54,12 @@ function openStore(userDataPath) {
       if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) throw new Error('Datos de operación inválidos');
       const payload_json = JSON.stringify(event.payload);
       if (payload_json.length > 20000) throw new Error('La operación supera el tamaño permitido');
-      add.run({ event_id, event_type, payload_json, now: now() });
+      const inserted = add.run({ event_id, event_type, payload_json, now: now() });
       const stored = getEventById.get(event_id);
       if (!stored || stored.event_type !== event_type || stored.payload_json !== payload_json) {
         throw new Error('El identificador ya existe con datos distintos; no se sobrescribió la operación original');
       }
-      return { event_id, queued: true, duplicate: stored.status !== 'pending' };
+      return { event_id, queued: true, duplicate: inserted.changes === 0 };
     },
     listEvents() {
       return list.all().map(row => ({...row, payload: JSON.parse(row.payload_json)}));
