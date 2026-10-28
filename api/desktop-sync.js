@@ -31,11 +31,11 @@ module.exports=async function handler(req,res){
       const type=clean(event.type,30);
       const p=event.payload&&typeof event.payload==='object'&&!Array.isArray(event.payload)?event.payload:{};
       if(!/^[a-zA-Z0-9_-]{12,100}$/.test(eventId)||!['verificacion','acta'].includes(type)){
-        results.push({event_id:eventId||null,status:'failed',error:'Identificador o tipo de operación inválido'});continue;
+        results.push({event_id:eventId||null,status:'conflict',error:'Identificador o tipo de operación inválido; requiere revisión local'});continue;
       }
       const previous=rowsFrom(await turso([{q:'SELECT status,result_json,actor_id,event_type,claim_token,updated_at FROM desktop_sync_events WHERE event_id=? LIMIT 1',params:[eventId]}]))[0];
       if(previous && (Number(previous.actor_id)!==Number(actor.id) || previous.event_type!==type)){
-        results.push({event_id:eventId,status:'failed',error:'El identificador ya pertenece a otra operación o usuario'});continue;
+        results.push({event_id:eventId,status:'conflict',error:'El identificador ya pertenece a otra operación o usuario; requiere revisión'});continue;
       }
       if(previous?.status==='applied'){
         results.push({event_id:eventId,status:'synced',duplicate:true,result:previous.result_json?JSON.parse(previous.result_json):null});continue;
@@ -100,7 +100,7 @@ module.exports=async function handler(req,res){
         await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['desktop-sync','Operación local sincronizada: '+type+' • evento '+eventId,actor.id]}]);
         results.push({event_id:eventId,status:'synced',result:event.result});
       }catch(e){
-        const status=e.status===409?'conflict':'failed';
+        const status=Number(e.status)>=400&&Number(e.status)<500?'conflict':'failed';
         await turso([{q:"UPDATE desktop_sync_events SET status=?,updated_at=datetime('now') WHERE event_id=? AND claim_token=? AND status='processing'",params:[status,eventId,claimToken]}]).catch(()=>{});
         results.push({event_id:eventId,status,error:e.message||'No se pudo aplicar la operación'});
       }
