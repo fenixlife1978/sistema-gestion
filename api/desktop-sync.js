@@ -98,7 +98,6 @@ module.exports=async function handler(req,res){
             id=rowsFrom(await turso([{q:'SELECT id FROM actas_mesa WHERE centro_codigo=? AND mesa=? LIMIT 1',params:[centro,mesa]}]))[0]?.id;
           }
           event.result={id,centro_codigo:centro,mesa,votos_partido:votos};
-        }
         }else{
           const accion=clean(p.accion,20).toLowerCase();
           const centro=clean(p.centro_codigo,80), mesa=clean(p.mesa,4);
