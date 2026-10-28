@@ -136,3 +136,18 @@ test('SQLite cache stores and retrieves a large padrón snapshot without truncat
   assert.deepEqual(restored[0],padron[0]);
   assert.deepEqual(restored[9999],padron[9999]);
 });
+
+test('listCache exposes query metadata and row counts without exposing cached payloads', t => {
+  const f=fixture(t);
+  f.store.setActiveUserId(7);
+  f.store.setCache('sqlcache:centros:v1',{
+    array:true,
+    value:[{results:{columns:['codigo'],rows:[['C01'],['C02']]}}],
+    query:[{q:'SELECT codigo FROM centros',params:[]}]
+  });
+  const entries=f.store.listCache();
+  assert.equal(entries.length,1);
+  assert.deepEqual(entries[0].query,['SELECT codigo FROM centros']);
+  assert.equal(entries[0].rowCount,2);
+  assert.equal(Object.prototype.hasOwnProperty.call(entries[0],'value'),false);
+});
