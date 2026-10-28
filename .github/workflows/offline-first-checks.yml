@@ -2,8 +2,6 @@ name: Offline-first desktop checks
 
 on:
   workflow_dispatch:
-  push:
-    branches: [offline-first-hardening]
   pull_request:
     branches: [main]
 
@@ -17,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: offline-first-hardening
+          ref: ${{ github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
