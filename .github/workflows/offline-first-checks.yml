@@ -2,6 +2,10 @@ name: Offline-first desktop checks
 
 on:
   workflow_dispatch:
+  push:
+    branches: [offline-first-hardening]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
