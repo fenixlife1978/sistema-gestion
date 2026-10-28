@@ -87,9 +87,11 @@ ipcMain.handle('desktop:user:set', async (_event, userId) => bindActiveUser({
     return data.user;
   }
 }));
-ipcMain.handle('desktop:cache:get', (_event,key) => store ? store.getCache(key) : null);
+ipcMain.handle('desktop:cache:get', (_event,key) => store && store.getActiveUserId() ? store.getCache(key) : null);
+ipcMain.handle('desktop:cache:list', () => store && store.getActiveUserId() ? store.listCache() : []);
 ipcMain.handle('desktop:cache:set', (_event,{key,value}) => {
   if (!store) throw new Error('La base local no está disponible');
+  if (!store.getActiveUserId()) throw new Error('No hay usuario activo para asociar la caché');
   return store.setCache(key,value);
 });
 
