@@ -14,7 +14,7 @@ La aplicación Electron utiliza el servidor cuando hay conexión y mantiene SQLi
 - `api/desktop-sync.js`: valida sesión y rol, exige que `actor_id` coincida con la sesión autenticada, reclama eventos con token temporal, recupera reclamaciones abandonadas y devuelve conflictos.
 - `api/turso.js`: proxy de lectura endurecido; la caché solo guarda resultados SELECT que el servidor confirmó.
 - `index.html`: asocia el usuario activo con la sesión validada y limpia caché y propietario activo al cerrar sesión, sin borrar operaciones pendientes.
-- Pruebas: `tests/offline-store.test.js`, `tests/desktop-sync.test.js` y `tests/sync-engine.test.js`.
+- Pruebas: `tests/offline-store.test.js`, `tests/desktop-sync.test.js`, `tests/sync-engine.test.js` y `tests/offline-ui.test.js`.
 
 ## Propiedad y privacidad de la cola
 
@@ -43,7 +43,7 @@ El servidor usa `event_id` para reconocer reintentos y evita que un mismo identi
 - conservación de operaciones pendientes al limpiar caché;
 - lectura/escritura de un snapshot de padrón de 10.000 registros;
 - rechazo de sesiones vencidas, métodos HTTP no permitidos y eventos pertenecientes a otro usuario;
-- desconexión sin pérdida de cola, sesión ausente, sincronización exitosa, conflictos sin reintento automático y llamadas concurrentes.
+- desconexión sin pérdida de cola, sesión ausente, sincronización exitosa, conflictos sin reintento automático, llamadas concurrentes y rechazo de sobrescrituras/cierres de mesa inseguros.
 
 El workflow de GitHub Actions valida sintaxis JavaScript, ejecuta las pruebas y construye el instalador de Windows como artefacto descargable de Actions (retención de 14 días, sin necesidad de crear un Release).
 
