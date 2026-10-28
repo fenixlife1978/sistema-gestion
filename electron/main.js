@@ -82,10 +82,18 @@ ipcMain.handle('desktop:status', async () => ({
   queue:store ? store.queueSummary() : {pending:0,failed:0,conflict:0,syncing:0,toSync:0,totalUnresolved:0},
   mode:mainWindow && mainWindow.webContents.getURL().startsWith('file://')?'offline-fallback':'web'
 }));
-ipcMain.handle('desktop:queue:list', () => store ? store.listEvents().map(x=>({
-  event_id:x.event_id,actor_id:x.actor_id,type:x.event_type,status:x.status,attempts:x.attempts,
-  created_at:x.created_at,last_error:x.last_error,payload:x.payload
-})) : []);
+ipcMain.handle('desktop:queue:list', () => {
+  if (!store) return [];
+  const activeUserId = store.getActiveUserId();
+  return store.listEvents().map(x => {
+    const ownerMatches = Number.isSafeInteger(Number(x.actor_id)) && Number(x.actor_id) === activeUserId;
+    return {
+      event_id:x.event_id,type:x.event_type,status:x.status,attempts:x.attempts,
+      created_at:x.created_at,last_error:x.last_error,ownerMatches,
+      payload:ownerMatches ? x.payload : null
+    };
+  });
+});
 ipcMain.handle('desktop:queue:add', (_event, data) => {
   if (!store) throw new Error('La base local no está disponible');
   const actor_id = store.getActiveUserId();
