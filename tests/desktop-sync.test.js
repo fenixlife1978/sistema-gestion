@@ -145,3 +145,60 @@ test('desktop sync rejects table control without a constitution time', async t =
   assert.match(res.body.results[0].error,/hora de constitución/);
   assert.equal(h.queries.some(q=>q.startsWith('INSERT INTO mesa_operativa')),false);
 });
+
+test('desktop sync refuses to overwrite a different existing table observation', async t => {
+  const h=loadHandler({queryResults:{
+    'SELECT codigo,mesas FROM centros':[{codigo:'C01',mesas:20}],
+    'SELECT id,estado,hora_constitucion,testigos_asistieron,hora_cierre,observacion FROM mesa_operativa':[{id:42,estado:'ABIERTA',hora_constitucion:'08:00',testigos_asistieron:1,hora_cierre:null,observacion:'Observación existente'}]
+  }});
+  t.after(h.restore);
+  const res=responseRecorder();
+  await h.handler({method:'POST',body:{events:[{
+    event_id:'evt_mesa_obs_conflict_01',
+    actor_id:5,
+    type:'mesa',
+    payload:{accion:'observacion',centro_codigo:'C01',mesa:'2',observacion:'Texto nuevo'}
+  }]}},res);
+  assert.equal(res.body.results[0].status,'conflict');
+  assert.match(res.body.results[0].error,/observación distinta/);
+  assert.equal(h.queries.some(q=>q.startsWith('UPDATE mesa_operativa SET observacion')),false);
+});
+
+test('desktop sync refuses to close a table without an acta', async t => {
+  const h=loadHandler({queryResults:{
+    'SELECT codigo,mesas FROM centros':[{codigo:'C01',mesas:20}],
+    'SELECT id,estado,hora_constitucion,testigos_asistieron,hora_cierre,observacion FROM mesa_operativa':[{id:42,estado:'ABIERTA',hora_constitucion:'08:00',testigos_asistieron:1,hora_cierre:null,observacion:null}],
+    'SELECT id,votos_partido,cantidad_acta FROM actas_mesa':[]
+  }});
+  t.after(h.restore);
+  const res=responseRecorder();
+  await h.handler({method:'POST',body:{events:[{
+    event_id:'evt_mesa_close_no_acta_01',
+    actor_id:5,
+    type:'mesa',
+    payload:{accion:'cerrar',centro_codigo:'C01',mesa:'2'}
+  }]}},res);
+  assert.equal(res.body.results[0].status,'conflict');
+  assert.match(res.body.results[0].error,/sin registrar primero el acta/);
+  assert.equal(h.queries.some(q=>q.startsWith('UPDATE mesa_operativa SET estado')),false);
+});
+
+test('desktop sync closes a table when a valid acta already exists', async t => {
+  const h=loadHandler({queryResults:{
+    'SELECT codigo,mesas FROM centros':[{codigo:'C01',mesas:20}],
+    'SELECT id,estado,hora_constitucion,testigos_asistieron,hora_cierre,observacion FROM mesa_operativa':[{id:42,estado:'ABIERTA',hora_constitucion:'08:00',testigos_asistieron:1,hora_cierre:null,observacion:null}],
+    'SELECT id,votos_partido,cantidad_acta FROM actas_mesa':[{id:12,votos_partido:10,cantidad_acta:10}],
+    'SELECT cedula,cargo,tipo,origen,autorizado,autorizado_por,autorizado_en FROM mesa_miembros':[]
+  }});
+  t.after(h.restore);
+  const res=responseRecorder();
+  await h.handler({method:'POST',body:{events:[{
+    event_id:'evt_mesa_close_success_01',
+    actor_id:5,
+    type:'mesa',
+    payload:{accion:'cerrar',centro_codigo:'C01',mesa:'2'}
+  }]}},res);
+  assert.equal(res.body.results[0].status,'synced');
+  assert.equal(res.body.results[0].result.estado,'CERRADA');
+  assert.ok(h.queries.some(q=>q.startsWith('UPDATE mesa_operativa SET estado')));
+});
