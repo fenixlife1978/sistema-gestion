@@ -33,15 +33,27 @@ module.exports=async function handler(req,res){
       if(!/^[a-zA-Z0-9_-]{12,100}$/.test(eventId)||!['verificacion','acta'].includes(type)){
         results.push({event_id:eventId||null,status:'failed',error:'Identificador o tipo de operación inválido'});continue;
       }
-      const previous=rowsFrom(await turso([{q:'SELECT status,result_json,actor_id,event_type FROM desktop_sync_events WHERE event_id=? LIMIT 1',params:[eventId]}]))[0];
+      const previous=rowsFrom(await turso([{q:'SELECT status,result_json,actor_id,event_type,claim_token FROM desktop_sync_events WHERE event_id=? LIMIT 1',params:[eventId]}]))[0];
       if(previous && (Number(previous.actor_id)!==Number(actor.id) || previous.event_type!==type)){
         results.push({event_id:eventId,status:'failed',error:'El identificador ya pertenece a otra operación o usuario'});continue;
       }
       if(previous?.status==='applied'){
         results.push({event_id:eventId,status:'synced',duplicate:true,result:previous.result_json?JSON.parse(previous.result_json):null});continue;
       }
+      if(previous?.status==='processing'){
+        results.push({event_id:eventId,status:'failed',error:'Esta operación ya está siendo procesada; se reintentará en el siguiente ciclo'});continue;
+      }
+      const claimToken=crypto.randomUUID();
       try{
-        await turso([{q:'INSERT OR IGNORE INTO desktop_sync_events(event_id,event_type,actor_id,status,created_at,updated_at) VALUES(?,?,?,\'processing\',datetime(\'now\'),datetime(\'now\'))',params:[eventId,type,actor.id]}]);
+        if(previous){
+          await turso([{q:'UPDATE desktop_sync_events SET status=\\'processing\\',claim_token=?,updated_at=datetime(\\'now\\') WHERE event_id=? AND status=? AND COALESCE(claim_token,\\'\\')=?',params:[claimToken,eventId,previous.status,previous.claim_token||'']}]);
+        }else{
+          await turso([{q:'INSERT OR IGNORE INTO desktop_sync_events(event_id,event_type,actor_id,status,claim_token,created_at,updated_at) VALUES(?,?,?,\\'processing\\',?,datetime(\\'now\\'),datetime(\\'now\\'))',params:[eventId,type,actor.id,claimToken]}]);
+        }
+        const claim=rowsFrom(await turso([{q:'SELECT status,claim_token,actor_id,event_type FROM desktop_sync_events WHERE event_id=? LIMIT 1',params:[eventId]}]))[0];
+        if(!claim||claim.status!=='processing'||claim.claim_token!==claimToken||Number(claim.actor_id)!==Number(actor.id)||claim.event_type!==type){
+          results.push({event_id:eventId,status:'failed',error:'Otra solicitud reclamó esta operación; se reintentará automáticamente'});continue;
+        }
         if(type==='verificacion'){
           const cedula=digits(p.cedula), centro=clean(p.centro_codigo,80), mesa=clean(p.mesa,4);
           if(!/^[0-9]{5,9}$/.test(cedula)||!centro||!/^\d{1,4}$/.test(mesa)) throw Object.assign(new Error('Cédula, centro o mesa inválidos'),{status:400});
@@ -80,12 +92,12 @@ module.exports=async function handler(req,res){
           event.result={id,centro_codigo:centro,mesa,votos_partido:votos};
         }
         const resultJson=JSON.stringify(event.result||{ok:true});
-        await turso([{q:'UPDATE desktop_sync_events SET status=\'applied\',result_json=?,updated_at=datetime(\'now\') WHERE event_id=?',params:[resultJson,eventId]}]);
+        await turso([{q:'UPDATE desktop_sync_events SET status=\'applied\',result_json=?,updated_at=datetime(\'now\') WHERE event_id=?',params:[resultJson,eventId,claimToken]}]);
         await turso([{q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['desktop-sync','Operación local sincronizada: '+type+' • evento '+eventId,actor.id]}]);
         results.push({event_id:eventId,status:'synced',result:event.result});
       }catch(e){
         const status=e.status===409?'conflict':'failed';
-        await turso([{q:'UPDATE desktop_sync_events SET status=?,updated_at=datetime(\'now\') WHERE event_id=?',params:[status,eventId]}]).catch(()=>{});
+        await turso([{q:'UPDATE desktop_sync_events SET status=?,updated_at=datetime(\'now\') WHERE event_id=?',params:[status,eventId,claimToken]}]).catch(()=>{});
         results.push({event_id:eventId,status,error:e.message||'No se pudo aplicar la operación'});
       }
     }
