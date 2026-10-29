@@ -197,7 +197,6 @@ module.exports=async function(req,res){
       if(tel && !TEL.test(tel.replace(/\D/g,''))) return res.status(400).json({error:'Teléfono inválido'});
       const r=rowsFrom(await exec([{q:'SELECT r.id,r.cedula,p.centro_votacion FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula WHERE r.id=? LIMIT 1',params:[rid]}]))[0];
       if(!r) return res.status(404).json({error:'Movilizador no existe'});
-      if(!r.centro_votacion) return res.status(409).json({error:'No se puede registrar el comprometido porque el movilizador no tiene un centro electoral asociado'});
       const cnt=Number(rowsFrom(await exec([{q:'SELECT COUNT(*) n FROM asignaciones WHERE reclutador_id=?',params:[rid]}]))[0]?.n||0);
       if(cnt>=10) return res.status(409).json({error:'El movilizador ya tiene 10 compromisos'});
       const exists=rowsFrom(await exec([{q:'SELECT cedula FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
@@ -207,7 +206,6 @@ module.exports=async function(req,res){
       if(!s(cv.codigo)) return res.status(400).json({error:'Centro electoral requerido'});
       const centro=rowsFrom(await exec([{q:'SELECT * FROM centros WHERE codigo=? LIMIT 1',params:[s(cv.codigo)]}]))[0];
       if(!centro) return res.status(400).json({error:'Centro electoral no existe'});
-      if(String(centro.codigo)!==String(r.centro_votacion)) return res.status(409).json({error:'El comprometido no puede ser registrado: su centro electoral no coincide con el centro electoral del movilizador'});
       const max=Number(rowsFrom(await exec([{q:'SELECT COALESCE(MAX(posicion),0) m FROM asignaciones WHERE reclutador_id=?',params:[rid]}]))[0]?.m||0);
       const pos=max+1;
       await exec([
@@ -228,7 +226,7 @@ module.exports=async function(req,res){
       if(!r.centro_votacion) return res.status(409).json({error:'No se puede registrar el comprometido porque el movilizador no tiene un centro electoral asociado'});
       const p=rowsFrom(await exec([{q:'SELECT cedula,centro_votacion FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
       if(!p) return res.status(404).json({error:'La persona no existe en el padrón'});
-      if(!p.centro_votacion || String(p.centro_votacion)!==String(r.centro_votacion)) return res.status(409).json({error:'El comprometido no puede ser registrado: su centro electoral no coincide con el centro electoral del movilizador'});
+      if(!p.centro_votacion) return res.status(409).json({error:'Registro rechazado: la persona no tiene un centro electoral CNE asociado.'});
       const cnt=Number(rowsFrom(await exec([{q:'SELECT COUNT(*) n FROM asignaciones WHERE reclutador_id=?',params:[rid]}]))[0]?.n||0);
       if(cnt>=10) return res.status(409).json({error:'El movilizador ya tiene 10 compromisos'});
       const own=rowsFrom(await exec([{q:'SELECT id FROM asignaciones WHERE reclutador_id=? AND cedula=? LIMIT 1',params:[rid,ced]}]))[0];
