@@ -1512,8 +1512,8 @@ function openRec(id) {
 }
 function expLista(id) {
   const r = CACHE.recl.find(x => x.id === id); if (!r) return;
-  const rows = [['POS', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'EDAD', 'CENTRO_VOTACION', 'NOMBRE_CV', 'MUNICIPIO', 'PARROQUIA', 'REGISTRADO_EN']];
-  r.lista.forEach((l, i) => { const p = padBy(l.cedula); rows.push([i + 1, p ? p.letra : '', p ? p.cedula : l.cedula, p ? p.p_apellido : '', p ? p.s_apellido : '', p ? p.p_nombre : '', p ? p.s_nombre : '', p ? p.sexo : '', p ? fmtFn(p.fecha_nac) : '', p ? (edadDe(p.fecha_nac) || p.edad || '') : '', p ? p.centro_votacion : '', p ? p.nombre_cv : '', p ? p.municipio : '', p ? p.parroquia : '', l.registrado_en || '']) });
+  const rows = [['POS', 'LETRA_CEDULA', 'CEDULA_IDENTIDAD', 'P_APELLIDO', 'S_APELLIDO', 'P_NOMBRE', 'S_NOMBRE', 'SEXO', 'FECHA_NACIMIENTO', 'EDAD', 'CENTRO_VOTACION', 'NOMBRE_CV', 'MUNICIPIO', 'PARROQUIA', 'TELEFONO', 'DIRECCION', 'REGISTRADO_EN']];
+  r.lista.forEach((l, i) => { const p = padBy(l.cedula); rows.push([i + 1, p ? p.letra : '', p ? p.cedula : l.cedula, p ? p.p_apellido : '', p ? p.s_apellido : '', p ? p.p_nombre : '', p ? p.s_nombre : '', p ? p.sexo : '', p ? fmtFn(p.fecha_nac) : '', p ? (edadDe(p.fecha_nac) || p.edad || '') : '', p ? p.centro_votacion : '', p ? p.nombre_cv : '', p ? p.municipio : '', p ? p.parroquia : '', l.telefono || '', l.direccion || '', l.registrado_en || '']) });
   dlCSV('lista_' + r.id + '.csv', rows); toast('Lista exportada', 'ok');
 }
 function downloadRecPDF(id) {
