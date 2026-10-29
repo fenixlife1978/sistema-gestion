@@ -23,3 +23,10 @@ test('offline mesa forms enqueue only the supported generic mesa action type',()
   assert.match(html,/type:'mesa',payload:\{accion:'observacion'/);
   assert.match(html,/type:'mesa',payload:\{accion:'cerrar'/);
 });
+
+test('main application labels cached reads as potentially stale and shows last-read timestamp',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+  assert.match(html,/COPIA LOCAL POTENCIALMENTE DESACTUALIZADA/);
+  assert.match(html,/Última lectura guardada:/);
+  assert.match(html,/showDesktopOfflineBanner\(cached\.updated_at\)/);
+});
