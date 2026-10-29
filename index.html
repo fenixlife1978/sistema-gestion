@@ -297,7 +297,7 @@ async function turso(stmts) {
     if(Array.isArray(j)){const errItem=j.find(item=>item&&item.error);if(errItem){const msg=typeof errItem.error==='string'?errItem.error:(errItem.error.message||'Error Turso');throw new Error(msg);}}
     // Solo se cachean SELECT confirmados; la caché nunca se usa como autoridad de escritura.
     if(window.desktopBridge && normalized.every(s=>/^SELECT\b/i.test(String(s.q||'').trim()))){
-      await window.desktopBridge.setCached(cacheKey,{array:Array.isArray(j),value:j}).catch(()=>{});
+      await window.desktopBridge.setCached(cacheKey,{array:Array.isArray(j),value:j,query:normalized}).catch(()=>{});
     }
     hideDesktopOfflineBanner();
     return Array.isArray(stmts)?j:j[0];

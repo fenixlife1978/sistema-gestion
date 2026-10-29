@@ -136,6 +136,16 @@ function openStore(userDataPath) {
       const row = db.prepare('SELECT value_json,updated_at FROM desktop_cache WHERE cache_key=?').get(String(key));
       return row ? { value: JSON.parse(row.value_json), updated_at: row.updated_at } : null;
     },
+    listCache() {
+      return db.prepare('SELECT cache_key,value_json,updated_at FROM desktop_cache ORDER BY updated_at DESC LIMIT 100').all().map(row => {
+        let cached;
+        try { cached = JSON.parse(row.value_json); } catch (_) { cached = null; }
+        const queries = Array.isArray(cached?.query) ? cached.query.map(q => String(q.q || '')).filter(Boolean) : [];
+        const resultItems = Array.isArray(cached?.value) ? cached.value : [cached?.value];
+        const rowCount = resultItems.reduce((sum,item) => sum + (Array.isArray(item?.results?.rows) ? item.results.rows.length : 0),0);
+        return { key:row.cache_key, query:queries, updated_at:row.updated_at, rowCount };
+      }).filter(item => item.query.length > 0);
+    },
     clearCache() {
       db.prepare('DELETE FROM desktop_cache').run();
       return true;
