@@ -1625,7 +1625,7 @@ function openNewRecl() {
       '<div style="display:flex;gap:8px"><input class="inp" id="nrQ" placeholder="Cédula o nombre" disabled onkeydown="if(event.key===\'Enter\')nrSearch()"><button class="btn btn-navy" id="btnNrSearch" disabled onclick="nrSearch()">Buscar</button></div>' +
     '</div>' +
     '<div id="nrRes" style="margin-top:10px;display:grid;gap:7px"></div>' +
-    '<div id="nrForm" style="display:none;margin-top:14px;border-top:1px solid var(--line2);padding-top:14px"><label class="fl">Paso 3 • Datos del movilizador</label><div id="nrCard" style="margin-bottom:10px"></div><div class="grid g3" style="gap:12px"><div><label class="fl">Teléfono</label><input class="inp mono" id="nrTel" placeholder="0412-2232523" pattern="0\\d{3}-\\d{7}" maxlength="12"></div><div><label class="fl">Número de calle</label><input class="inp mono" id="nrNroCalle" placeholder="Ej: 12"></div><div><label class="fl">Número de casa</label><input class="inp mono" id="nrNroCasa" placeholder="Ej: 24"></div></div><div class="grid g2" style="gap:12px;margin-top:10px"><div><label class="fl">Estructura</label><input class="inp" id="nrEst" placeholder="Ej: UBCH, Calle, Comunidad..."></div><div><label class="fl">Dirección</label><input class="inp" id="nrDir" placeholder="Urbanización, calle, casa..."></div></div></div>',
+    '<div id="nrForm" style="display:none;margin-top:14px;border-top:1px solid var(--line2);padding-top:14px"><label class="fl">Paso 3 • Datos del movilizador</label><div id="nrCard" style="margin-bottom:10px"></div><div class="grid g2" style="gap:12px"><div><label class="fl">Teléfono</label><input class="inp mono" id="nrTel" placeholder="0412-2232523" pattern="0\\d{3}-\\d{7}" maxlength="12"></div><div><label class="fl">Número de casa</label><input class="inp mono" id="nrNroCasa" placeholder="Ej: 24"></div><div style="grid-column:1/-1"><label class="fl">Dirección</label><input class="inp" id="nrDir" placeholder="Urbanización, calle, casa..."></div></div></div>',
     '<button class="btn btn-w" onclick="closeModal()">Cancelar</button><button class="btn btn-navy" id="btnNrSave" disabled onclick="nrSave()">Crear movilizador</button>', 680);
 }
 function nrCentroChange() {
@@ -1676,9 +1676,7 @@ async function nrSave() {
   // Capturamos TODOS los datos antes de abrir cualquier modal de autorización.
   // El modal de autorización reemplaza el formulario original en #mOv.
   const tel=($('nrTel')?.value||'').trim();
-  const nroCalle=($('nrNroCalle')?.value||'').trim();
   const nroCasa=($('nrNroCasa')?.value||'').trim();
-  const estructura=$('nrEst')?.value||'';
   const direccion=($('nrDir')?.value||'').trim();
   const saveBtn=$('btnNrSave');
 
@@ -1709,8 +1707,8 @@ async function nrSave() {
         cedula:p.cedula,
         centro_codigo:centro,
         telefono:normTel(tel),
-        estructura,
-        numero_calle:nroCalle,
+        estructura:'',
+        numero_calle:'',
         numero_casa:nroCasa,
         direccion
       })
