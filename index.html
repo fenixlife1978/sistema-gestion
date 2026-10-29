@@ -3089,7 +3089,7 @@ function getComunidadesCatalogo() {
 function normalizarBusquedaComunidad(v) {
   return String(v || '')
     .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
 }
@@ -3100,7 +3100,7 @@ function comunidadCoincide(comunidad, consulta) {
   if (!q) return true;
   // Cada palabra escrita debe existir en el nombre, sin importar mayúsculas,
   // minúsculas, acentos ni el orden en que fueron introducidas.
-  return q.split(/\\s+/).filter(Boolean).every(token => base.includes(token));
+  return q.split(/\s+/).filter(Boolean).every(token => base.includes(token));
 }
 
 function seleccionarComunidadBusqueda(comunidad) {
