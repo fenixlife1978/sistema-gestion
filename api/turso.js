@@ -1,4 +1,4 @@
-const {turso,verify,getCookie}=require('../lib/auth');
+const {turso,rowsFrom,verify,getCookie}=require('../lib/auth');
 
 module.exports = async function handler(req, res) {
   // Este endpoint es un proxy SQL de alto privilegio. El origen CORS por sí
