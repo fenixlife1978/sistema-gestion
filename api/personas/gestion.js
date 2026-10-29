@@ -223,7 +223,6 @@ module.exports=async function(req,res){
       const r=rowsFrom(await exec([{q:'SELECT r.id,r.cedula,p.centro_votacion FROM reclutadores r LEFT JOIN padron p ON p.cedula=r.cedula WHERE r.id=? LIMIT 1',params:[rid]}]))[0];
       if(!r) return res.status(404).json({error:'Movilizador no existe'});
       if(r.cedula===ced) return res.status(409).json({error:'La cédula corresponde al propio movilizador'});
-      if(!r.centro_votacion) return res.status(409).json({error:'No se puede registrar el comprometido porque el movilizador no tiene un centro electoral asociado'});
       const p=rowsFrom(await exec([{q:'SELECT cedula,centro_votacion FROM padron WHERE cedula=? LIMIT 1',params:[ced]}]))[0];
       if(!p) return res.status(404).json({error:'La persona no existe en el padrón'});
       if(!p.centro_votacion) return res.status(409).json({error:'Registro rechazado: la persona no tiene un centro electoral CNE asociado.'});
