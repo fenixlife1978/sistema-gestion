@@ -20,13 +20,13 @@ module.exports=async function(req,res){
       if(!current) return fail(res,404,'No se encontró la asignación de esta persona');
       if(telefono){
         const checks=await turso([
-          {q:'SELECT telefono,cedula FROM reclutadores WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]},
-          {q:'SELECT telefono,cedula FROM asignaciones WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]},
-          {q:'SELECT telefono,cedula FROM direccion_ejecutiva WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]},
-          {q:'SELECT telefono,cedula FROM comite_vecinal WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]},
-          {q:'SELECT telefono,cedula FROM centro_cargos WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]}
+          {q:'SELECT telefono,cedula FROM reclutadores WHERE telefono IS NOT NULL AND telefono!=""',params:[]},
+          {q:'SELECT telefono,cedula FROM asignaciones WHERE telefono IS NOT NULL AND telefono!=""',params:[]},
+          {q:'SELECT telefono,cedula FROM direccion_ejecutiva WHERE telefono IS NOT NULL AND telefono!=""',params:[]},
+          {q:'SELECT telefono,cedula FROM comite_vecinal WHERE telefono IS NOT NULL AND telefono!=""',params:[]},
+          {q:'SELECT telefono,cedula FROM centro_cargos WHERE telefono IS NOT NULL AND telefono!=""',params:[]}
         ]);
-        const duplicado=checks.some(x=>rowsFrom([x]).some(y=>ci(y.cedula)!==cedula));
+        const duplicado=checks.some(x=>rowsFrom([x]).some(y=>String(y.telefono||'').replace(/\\D/g,'')===telefono&&ci(y.cedula)!==cedula));
         if(duplicado) return fail(res,409,'Este teléfono ya está asociado a otra persona. No se guardaron cambios.');
       }
       await turso([
