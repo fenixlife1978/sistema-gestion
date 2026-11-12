@@ -10,7 +10,32 @@ module.exports=async function(req,res){
   try{
     const session=verify(getCookie(req,'erp_session')); if(!session) return fail(res,401,'Sesión no válida o expirada');
     if(!['J','A','O'].includes(session.rol)) return fail(res,403,'Rol de sesión no permitido');
-    const b=parseBody(req), tipo=st(b.tipo,20).toLowerCase(), cedula=ci(b.cedula), cargo=st(b.cargo,120), centro=st(b.centro_codigo,80);
+    const b=parseBody(req);
+    if(st(b.action,50)==='actualizar_telefono_centro'){
+      if(!['J','A','O'].includes(session.rol)) return fail(res,403,'Rol no permitido');
+      const id=Number(b.id), cedula=ci(b.cedula), telefono=tel(b.telefono);
+      if(!id||!/^[0-9]{5,9}$/.test(cedula)) return fail(res,400,'Datos de persona inválidos');
+      if(telefono&&!/^0[0-9]{10}$/.test(telefono)) return fail(res,400,'Teléfono inválido');
+      const current=rowsFrom(await turso([{q:'SELECT id,cedula,centro_codigo,cargo FROM centro_cargos WHERE id=? AND cedula=? LIMIT 1',params:[id,cedula]}]))[0];
+      if(!current) return fail(res,404,'No se encontró la asignación de esta persona');
+      if(telefono){
+        const checks=await turso([
+          {q:'SELECT telefono,cedula FROM reclutadores WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]},
+          {q:'SELECT telefono,cedula FROM asignaciones WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]},
+          {q:'SELECT telefono,cedula FROM direccion_ejecutiva WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]},
+          {q:'SELECT telefono,cedula FROM comite_vecinal WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]},
+          {q:'SELECT telefono,cedula FROM centro_cargos WHERE telefono=? AND telefono!="" LIMIT 20',params:[telefono]}
+        ]);
+        const duplicado=checks.some(x=>rowsFrom([x]).some(y=>ci(y.cedula)!==cedula));
+        if(duplicado) return fail(res,409,'Este teléfono ya está asociado a otra persona. No se guardaron cambios.');
+      }
+      await turso([
+        {q:'UPDATE centro_cargos SET telefono=? WHERE id=? AND cedula=?',params:[telefono||null,id,cedula]},
+        {q:'INSERT INTO actividad(tipo,texto,usuario_id) VALUES(?,?,?)',params:['user','Teléfono actualizado en ficha de centro • C.I. '+cedula,session.uid]}
+      ]);
+      return res.json({ok:true,id,cedula,telefono:telefono?telefono.slice(0,4)+'-'+telefono.slice(4):''});
+    }
+    const tipo=st(b.tipo,20).toLowerCase(), cedula=ci(b.cedula), cargo=st(b.cargo,120), centro=st(b.centro_codigo,80);
     const telefono=tel(b.telefono), numero_calle=st(b.numero_calle,80), numero_casa=st(b.numero_casa,80), direccion=st(b.direccion,500), nombre=st(b.nombre,250), padron=b.padron&&typeof b.padron==='object'?b.padron:null;
     if(!['direccion','centro'].includes(tipo)||!/^[0-9]{5,9}$/.test(cedula)||!cargo) return fail(res,400,'Datos de asignación inválidos');
     if(tipo==='centro'&&!centro) return fail(res,400,'Centro electoral obligatorio');
