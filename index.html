@@ -2060,57 +2060,60 @@ function verDatosPersonaCargo(codigo, idx) {
     '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>',650);
 }
 function cabeceraReporteCentro(titulo, subtitulo) {
-  return '<header class="report-head"><div class="report-brand">COMANDO DE CAMPAÑA · SISTEMA INTEGRAL DE GESTIÓN ELECTORAL</div><h1>'+esc(titulo)+'</h1><p>'+esc(subtitulo||'')+'</p><div class="report-rule"></div></header>';
+ const fecha=new Date().toLocaleString('es-VE');
+ return '<header class="report-head"><div class="report-brand"><img src="/icono.png" alt="Logo"><div><strong>EDUARDO LAPI</strong><span>GOBERNADOR</span></div><div class="report-brand-sep"></div><div><strong>GUALBERTO MARTÍNEZ</strong><span>ALCALDE</span></div></div><div class="report-system">COMANDO DE CAMPAÑA · SISTEMA INTEGRAL DE GESTIÓN ELECTORAL</div><h1>'+esc(titulo)+'</h1><p>'+esc(subtitulo||'')+'</p><div class="report-rule"></div><div class="report-date">Fecha de emisión: '+esc(fecha)+'</div></header>';
 }
+
 function estilosReporteCentros() {
-  return '<style> *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;margin:18px;font-size:10px;background:#fff}h1{font-size:20px;margin:5px 0;color:#123c69}h2{font-size:13px;color:#123c69;margin:16px 0 7px;border-bottom:1px solid #b8c6d6;padding-bottom:5px}.report-head{margin-bottom:15px}.report-brand{font-size:9px;font-weight:bold;letter-spacing:1px;color:#45627f}.report-head p{margin:3px 0;color:#526477;font-size:10px}.report-rule{height:4px;background:#123c69;margin-top:9px}.meta-grid,.person-grid,.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:9px 0}.meta,.person-field,.stat{border:1px solid #d7dee7;border-radius:4px;padding:7px;break-inside:avoid}.meta span,.person-field span,.stat span{display:block;color:#607080;font-size:8px;text-transform:uppercase;margin-bottom:3px}.meta b,.person-field b,.stat b{font-size:10px;overflow-wrap:anywhere}.person-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.stat b{font-size:16px;color:#123c69}.cargo{border:1px solid #d5dee8;border-radius:5px;padding:9px;margin:8px 0;break-inside:avoid}.cargo-title{font-weight:bold;color:#123c69;font-size:11px;margin-bottom:5px}.cargo-state{font-size:9px;color:#64748b;font-style:italic}.person-eyebrow{font-size:8px;color:#64748b;font-weight:bold;letter-spacing:.5px}.person-card-head{display:flex;justify-content:space-between;gap:12px;background:#edf3f8;padding:10px;border:1px solid #d5dee8;border-radius:5px}.person-name{font-size:15px;font-weight:bold;color:#123c69;margin:12px 0}.report-footer{border-top:1px solid #cbd5e1;margin-top:18px;padding-top:7px;color:#64748b;font-size:8px;display:flex;justify-content:space-between}.report-table{width:100%;border-collapse:collapse;margin:8px 0}.report-table th,.report-table td{border:1px solid #cbd5e1;padding:6px;text-align:left;vertical-align:top;font-size:9px}.report-table th{background:#eaf0f6;color:#123c69;text-transform:uppercase}.report-note{font-size:9px;color:#64748b;margin:5px 0}@page{size:A4 landscape;margin:12mm}@media print{body{margin:0}.cargo,.person-field,.meta,.stat{break-inside:avoid}}@media(max-width:700px){.meta-grid,.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.person-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>';
+ return '<style>*{box-sizing:border-box}body{font-family:Roboto,Arial,sans-serif;color:#1f2937;margin:12px;font-size:9px;background:#fff}.report-head{margin-bottom:12px}.report-brand{display:flex;align-items:center;gap:12px;color:#123c69}.report-brand img{width:42px;height:42px;object-fit:contain}.report-brand strong{display:block;font-size:15px}.report-brand span{display:block;font-size:9px;font-weight:700;letter-spacing:1px}.report-brand-sep{height:34px;border-left:2px solid #c4ced9;margin:0 8px}.report-system{font-size:8px;color:#607080;font-weight:700;letter-spacing:1px;margin-top:7px}.report-head h1{font-size:17px;margin:5px 0;color:#123c69}.report-head p{margin:2px 0;color:#526477;font-size:9px}.report-date{font-size:8px;color:#64748b;text-align:right;margin-top:5px}.report-rule{height:4px;background:#123c69;margin-top:7px}h2{font-size:11px;color:#123c69;margin:12px 0 5px;border-bottom:1px solid #b8c6d6;padding-bottom:4px}.meta-grid,.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:7px 0}.meta,.stat{border:1px solid #d7dee7;padding:6px;break-inside:avoid}.meta span,.stat span{display:block;color:#607080;font-size:7px;text-transform:uppercase;margin-bottom:2px}.meta b,.stat b{font-size:9px;overflow-wrap:anywhere}.stat b{font-size:14px;color:#123c69}.report-table{width:100%;border-collapse:collapse;margin:6px 0 12px;table-layout:auto}.report-table th{background:#123c69;color:#fff;font-weight:700;text-transform:uppercase;font-size:7px;padding:5px 4px;border:1px solid #0d2f52;text-align:left;vertical-align:bottom;print-color-adjust:exact;-webkit-print-color-adjust:exact}.report-table td{padding:4px;border:1px solid #d5dce5;font-size:7px;vertical-align:top;overflow-wrap:anywhere}.report-table tbody tr:nth-child(even){background:#f2f5f8}.report-table tr{break-inside:avoid}.report-table thead{display:table-header-group}.report-note{font-size:8px;color:#64748b;margin:4px 0}.report-footer{border-top:1px solid #cbd5e1;margin-top:12px;padding-top:6px;color:#64748b;font-size:7px;display:flex;justify-content:space-between}@page{size:A4 landscape;margin:8mm}@media print{body{margin:0}.report-head{break-after:avoid}.report-table tr{break-inside:avoid}}@media(max-width:700px){.meta-grid,.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.report-table{min-width:900px}}</style>';
 }
+function columnasPersonasReporte(personas) {
+ const map=new Map();(personas||[]).filter(Boolean).forEach(p=>camposPersonaCentro(p).forEach(x=>{if(!map.has(x.label))map.set(x.label,x.label)}));return Array.from(map.keys());
+}
+function tablaPersonasReporte(headers,rows) {
+ return '<div class="report-table-wrap"><table class="report-table"><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+esc(v===undefined||v===null?'':v)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+}
+function valoresPersonaReporte(persona,columnas) {
+ const vals={};camposPersonaCentro(persona||{}).forEach(x=>vals[x.label]=x.value);return columnas.map(k=>vals[k]===undefined?'':vals[k]);
+}
+
 function reporteCentro(codigo) {
-  const c=cenBy(codigo); if(!c) return toast('Centro electoral no encontrado','err');
-  const pad=CACHE.pad.filter(p=>String(p.centro_votacion)===String(codigo));
-  const cargos=getCargosCentro(codigo);
-  const asignados=cargos.filter(x=>x.persona);
-  const edades=[[18,25,'18–25'],[26,35,'26–35'],[36,45,'36–45'],[46,55,'46–55'],[56,65,'56–65'],[66,999,'66+']];
-  const promedio=pad.map(p=>Number(edadDe(p.fecha_nac)||p.edad||0)).filter(x=>x>0&&x<=120);
-  const rango=edades.map(([min,max,label])=>({label,total:pad.filter(p=>{const e=Number(edadDe(p.fecha_nac)||p.edad||0);return e>=min&&e<=max}).length}));
-  const ver=ultimaVerificacionCentro(codigo), vd=ver?datosVerificacionCentro(ver):null;
-  const cards='<div class="stats"><div class="stat"><span>Electores registrados</span><b>'+pad.length+'</b></div><div class="stat"><span>Distribución M / F</span><b>'+pad.filter(p=>p.sexo==='M').length+' / '+pad.filter(p=>p.sexo==='F').length+'</b></div><div class="stat"><span>Comprometidos</span><b>'+pad.filter(p=>asignDe(p.cedula)).length+'</b></div><div class="stat"><span>Edad promedio</span><b>'+(promedio.length?(promedio.reduce((a,b)=>a+b,0)/promedio.length).toFixed(0):'—')+'</b></div></div>';
-  const cargosHtml=cargos.map(k=>{
-    if(!k.persona) return '<section class="cargo"><div class="cargo-title">'+esc(k.cargo)+'</div><div class="cargo-state">SIN ASIGNAR</div></section>';
-    const p=personaCargoCompleta(codigo,k.cargo);
-    return '<section class="cargo"><div class="cargo-title">'+esc(k.cargo)+'</div><div class="person-name">'+esc(apeP(p)+', '+nomP(p))+'</div>'+bloqueDatosPersona(p)+'</section>';
-  }).join('');
-  const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación · '+esc(c.nombre)+'</title>'+estilosReporteCentros()+'</head><body>'+
-    cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DEL CENTRO','Reporte individual · Generado el '+new Date().toLocaleString('es-VE'))+
-    '<div class="meta-grid"><div class="meta"><span>Centro electoral</span><b>'+esc(c.nombre)+'</b></div><div class="meta"><span>Código CNE</span><b>'+esc(c.codigo)+'</b></div><div class="meta"><span>Estado</span><b>'+esc(c.estado)+'</b></div><div class="meta"><span>Municipio / Parroquia</span><b>'+esc(c.municipio)+' / '+esc(c.parroquia)+'</b></div><div class="meta"><span>Mesas de votación</span><b>'+esc(c.mesas||1)+'</b></div></div>'+
-    '<h2>Resumen electoral</h2>'+cards+
-    '<h2>Distribución por rango etario</h2><table class="report-table"><thead><tr><th>Rango de edad</th><th>Cantidad de electores</th></tr></thead><tbody>'+rango.map(x=>'<tr><td>'+x.label+'</td><td>'+x.total+'</td></tr>').join('')+'</tbody></table>'+
-    '<h2>Última verificación del centro</h2>'+(vd?'<div class="meta-grid"><div class="meta"><span>Persona verificada</span><b>'+esc(vd.persona)+'</b></div><div class="meta"><span>Cédula</span><b>'+esc(fC((padBy(vd.ci)||{}).letra||'V',vd.ci))+'</b></div><div class="meta"><span>Mesa</span><b>'+esc(vd.mesa||'No registrada')+'</b></div><div class="meta"><span>Hora</span><b>'+esc(vd.hora)+'</b></div><div class="meta"><span>Operador</span><b>'+esc(vd.operador)+'</b></div></div>':'<p class="report-note">No hay verificaciones registradas para este centro.</p>')+
-    '<h2>Conformación completa de cargos</h2><p class="report-note">Cargos ocupados: '+asignados.length+' de '+cargos.length+'. Se identifica cada cargo sin asignación.</p>'+cargosHtml+
-    '<footer class="report-footer"><span>Sistema Integral de Gestión Electoral</span><span>Documento generado desde los registros disponibles del centro '+esc(codigo)+'</span></footer></body></html>';
-  window.__previewDocHtml=html;
-  vistaPreviaDocumento('Estructura del centro · '+c.nombre,html,
-    '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
-    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_centro_'+String(codigo).replace(/[^a-z0-9_-]/gi,'_')+'\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
+ const c=cenBy(codigo);if(!c)return toast('Centro electoral no encontrado','err');
+ const pad=CACHE.pad.filter(p=>String(p.centro_votacion)===String(codigo)),cargos=getCargosCentro(codigo);
+ const personas=cargos.filter(x=>x.persona).map(x=>personaCargoCompleta(codigo,x.cargo)),cols=columnasPersonasReporte(personas);
+ const rows=cargos.map((k,i)=>{const p=k.persona?personaCargoCompleta(codigo,k.cargo):null;return [i+1,k.cargo,p?'ASIGNADO':'SIN ASIGNAR',...valoresPersonaReporte(p,cols)]});
+ const edades=[[18,25,'18–25'],[26,35,'26–35'],[36,45,'36–45'],[46,55,'46–55'],[56,65,'56–65'],[66,999,'66+']];
+ const promedio=pad.map(p=>Number(edadDe(p.fecha_nac)||p.edad||0)).filter(x=>x>0&&x<=120);
+ const rango=edades.map(([min,max,label])=>[label,pad.filter(p=>{const e=Number(edadDe(p.fecha_nac)||p.edad||0);return e>=min&&e<=max}).length]);
+ const ver=ultimaVerificacionCentro(codigo),vd=ver?datosVerificacionCentro(ver):null;
+ const cards='<div class="stats"><div class="stat"><span>Electores registrados</span><b>'+pad.length+'</b></div><div class="stat"><span>Distribución M / F</span><b>'+pad.filter(p=>p.sexo==='M').length+' / '+pad.filter(p=>p.sexo==='F').length+'</b></div><div class="stat"><span>Comprometidos</span><b>'+pad.filter(p=>asignDe(p.cedula)).length+'</b></div><div class="stat"><span>Edad promedio</span><b>'+(promedio.length?(promedio.reduce((a,b)=>a+b,0)/promedio.length).toFixed(0):'—')+'</b></div></div>';
+ const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación · '+esc(c.nombre)+'</title>'+estilosReporteCentros()+'</head><body>'+
+ cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DEL CENTRO','Reporte individual del centro electoral')+
+ '<div class="meta-grid"><div class="meta"><span>Centro electoral</span><b>'+esc(c.nombre)+'</b></div><div class="meta"><span>Código CNE</span><b>'+esc(c.codigo)+'</b></div><div class="meta"><span>Estado</span><b>'+esc(c.estado)+'</b></div><div class="meta"><span>Municipio / Parroquia</span><b>'+esc(c.municipio)+' / '+esc(c.parroquia)+'</b></div><div class="meta"><span>Mesas de votación</span><b>'+esc(c.mesas||1)+'</b></div></div>'+
+ '<h2>Resumen electoral</h2>'+cards+'<h2>Distribución por rango etario</h2>'+tablaPersonasReporte(['RANGO DE EDAD','CANTIDAD DE ELECTORES'],rango)+
+ '<h2>Última verificación del centro</h2>'+(vd?tablaPersonasReporte(['PERSONA VERIFICADA','CÉDULA','MESA','HORA','OPERADOR'],[[vd.persona,fC((padBy(vd.ci)||{}).letra||'V',vd.ci),vd.mesa||'No registrada',vd.hora,vd.operador]]):'<p class="report-note">No hay verificaciones registradas para este centro.</p>')+
+ '<h2>Conformación completa de cargos y datos de las personas asignadas</h2><p class="report-note">Cada fila corresponde a un cargo. Se incluyen todas las columnas de información personal, electoral y adicional que estén registradas. Campos no informados quedan vacíos. Cargos ocupados: '+personas.length+' de '+cargos.length+'.</p>'+
+ tablaPersonasReporte(['N°','CARGO','ESTADO DE ASIGNACIÓN',...cols],rows)+
+ '<footer class="report-footer"><span>EDUARDO LAPI · GOBERNADOR | GUALBERTO MARTÍNEZ · ALCALDE</span><span>Sistema Integral de Gestión Electoral · Centro '+esc(codigo)+'</span></footer></body></html>';
+ window.__previewDocHtml=html;vistaPreviaDocumento('Estructura del centro · '+c.nombre,html,
+ '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+ '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_centro_'+String(codigo).replace(/[^a-z0-9_-]/gi,'_')+'\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
 }
+
 function reporteEstructuraCoordinacion() {
-  const rows=CACHE.centros.map(c=>{
-    const a=CACHE.cargos.find(x=>String(x.centro_codigo)===String(c.codigo)&&String(x.cargo||'').trim().toLowerCase()==='coordinador del centro');
-    if(!a) return null;
-    const p=personaCargoCompleta(c.codigo,'Coordinador del Centro');
-    return {centro:c,persona:p};
-  }).filter(Boolean);
-  if(!rows.length) return toast('No hay coordinadores de centro asignados para generar el documento','err');
-  const fichas=rows.map((x,i)=>'<section class="cargo"><div class="cargo-title">'+(i+1)+'. '+esc(x.centro.nombre)+'</div><div class="meta-grid"><div class="meta"><span>Código CNE</span><b>'+esc(x.centro.codigo)+'</b></div><div class="meta"><span>Estado</span><b>'+esc(x.centro.estado)+'</b></div><div class="meta"><span>Municipio</span><b>'+esc(x.centro.municipio)+'</b></div><div class="meta"><span>Parroquia</span><b>'+esc(x.centro.parroquia)+'</b></div></div><div class="person-name">'+esc(apeP(x.persona)+', '+nomP(x.persona))+'</div><div class="person-eyebrow">COORDINADOR(A) DEL CENTRO</div>'+bloqueDatosPersona(x.persona)+'</section>').join('');
-  const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación de centros</title>'+estilosReporteCentros()+'</head><body>'+
-    cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DE CENTROS','Relación consolidada de coordinadores asignados · Generado el '+new Date().toLocaleString('es-VE'))+
-    '<div class="stats"><div class="stat"><span>Centros registrados</span><b>'+CACHE.centros.length+'</b></div><div class="stat"><span>Coordinadores asignados</span><b>'+rows.length+'</b></div><div class="stat"><span>Centros sin coordinador</span><b>'+Math.max(0,CACHE.centros.length-rows.length)+'</b></div></div>'+
-    '<p class="report-note">Se muestran exclusivamente los coordinadores existentes en los registros. Cada ficha está vinculada con su centro electoral y presenta los datos personales y electorales disponibles.</p>'+fichas+
-    '<footer class="report-footer"><span>Sistema Integral de Gestión Electoral</span><span>Estructura consolidada de coordinación de centros</span></footer></body></html>';
-  window.__previewDocHtml=html;
-  vistaPreviaDocumento('Estructura de coordinación de centros',html,
-    '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
-    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_coordinacion_centros\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
+ const rows=CACHE.centros.map(c=>{const a=CACHE.cargos.find(x=>String(x.centro_codigo)===String(c.codigo)&&String(x.cargo||'').trim().toLowerCase()==='coordinador del centro');return a?{centro:c,persona:personaCargoCompleta(c.codigo,'Coordinador del Centro')}:null}).filter(x=>x&&x.persona);
+ if(!rows.length)return toast('No hay coordinadores de centro asignados para generar el documento','err');
+ const cols=columnasPersonasReporte(rows.map(x=>x.persona));
+ const headers=['N°','CÓDIGO CNE','CENTRO ELECTORAL','ESTADO','MUNICIPIO','PARROQUIA','CARGO',...cols];
+ const data=rows.map((x,i)=>[i+1,x.centro.codigo,x.centro.nombre,x.centro.estado,x.centro.municipio,x.centro.parroquia,'COORDINADOR DEL CENTRO',...valoresPersonaReporte(x.persona,cols)]);
+ const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación de centros</title>'+estilosReporteCentros()+'</head><body>'+
+ cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DE CENTROS','Relación consolidada de coordinadores de todos los centros electorales')+
+ '<div class="stats"><div class="stat"><span>Centros registrados</span><b>'+CACHE.centros.length+'</b></div><div class="stat"><span>Coordinadores asignados</span><b>'+rows.length+'</b></div><div class="stat"><span>Centros sin coordinador</span><b>'+Math.max(0,CACHE.centros.length-rows.length)+'</b></div></div>'+
+ '<p class="report-note">Cada fila identifica el centro y su coordinador. Se incorporan todas las columnas de información personal, electoral y adicional existentes en los registros.</p>'+
+ tablaPersonasReporte(headers,data)+'<footer class="report-footer"><span>EDUARDO LAPI · GOBERNADOR | GUALBERTO MARTÍNEZ · ALCALDE</span><span>Sistema Integral de Gestión Electoral · Consolidado general</span></footer></body></html>';
+ window.__previewDocHtml=html;vistaPreviaDocumento('Estructura de coordinación de centros',html,
+ '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+ '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_coordinacion_centros\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
 }
 
 async function updateMesas(cod) {
