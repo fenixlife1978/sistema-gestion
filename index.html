@@ -2194,8 +2194,8 @@ function reporteEstructuraCoordinacion() {
  });
  if(!rows.length)return toast('No hay centros registrados para generar el documento','err');
  const asignados=rows.filter(x=>x.asignado).length;
- const cols=columnasPersonasReporte(rows.filter(x=>x.asignado).map(x=>x.persona)).filter(k=>!['Es manual','Creado'].includes(k));
- ['Dirección','Teléfono'].forEach(k=>{if(!cols.includes(k))cols.push(k);});
+ const cols=columnasPersonasReporte(rows.filter(x=>x.asignado).map(x=>x.persona)).filter(k=>!['Es manual','Creado','Dirección'].includes(k));
+ if(!cols.includes('Teléfono'))cols.push('Teléfono');
  const headers=['N°','CÓDIGO CNE','CENTRO ELECTORAL','ESTADO','MUNICIPIO','CARGO','ESTADO DE ASIGNACIÓN',...cols.map(k=>k==='Letra de cédula'?'letra':k)];
  const indiceLetra=headers.indexOf('letra')+1;
  const data=rows.map((x,i)=>[i+1,x.centro.codigo,x.centro.nombre,x.centro.estado,x.centro.municipio,'COORDINADOR DEL CENTRO',x.asignado?'ASIGNADO':'SIN ASIGNAR',...valoresPersonaReporte(x.persona,cols)]);
