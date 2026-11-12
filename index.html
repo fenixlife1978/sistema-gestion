@@ -2169,8 +2169,7 @@ function reporteEstructuraCoordinacion() {
  '<p class="report-note">El documento incluye <strong>todos los '+rows.length+' centros registrados</strong>: '+asignados+' con coordinador asignado y '+(rows.length-asignados)+' sin asignación. Cada centro aparece en una fila; los datos personales quedan vacíos cuando no existe coordinador asignado.</p>'+
  tablaPersonasReporte(headers,data)+'<footer class="report-footer"><span>EDUARDO LAPI · GOBERNADOR | GUALBERTO MARTÍNEZ · ALCALDE</span><span>Sistema Integral de Gestión Electoral · Consolidado general</span></footer></body></html>';
  window.__previewDocHtml=html;vistaPreviaDocumento('Estructura de coordinación de centros',html,
- '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml,\'landscape\')">'+ic('print',13)+' Imprimir</button>'+
- '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_coordinacion_centros\',\'A4\',\'landscape\')">'+ic('file',13)+' Descargar PDF</button>');
+ '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml,\'landscape\')">'+ic('print',13)+' Imprimir</button>');
 }
 
 async function updateMesas(cod) {
