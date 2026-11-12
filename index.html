@@ -191,6 +191,15 @@ label.fl{color:var(--navy);font-weight:700;font-size:12.5px;display:block;margin
 .pdf-header h1{font-size:18px;color:var(--navy);flex:1}
 .pdf-header .meta{font-size:10px;color:#666;text-align:right}
 .pdf-footer{margin-top:20px;padding-top:10px;border-top:2px solid var(--navy);font-size:9px;color:#888;display:flex;justify-content:space-between}
+
+.person-card-head{display:flex;justify-content:space-between;gap:12px;padding:10px;background:#eaf0f6;border:1px solid var(--line2);border-radius:5px;color:var(--navy);font-size:12px}
+.person-eyebrow{font-size:9px;color:var(--mut);font-weight:700;letter-spacing:.5px}
+.person-name{font-size:14px;font-weight:700;color:var(--navy);margin:12px 0}
+.person-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px}
+.person-field{padding:8px;border:1px solid var(--line2);border-radius:5px;background:#fff;min-width:0}
+.person-field span{display:block;color:var(--mut);font-size:9px;text-transform:uppercase;margin-bottom:3px}
+.person-field b{display:block;color:var(--txt);font-size:11px;overflow-wrap:anywhere}
+
 </style>
 <style>
 html,body{width:100%;overflow-x:hidden;max-width:100vw}
@@ -538,8 +547,9 @@ function imprimirHTMLPrevisualizado(html) {
 }
 function descargarPDFPrevisualizado(html, title, formato='A4') {
   if(typeof html2pdf!=='function') return toast('Generador PDF no disponible. Verifique la conexión y vuelva a intentarlo.','err');
+  const styles=(html.match(/<style[\s\S]*?<\/style>/gi)||[]).join('');
   const center=html.replace(/<!DOCTYPE html>[\s\S]*?<body>/,'').replace(/<\/body><\/html>$/,'');
-  const box=document.createElement('div'); box.innerHTML=center; box.style.background='#fff'; box.style.padding='12px'; document.body.appendChild(box);
+  const box=document.createElement('div'); box.innerHTML=styles+center; box.style.background='#fff'; box.style.padding='12px'; document.body.appendChild(box);
   html2pdf().set({margin:8,filename:String(title||'reporte').replace(/[^a-z0-9áéíóúñ_-]+/gi,'_')+'_'+Date.now()+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:formato==='CARTA'?'letter':'a4',orientation:'landscape'}}).from(box).save().then(()=>{box.remove();toast('PDF descargado','ok')}).catch(()=>{box.remove();toast('Error al generar PDF','err')});
 }
 function sharePDF(elId, title) {
@@ -1813,7 +1823,7 @@ function renderCentros() {
   const munis = [...new Set(CACHE.centros.map(c => c.municipio))].sort();
   const filtered = CACHE.centros.filter(c => !CENF.municipio || c.municipio === CENF.municipio);
   const totalElect = filtered.reduce((a, c) => a + CACHE.pad.filter(p => p.centro_votacion === c.codigo).length, 0);
-  $('sec-centros').innerHTML = panel('Centros Electorales / Catálogo CNE <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'cenContent\',\'Centros Electorales  Catálogo CNE\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'cenContent\',\'Centros Electorales  Catálogo CNE\')">' + ic('dl', 13) + ' PDF</button><span class="chip chip-b">' + filtered.length + ' centro(s)</span><span class="chip chip-y">' + totalElect + ' electores</span></div>',
+  $('sec-centros').innerHTML = panel('Centros Electorales / Catálogo CNE <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'cenContent\',\'Centros Electorales  Catálogo CNE\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'cenContent\',\'Centros Electorales  Catálogo CNE\')">' + ic('dl', 13) + ' PDF</button><button class="btn btn-navy btn-xs" onclick="reporteEstructuraCoordinacion()">' + ic('users',13) + ' Estructura de coordinación</button><span class="chip chip-b">' + filtered.length + ' centro(s)</span><span class="chip chip-y">' + totalElect + ' electores</span></div>',
     '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:2"><label class="fl">Municipio</label><select class="inp" onchange="CENF.municipio=this.value;renderCentros()"><option value=""> TODOS </option>' + munis.map(m => '<option value="' + esc(m) + '" ' + (CENF.municipio === m ? 'selected' : '') + '>' + esc(m) + '</option>').join('') + '</select></div></div>' +
     '<div id="cenContent"><div class="grid g3">' + filtered.map(c => {
       const list = CACHE.pad.filter(p => p.centro_votacion === c.codigo); const M = list.filter(p => p.sexo === 'M').length; const enL = list.filter(p => asignDe(p.cedula)).length;
@@ -1974,7 +1984,7 @@ function openCentro(cod) {
     if (p) {
       const tel = p.telefono ? (typeof p.telefono === 'string' ? p.telefono : '') : '';
       const dir = p.direccion ? (typeof p.direccion === 'string' ? p.direccion : '') : '';
-      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ' + borderColor + ';border-radius:6px;background:' + bgColor + '"><span class="uava" style="width:30px;height:30px;font-size:10px;border-radius:6px">' + ini(nomP(p) + ' ' + apeP(p)) + '</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:' + labelColor + '">' + esc(k.cargo) + '</div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + esc(apeP(p) + ', ' + nomP(p)) + '</div><div class="mono" style="font-size:10px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + (p.sexo || '') + '</div>' + (tel ? '<div style="font-size:10px;color:var(--mut);margin-top:2px">' + ic('chat', 10) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);text-decoration:none;font-weight:600">' + esc(tel) + '</a></div>' : '') + (dir ? '<div style="font-size:10px;color:var(--mut)">' + ic('pin', 10) + ' ' + esc(dir) + '</div>' : '') + '</div><button class="btn btn-w btn-xs" onclick="removeCargoCentro(\'' + cod + '\',' + i + ')" title="Remover">' + ic('x', 12) + '</button></div>';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ' + borderColor + ';border-radius:6px;background:' + bgColor + '"><span class="uava" style="width:30px;height:30px;font-size:10px;border-radius:6px">' + ini(nomP(p) + ' ' + apeP(p)) + '</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:' + labelColor + '">' + esc(k.cargo) + '</div><div style="font-size:12px;font-weight:600;color:var(--navy)">' + esc(apeP(p) + ', ' + nomP(p)) + '</div><div class="mono" style="font-size:10px;color:var(--mut)">' + fC(p.letra, p.cedula) + '  ' + (edadDe(p.fecha_nac) || p.edad || '-') + 'a  ' + (p.sexo || '') + '</div>' + (tel ? '<div style="font-size:10px;color:var(--mut);margin-top:2px">' + ic('chat', 10) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);text-decoration:none;font-weight:600">' + esc(tel) + '</a></div>' : '') + (dir ? '<div style="font-size:10px;color:var(--mut)">' + ic('pin', 10) + ' ' + esc(dir) + '</div>' : '') + '</div><button class="btn btn-w btn-xs" onclick="verDatosPersonaCargo(\'' + cod + '\',' + i + ')" title="Ver todos los datos" aria-label="Ver todos los datos">' + ic('eye', 12) + '</button><button class="btn btn-w btn-xs" onclick="removeCargoCentro(\'' + cod + '\',' + i + ')" title="Remover">' + ic('x', 12) + '</button></div>';
     } else {
       return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed #cbd5e1;border-radius:6px;background:#f8fafc"><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;color:var(--mut)">' + esc(k.cargo) + '</div><div style="font-size:11px;color:var(--mut);font-style:italic">Sin asignar</div></div><button class="btn btn-navy btn-xs" onclick="openCargoSearch(\'' + cod + '\',\'' + esc(k.cargo).replace(/'/g, "\\'") + '\',' + i + ')">' + ic('userPlus', 12) + ' Asignar</button></div><div id="cargo-panel-' + i + '"></div>';
     }
@@ -2000,9 +2010,109 @@ function openCentro(cod) {
         : '<div class="empty" style="padding:14px;border:1px dashed var(--line2);border-radius:6px">No hay verificaciones registradas para este centro.</div>') +
     '</div>' +
     '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"><label class="fl" style="font-size:13px;margin-bottom:8px">Cargos predeterminados del Centro Electoral <span class="chip chip-b">' + asignados + '/' + cargos.length + ' asignados</span></label><div style="font-size:11px;color:var(--mut);margin-bottom:8px">Se muestran todos los cargos predeterminados; los que no tengan persona asignada permanecen disponibles para asignación.</div><div style="display:grid;gap:8px">' + cargoRows + '</div></div>',
-    '<button class="btn btn-w" onclick="closeModal();REPF.centro=\'' + c.codigo + '\';go(\'rep\')">' + ic('chart', 14) + ' Reportes</button><button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 780);
+    '<button class="btn btn-w" onclick="reporteCentro(\'' + c.codigo + '\')">' + ic('file', 14) + ' Reporte del centro</button><button class="btn btn-navy" onclick="closeModal()">Cerrar</button>', 780);
   vbars('cenE', R.map(r => ({ l: r[2], v: list.filter(p => { const ed = edadDe(p.fecha_nac) || p.edad || 0; return ed >= r[0] && ed <= r[1]; }).length })));
 }
+
+
+/* ----------- FICHAS Y REPORTES PROFESIONALES DE CENTROS ----------- */
+function personaCargoCompleta(codigo, cargo) {
+  const a = CACHE.cargos.find(x => String(x.centro_codigo) === String(codigo) && String(x.cargo||'').trim() === String(cargo||'').trim());
+  if (!a) return null;
+  const p = padBy(a.cedula) || {};
+  return { ...p, ...a, ...p, telefono: a.telefono || p.telefono || '', direccion: a.direccion || p.direccion || '' };
+}
+function camposPersonaCentro(persona) {
+  const p = persona || {};
+  const defs = [
+    ['Letra de cédula','letra'],['Cédula de identidad','cedula'],
+    ['Primer apellido','p_apellido'],['Segundo apellido','s_apellido'],
+    ['Primer nombre','p_nombre'],['Segundo nombre','s_nombre'],
+    ['Sexo','sexo'],['Fecha de nacimiento','fecha_nac'],['Edad','edad'],
+    ['Código de estado','codigo_estado'],['Estado','estado'],
+    ['Código de municipio','codigo_municipio'],['Municipio','municipio'],
+    ['Código de parroquia','codigo_parroquia'],['Parroquia','parroquia'],
+    ['Código del centro de votación','centro_votacion'],['Centro de votación (padrón CNE)','nombre_cv'],
+    ['Teléfono','telefono'],['Dirección','direccion'],['Número de calle','numero_calle'],
+    ['Número de casa','numero_casa'],['Observaciones','observacion']
+  ];
+  const out = defs.map(([label,key]) => ({label,value:p[key]})).filter(x => x.value !== undefined && x.value !== null && String(x.value).trim() !== '');
+  const known = new Set(defs.map(x=>x[1]).concat(['id','centro_codigo','cargo','asignado_en','created_at','updated_at']));
+  Object.keys(p).filter(k=>!known.has(k) && !/^id$/i.test(k) && p[k]!==undefined && p[k]!==null && typeof p[k]!=='object' && String(p[k]).trim()!=='').forEach(k=>{
+    out.push({label:k.replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase()),value:p[k]});
+  });
+  return out;
+}
+function bloqueDatosPersona(persona) {
+  const campos=camposPersonaCentro(persona);
+  if(!campos.length) return '<p class="muted">No hay datos adicionales registrados.</p>';
+  return '<div class="person-grid">'+campos.map(x=>'<div class="person-field"><span>'+esc(x.label)+'</span><b>'+esc(x.value)+'</b></div>').join('')+'</div>';
+}
+function verDatosPersonaCargo(codigo, idx) {
+  const k=getCargosCentro(codigo)[idx], c=cenBy(codigo);
+  if(!k || !k.persona) return toast('No se encontró la asignación de este cargo','err');
+  const persona=personaCargoCompleta(codigo,k.cargo);
+  const nombre=apeP(persona)+', '+nomP(persona);
+  win(ic('user',18)+' Ficha completa de persona',
+    '<div class="person-card-head"><div><div class="person-eyebrow">CENTRO ELECTORAL</div><b>'+esc(c?.nombre||codigo)+'</b><div class="mono">'+esc(codigo)+'</div></div><div><div class="person-eyebrow">CARGO ASIGNADO</div><b>'+esc(k.cargo)+'</b></div></div>'+
+    '<div class="person-name">'+esc(nombre||fC(persona.letra,persona.cedula))+'</div>'+
+    bloqueDatosPersona(persona),
+    '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>',650);
+}
+function cabeceraReporteCentro(titulo, subtitulo) {
+  return '<header class="report-head"><div class="report-brand">COMANDO DE CAMPAÑA · SISTEMA INTEGRAL DE GESTIÓN ELECTORAL</div><h1>'+esc(titulo)+'</h1><p>'+esc(subtitulo||'')+'</p><div class="report-rule"></div></header>';
+}
+function estilosReporteCentros() {
+  return '<style> *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;margin:18px;font-size:10px;background:#fff}h1{font-size:20px;margin:5px 0;color:#123c69}h2{font-size:13px;color:#123c69;margin:16px 0 7px;border-bottom:1px solid #b8c6d6;padding-bottom:5px}.report-head{margin-bottom:15px}.report-brand{font-size:9px;font-weight:bold;letter-spacing:1px;color:#45627f}.report-head p{margin:3px 0;color:#526477;font-size:10px}.report-rule{height:4px;background:#123c69;margin-top:9px}.meta-grid,.person-grid,.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:9px 0}.meta,.person-field,.stat{border:1px solid #d7dee7;border-radius:4px;padding:7px;break-inside:avoid}.meta span,.person-field span,.stat span{display:block;color:#607080;font-size:8px;text-transform:uppercase;margin-bottom:3px}.meta b,.person-field b,.stat b{font-size:10px;overflow-wrap:anywhere}.person-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.stat b{font-size:16px;color:#123c69}.cargo{border:1px solid #d5dee8;border-radius:5px;padding:9px;margin:8px 0;break-inside:avoid}.cargo-title{font-weight:bold;color:#123c69;font-size:11px;margin-bottom:5px}.cargo-state{font-size:9px;color:#64748b;font-style:italic}.person-eyebrow{font-size:8px;color:#64748b;font-weight:bold;letter-spacing:.5px}.person-card-head{display:flex;justify-content:space-between;gap:12px;background:#edf3f8;padding:10px;border:1px solid #d5dee8;border-radius:5px}.person-name{font-size:15px;font-weight:bold;color:#123c69;margin:12px 0}.report-footer{border-top:1px solid #cbd5e1;margin-top:18px;padding-top:7px;color:#64748b;font-size:8px;display:flex;justify-content:space-between}.report-table{width:100%;border-collapse:collapse;margin:8px 0}.report-table th,.report-table td{border:1px solid #cbd5e1;padding:6px;text-align:left;vertical-align:top;font-size:9px}.report-table th{background:#eaf0f6;color:#123c69;text-transform:uppercase}.report-note{font-size:9px;color:#64748b;margin:5px 0}@page{size:A4 landscape;margin:12mm}@media print{body{margin:0}.cargo,.person-field,.meta,.stat{break-inside:avoid}}@media(max-width:700px){.meta-grid,.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.person-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>';
+}
+function reporteCentro(codigo) {
+  const c=cenBy(codigo); if(!c) return toast('Centro electoral no encontrado','err');
+  const pad=CACHE.pad.filter(p=>String(p.centro_votacion)===String(codigo));
+  const cargos=getCargosCentro(codigo);
+  const asignados=cargos.filter(x=>x.persona);
+  const edades=[[18,25,'18–25'],[26,35,'26–35'],[36,45,'36–45'],[46,55,'46–55'],[56,65,'56–65'],[66,999,'66+']];
+  const promedio=pad.map(p=>Number(edadDe(p.fecha_nac)||p.edad||0)).filter(x=>x>0&&x<=120);
+  const rango=edades.map(([min,max,label])=>({label,total:pad.filter(p=>{const e=Number(edadDe(p.fecha_nac)||p.edad||0);return e>=min&&e<=max}).length}));
+  const ver=ultimaVerificacionCentro(codigo), vd=ver?datosVerificacionCentro(ver):null;
+  const cards='<div class="stats"><div class="stat"><span>Electores registrados</span><b>'+pad.length+'</b></div><div class="stat"><span>Distribución M / F</span><b>'+pad.filter(p=>p.sexo==='M').length+' / '+pad.filter(p=>p.sexo==='F').length+'</b></div><div class="stat"><span>Comprometidos</span><b>'+pad.filter(p=>asignDe(p.cedula)).length+'</b></div><div class="stat"><span>Edad promedio</span><b>'+(promedio.length?(promedio.reduce((a,b)=>a+b,0)/promedio.length).toFixed(0):'—')+'</b></div></div>';
+  const cargosHtml=cargos.map(k=>{
+    if(!k.persona) return '<section class="cargo"><div class="cargo-title">'+esc(k.cargo)+'</div><div class="cargo-state">SIN ASIGNAR</div></section>';
+    const p=personaCargoCompleta(codigo,k.cargo);
+    return '<section class="cargo"><div class="cargo-title">'+esc(k.cargo)+'</div><div class="person-name">'+esc(apeP(p)+', '+nomP(p))+'</div>'+bloqueDatosPersona(p)+'</section>';
+  }).join('');
+  const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación · '+esc(c.nombre)+'</title>'+estilosReporteCentros()+'</head><body>'+
+    cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DEL CENTRO','Reporte individual · Generado el '+new Date().toLocaleString('es-VE'))+
+    '<div class="meta-grid"><div class="meta"><span>Centro electoral</span><b>'+esc(c.nombre)+'</b></div><div class="meta"><span>Código CNE</span><b>'+esc(c.codigo)+'</b></div><div class="meta"><span>Estado</span><b>'+esc(c.estado)+'</b></div><div class="meta"><span>Municipio / Parroquia</span><b>'+esc(c.municipio)+' / '+esc(c.parroquia)+'</b></div><div class="meta"><span>Mesas de votación</span><b>'+esc(c.mesas||1)+'</b></div></div>'+
+    '<h2>Resumen electoral</h2>'+cards+
+    '<h2>Distribución por rango etario</h2><table class="report-table"><thead><tr><th>Rango de edad</th><th>Cantidad de electores</th></tr></thead><tbody>'+rango.map(x=>'<tr><td>'+x.label+'</td><td>'+x.total+'</td></tr>').join('')+'</tbody></table>'+
+    '<h2>Última verificación del centro</h2>'+(vd?'<div class="meta-grid"><div class="meta"><span>Persona verificada</span><b>'+esc(vd.persona)+'</b></div><div class="meta"><span>Cédula</span><b>'+esc(fC((padBy(vd.ci)||{}).letra||'V',vd.ci))+'</b></div><div class="meta"><span>Mesa</span><b>'+esc(vd.mesa||'No registrada')+'</b></div><div class="meta"><span>Hora</span><b>'+esc(vd.hora)+'</b></div><div class="meta"><span>Operador</span><b>'+esc(vd.operador)+'</b></div></div>':'<p class="report-note">No hay verificaciones registradas para este centro.</p>')+
+    '<h2>Conformación completa de cargos</h2><p class="report-note">Cargos ocupados: '+asignados.length+' de '+cargos.length+'. Se identifica cada cargo sin asignación.</p>'+cargosHtml+
+    '<footer class="report-footer"><span>Sistema Integral de Gestión Electoral</span><span>Documento generado desde los registros disponibles del centro '+esc(codigo)+'</span></footer></body></html>';
+  window.__previewDocHtml=html;
+  vistaPreviaDocumento('Estructura del centro · '+c.nombre,html,
+    '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_centro_'+String(codigo).replace(/[^a-z0-9_-]/gi,'_')+'\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
+}
+function reporteEstructuraCoordinacion() {
+  const rows=CACHE.centros.map(c=>{
+    const a=CACHE.cargos.find(x=>String(x.centro_codigo)===String(c.codigo)&&String(x.cargo||'').trim().toLowerCase()==='coordinador del centro');
+    if(!a) return null;
+    const p=personaCargoCompleta(c.codigo,'Coordinador del Centro');
+    return {centro:c,persona:p};
+  }).filter(Boolean);
+  if(!rows.length) return toast('No hay coordinadores de centro asignados para generar el documento','err');
+  const fichas=rows.map((x,i)=>'<section class="cargo"><div class="cargo-title">'+(i+1)+'. '+esc(x.centro.nombre)+'</div><div class="meta-grid"><div class="meta"><span>Código CNE</span><b>'+esc(x.centro.codigo)+'</b></div><div class="meta"><span>Estado</span><b>'+esc(x.centro.estado)+'</b></div><div class="meta"><span>Municipio</span><b>'+esc(x.centro.municipio)+'</b></div><div class="meta"><span>Parroquia</span><b>'+esc(x.centro.parroquia)+'</b></div></div><div class="person-name">'+esc(apeP(x.persona)+', '+nomP(x.persona))+'</div><div class="person-eyebrow">COORDINADOR(A) DEL CENTRO</div>'+bloqueDatosPersona(x.persona)+'</section>').join('');
+  const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación de centros</title>'+estilosReporteCentros()+'</head><body>'+
+    cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DE CENTROS','Relación consolidada de coordinadores asignados · Generado el '+new Date().toLocaleString('es-VE'))+
+    '<div class="stats"><div class="stat"><span>Centros registrados</span><b>'+CACHE.centros.length+'</b></div><div class="stat"><span>Coordinadores asignados</span><b>'+rows.length+'</b></div><div class="stat"><span>Centros sin coordinador</span><b>'+Math.max(0,CACHE.centros.length-rows.length)+'</b></div></div>'+
+    '<p class="report-note">Se muestran exclusivamente los coordinadores existentes en los registros. Cada ficha está vinculada con su centro electoral y presenta los datos personales y electorales disponibles.</p>'+fichas+
+    '<footer class="report-footer"><span>Sistema Integral de Gestión Electoral</span><span>Estructura consolidada de coordinación de centros</span></footer></body></html>';
+  window.__previewDocHtml=html;
+  vistaPreviaDocumento('Estructura de coordinación de centros',html,
+    '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
+    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_coordinacion_centros\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
+}
+
 async function updateMesas(cod) {
   const v = Number($('cMes')?.value);
   if (!Number.isInteger(v) || v < 1 || v > 999) return toast('La cantidad de mesas debe ser un entero entre 1 y 999', 'err');
