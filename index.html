@@ -558,27 +558,33 @@ function imprimirHTMLPrevisualizado(html, orientacion='auto') {
 }
 function descargarPDFPrevisualizado(html, title, formato='A4', orientacion='portrait') {
   if(typeof html2pdf!=='function') return toast('Generador PDF no disponible. Verifique la conexión y vuelva a intentarlo.','err');
+  if(!html||!/<body[^>]*>[\\s\\S]*<\\/body>/i.test(html)) return toast('No hay contenido válido para generar el PDF.','err');
   const horizontal=orientacion==='landscape';
-  const styles=(html.match(/<style[\s\S]*?<\/style>/gi)||[]).join('');
-  const center=html.replace(/<!DOCTYPE html>[\s\S]*?<body[^>]*>/i,'').replace(/<\/body>\s*<\/html>\s*$/i,'');
-  // 1080 px se aproxima al ancho útil de A4 apaisado a 96 dpi, con márgenes de 3 mm.
+  const styles=(html.match(/<style[\\s\\S]*?<\\/style>/gi)||[]).join('');
+  const center=html.replace(/<!DOCTYPE html>[\\s\\S]*?<body[^>]*>/i,'').replace(/<\\/body>\\s*<\\/html>\\s*$/i,'');
   const ancho=horizontal?1080:760;
   const ajuste=horizontal
-    ? '<style>@page{size:A4 landscape;margin:3mm}html,body{width:'+ancho+'px!important;min-width:'+ancho+'px!important;max-width:'+ancho+'px!important;margin:0!important;padding:0!important;box-sizing:border-box!important;overflow:visible!important}.report-table-wrap{width:100%!important;max-width:100%!important;overflow:visible!important}.report-table{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;border-collapse:collapse!important}.report-table th,.report-table td{min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;hyphens:auto!important;font-size:4.8pt!important;line-height:1.12!important;padding:2px 1.5px!important}.report-table th{font-size:5pt!important}.report-table tr{break-inside:avoid!important;page-break-inside:avoid!important}thead{display:table-header-group!important}*{box-sizing:border-box!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}</style>'
+    ? '<style>html,body{width:'+ancho+'px!important;min-width:'+ancho+'px!important;max-width:'+ancho+'px!important;margin:0!important;padding:0!important;box-sizing:border-box!important;background:#fff!important;overflow:visible!important}.report-table-wrap{width:100%!important;max-width:100%!important;overflow:visible!important}.report-table{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;border-collapse:collapse!important}.report-table th,.report-table td{min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;hyphens:auto!important;font-size:4.8pt!important;line-height:1.12!important;padding:2px 1.5px!important}.report-table th{font-size:5pt!important}.report-table tr{break-inside:avoid!important;page-break-inside:avoid!important}thead{display:table-header-group!important}*{box-sizing:border-box!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}</style>'
     : '<style>html,body{width:760px!important;max-width:760px!important;margin:0!important}*{box-sizing:border-box!important}</style>';
   const box=document.createElement('div');
   box.innerHTML=styles+center+ajuste;
-  box.style.cssText='position:fixed;left:-12000px;top:0;display:block;visibility:visible;overflow:visible;background:#fff;width:'+ancho+'px;min-width:'+ancho+'px;max-width:'+ancho+'px;margin:0;padding:0;color:#22303e;';
+  // html2canvas no captura de forma fiable elementos posicionados fuera del viewport.
+  // Se mantiene dentro del viewport durante la captura y se retira al finalizar.
+  box.style.cssText='position:fixed;left:0;top:0;z-index:2147483647;display:block;visibility:visible;opacity:1;pointer-events:none;overflow:visible;background:#fff;width:'+ancho+'px;min-width:'+ancho+'px;max-width:'+ancho+'px;margin:0;padding:0;color:#22303e;font-family:Roboto,Arial,sans-serif;';
   document.body.appendChild(box);
+  const limpiar=()=>{if(box.parentNode)box.parentNode.removeChild(box)};
   const opciones={
     margin:horizontal?3:8,
     filename:String(title||'reporte').replace(/[^a-z0-9áéíóúñ_-]+/gi,'_')+'_'+Date.now()+'.pdf',
     image:{type:'jpeg',quality:.98},
-    html2canvas:{scale:2,useCORS:true,allowTaint:true,scrollX:0,scrollY:0,windowWidth:ancho,windowHeight:Math.max(900,box.scrollHeight),backgroundColor:'#ffffff'},
+    html2canvas:{scale:2,useCORS:true,allowTaint:true,scrollX:0,scrollY:0,windowWidth:Math.max(ancho,document.documentElement.clientWidth),windowHeight:Math.max(900,box.scrollHeight),backgroundColor:'#ffffff'},
     pagebreak:{mode:['css','legacy'],avoid:['tr']},
     jsPDF:{unit:'mm',format:formato==='CARTA'?'letter':'a4',orientation:horizontal?'landscape':'portrait',compress:true}
   };
-  html2pdf().set(opciones).from(box).save().then(()=>{box.remove();toast('PDF descargado en A4 '+(horizontal?'horizontal':'vertical'),'ok')}).catch(error=>{box.remove();console.error('Error PDF:',error);toast('Error al generar PDF. Intente nuevamente.','err')});
+  toast('Generando PDF… mantenga esta pantalla abierta','');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    html2pdf().set(opciones).from(box).save().then(()=>{limpiar();toast('PDF descargado en A4 '+(horizontal?'horizontal':'vertical'),'ok')}).catch(error=>{limpiar();console.error('Error PDF:',error);toast('No se pudo generar el PDF. Intente nuevamente.','err')});
+  }));
 }
 function sharePDF(elId, title) {
   const el = document.getElementById(elId);
