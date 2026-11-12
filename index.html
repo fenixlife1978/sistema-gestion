@@ -2116,6 +2116,7 @@ function reporteEstructuraCoordinacion() {
  const rows=CACHE.centros.map(c=>{const a=CACHE.cargos.find(x=>String(x.centro_codigo)===String(c.codigo)&&String(x.cargo||'').trim().toLowerCase()==='coordinador del centro');return a?{centro:c,persona:personaCargoCompleta(c.codigo,'Coordinador del Centro')}:null}).filter(x=>x&&x.persona);
  if(!rows.length)return toast('No hay coordinadores de centro asignados para generar el documento','err');
  const cols=columnasPersonasReporte(rows.map(x=>x.persona));
+ ['Dirección','Teléfono'].forEach(k=>{if(!cols.includes(k))cols.push(k);});
  const headers=['N°','CÓDIGO CNE','CENTRO ELECTORAL','ESTADO','MUNICIPIO','PARROQUIA','CARGO',...cols];
  const data=rows.map((x,i)=>[i+1,x.centro.codigo,x.centro.nombre,x.centro.estado,x.centro.municipio,x.centro.parroquia,'COORDINADOR DEL CENTRO',...valoresPersonaReporte(x.persona,cols)]);
  const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación de centros</title>'+estilosReporteCentros()+'</head><body>'+
