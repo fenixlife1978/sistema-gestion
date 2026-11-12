@@ -559,9 +559,9 @@ function imprimirHTMLPrevisualizado(html, orientacion='auto') {
 function descargarPDFPrevisualizado(html, title, formato='A4', orientacion='portrait') {
   if(typeof html2pdf!=='function') return toast('Generador PDF no disponible. Verifique la conexión y vuelva a intentarlo.','err');
   if(!html || typeof html!=='string') return toast('No hay contenido válido para generar el PDF.','err');
-  const styles=(html.match(/<style[\\s\\S]*?<\\/style>/gi)||[]).join('');
-  const bodyMatch=html.match(/<body[^>]*>([\\s\\S]*?)<\\/body>/i);
-  const center=bodyMatch?bodyMatch[1]:html.replace(/<!DOCTYPE html>[\\s\\S]*?<body[^>]*>/i,'').replace(/<\\/body>\\s*<\\/html>\\s*$/i,'');
+  const styles=(html.match(/<style[\s\S]*?<\/style>/gi)||[]).join('');
+  const bodyMatch=html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const center=bodyMatch?bodyMatch[1]:html.replace(/<!DOCTYPE html>[\s\S]*?<body[^>]*>/i,'').replace(/<\/body>\s*<\/html>\s*$/i,'');
   if(!center.trim()) return toast('El reporte no contiene información para exportar.','err');
   const horizontal=orientacion==='landscape';
   const box=document.createElement('div');
