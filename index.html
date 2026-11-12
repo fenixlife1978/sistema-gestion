@@ -558,10 +558,12 @@ function imprimirHTMLPrevisualizado(html, orientacion='auto') {
 }
 function descargarPDFPrevisualizado(html, title, formato='A4', orientacion='portrait') {
   if(typeof html2pdf!=='function') return toast('Generador PDF no disponible. Verifique la conexión y vuelva a intentarlo.','err');
-  if(!html||!/<body[^>]*>[\\s\\S]*<\\/body>/i.test(html)) return toast('No hay contenido válido para generar el PDF.','err');
+  if(!html||!html.toLowerCase().includes('<body')) return toast('No hay contenido válido para generar el PDF.','err');
   const horizontal=orientacion==='landscape';
-  const styles=(html.match(/<style[\\s\\S]*?<\\/style>/gi)||[]).join('');
-  const center=html.replace(/<!DOCTYPE html>[\\s\\S]*?<body[^>]*>/i,'').replace(/<\\/body>\\s*<\\/html>\\s*$/i,'');
+  const parsed=new DOMParser().parseFromString(html,'text/html');
+  const styles=Array.from(parsed.querySelectorAll('style')).map(node=>node.outerHTML).join('');
+  const center=parsed.body?parsed.body.innerHTML:'';
+  if(!center.trim()) return toast('El reporte no contiene información para exportar.','err');
   const ancho=horizontal?1080:760;
   const ajuste=horizontal
     ? '<style>html,body{width:'+ancho+'px!important;min-width:'+ancho+'px!important;max-width:'+ancho+'px!important;margin:0!important;padding:0!important;box-sizing:border-box!important;background:#fff!important;overflow:visible!important}.report-table-wrap{width:100%!important;max-width:100%!important;overflow:visible!important}.report-table{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;border-collapse:collapse!important}.report-table th,.report-table td{min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;hyphens:auto!important;font-size:4.8pt!important;line-height:1.12!important;padding:2px 1.5px!important}.report-table th{font-size:5pt!important}.report-table tr{break-inside:avoid!important;page-break-inside:avoid!important}thead{display:table-header-group!important}*{box-sizing:border-box!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}</style>'
