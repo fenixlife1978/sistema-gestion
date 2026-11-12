@@ -527,16 +527,25 @@ function vistaPreviaDocumento(titulo, html, acciones) {
   const contenido = '<div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
     '<b style="font-size:15px;color:var(--navy)">' + esc(titulo || 'Vista previa') + '</b>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap">' + (acciones || '') + '</div></div>' +
-    '<div style="border:1px solid var(--line2);border-radius:8px;background:#fff;overflow:auto;max-height:65vh;padding:8px">' +
-    '<iframe id="previewDocFrame" style="display:block;width:100%;min-width:900px;height:62vh;border:0;background:#fff"></iframe></div>';
+    '<div id="previewDocScroll" style="border:1px solid var(--line2);border-radius:8px;background:#fff;overflow:auto;max-height:65vh;padding:8px">' +
+    '<iframe id="previewDocFrame" title="Vista previa completa del documento" style="display:block;width:100%;min-width:900px;height:900px;border:0;background:#fff"></iframe></div>';
   win(titulo || 'Vista previa', contenido, '<button class="btn btn-w" onclick="closeModal()">Cerrar</button>', 1000);
   setTimeout(() => {
     const frame = $('previewDocFrame');
     if (!frame) return;
     const doc = frame.contentDocument || frame.contentWindow.document;
+    const ajustarAltura = () => {
+      try {
+        const alto = Math.max(900, doc.documentElement.scrollHeight, doc.body.scrollHeight);
+        frame.style.height = alto + 'px';
+      } catch (_) {}
+    };
+    frame.onload = ajustarAltura;
     doc.open();
     doc.write(html || '<html><body><p>Sin contenido.</p></body></html>');
     doc.close();
+    setTimeout(ajustarAltura, 100);
+    setTimeout(ajustarAltura, 500);
   }, 30);
 }
 
@@ -2117,16 +2126,23 @@ function reporteCentro(codigo) {
 }
 
 function reporteEstructuraCoordinacion() {
- const rows=CACHE.centros.map(c=>{const a=CACHE.cargos.find(x=>String(x.centro_codigo)===String(c.codigo)&&String(x.cargo||'').trim().toLowerCase()==='coordinador del centro');return a?{centro:c,persona:personaCargoCompleta(c.codigo,'Coordinador del Centro')}:null}).filter(x=>x&&x.persona);
- if(!rows.length)return toast('No hay coordinadores de centro asignados para generar el documento','err');
- const cols=columnasPersonasReporte(rows.map(x=>x.persona));
+ // Una fila por cada centro registrado, incluso cuando todavía no tenga coordinador.
+ const rows=CACHE.centros.map(centro=>{
+   const asignacion=CACHE.cargos.find(x=>String(x.centro_codigo)===String(centro.codigo)&&String(x.cargo||'').trim().toLowerCase()==='coordinador del centro');
+   const persona=asignacion?personaCargoCompleta(centro.codigo,asignacion.cargo):null;
+   const asignado=!!(asignacion&&(asignacion.cedula||asignacion.p_apellido||asignacion.p_nombre||asignacion.s_apellido||asignacion.s_nombre));
+   return {centro,asignacion,persona:asignado?persona:null,asignado};
+ });
+ if(!rows.length)return toast('No hay centros registrados para generar el documento','err');
+ const asignados=rows.filter(x=>x.asignado).length;
+ const cols=columnasPersonasReporte(rows.filter(x=>x.asignado).map(x=>x.persona));
  ['Dirección','Teléfono'].forEach(k=>{if(!cols.includes(k))cols.push(k);});
- const headers=['N°','CÓDIGO CNE','CENTRO ELECTORAL','ESTADO','MUNICIPIO','PARROQUIA','CARGO',...cols];
- const data=rows.map((x,i)=>[i+1,x.centro.codigo,x.centro.nombre,x.centro.estado,x.centro.municipio,x.centro.parroquia,'COORDINADOR DEL CENTRO',...valoresPersonaReporte(x.persona,cols)]);
- const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación de centros</title>'+estilosReporteCentros()+'</head><body>'+
- cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DE CENTROS','Relación consolidada de coordinadores de todos los centros electorales')+
- '<div class="stats"><div class="stat"><span>Centros registrados</span><b>'+CACHE.centros.length+'</b></div><div class="stat"><span>Coordinadores asignados</span><b>'+rows.length+'</b></div><div class="stat"><span>Centros sin coordinador</span><b>'+Math.max(0,CACHE.centros.length-rows.length)+'</b></div></div>'+
- '<p class="report-note">Cada fila identifica el centro y su coordinador. Se incorporan todas las columnas de información personal, electoral y adicional existentes en los registros.</p>'+
+ const headers=['N°','CÓDIGO CNE','CENTRO ELECTORAL','ESTADO','MUNICIPIO','PARROQUIA','CARGO','ESTADO DE ASIGNACIÓN',...cols];
+ const data=rows.map((x,i)=>[i+1,x.centro.codigo,x.centro.nombre,x.centro.estado,x.centro.municipio,x.centro.parroquia,'COORDINADOR DEL CENTRO',x.asignado?'ASIGNADO':'SIN ASIGNAR',...valoresPersonaReporte(x.persona,cols)]);
+ const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación de centros</title>'+estilosReporteCentros()+'<style>.report-table td{height:auto;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.3}.report-table tbody tr{break-inside:avoid;page-break-inside:avoid}.report-note strong{color:#123c69}</style></head><body>'+
+ cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DE CENTROS','Relación completa de coordinadores asignados y centros pendientes de asignación')+
+ '<div class="stats"><div class="stat"><span>Centros registrados</span><b>'+CACHE.centros.length+'</b></div><div class="stat"><span>Coordinadores asignados</span><b>'+asignados+'</b></div><div class="stat"><span>Centros sin coordinador</span><b>'+(rows.length-asignados)+'</b></div></div>'+
+ '<p class="report-note">El documento incluye <strong>todos los '+rows.length+' centros registrados</strong>: '+asignados+' con coordinador asignado y '+(rows.length-asignados)+' sin asignación. Cada centro aparece en una fila; los datos personales quedan vacíos cuando no existe coordinador asignado.</p>'+
  tablaPersonasReporte(headers,data)+'<footer class="report-footer"><span>EDUARDO LAPI · GOBERNADOR | GUALBERTO MARTÍNEZ · ALCALDE</span><span>Sistema Integral de Gestión Electoral · Consolidado general</span></footer></body></html>';
  window.__previewDocHtml=html;vistaPreviaDocumento('Estructura de coordinación de centros',html,
  '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml,\'landscape\')">'+ic('print',13)+' Imprimir</button>'+
