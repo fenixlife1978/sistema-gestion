@@ -2135,11 +2135,12 @@ function reporteEstructuraCoordinacion() {
  });
  if(!rows.length)return toast('No hay centros registrados para generar el documento','err');
  const asignados=rows.filter(x=>x.asignado).length;
- const cols=columnasPersonasReporte(rows.filter(x=>x.asignado).map(x=>x.persona));
+ const cols=columnasPersonasReporte(rows.filter(x=>x.asignado).map(x=>x.persona)).filter(k=>!['Es manual','Creado'].includes(k));
  ['Dirección','Teléfono'].forEach(k=>{if(!cols.includes(k))cols.push(k);});
- const headers=['N°','CÓDIGO CNE','CENTRO ELECTORAL','ESTADO','MUNICIPIO','PARROQUIA','CARGO','ESTADO DE ASIGNACIÓN',...cols];
- const data=rows.map((x,i)=>[i+1,x.centro.codigo,x.centro.nombre,x.centro.estado,x.centro.municipio,x.centro.parroquia,'COORDINADOR DEL CENTRO',x.asignado?'ASIGNADO':'SIN ASIGNAR',...valoresPersonaReporte(x.persona,cols)]);
- const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación de centros</title>'+estilosReporteCentros()+'<style>.report-table td{height:auto;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.3}.report-table tbody tr{break-inside:avoid;page-break-inside:avoid}.report-note strong{color:#123c69}</style></head><body>'+
+ const headers=['N°','CÓDIGO CNE','CENTRO ELECTORAL','ESTADO','MUNICIPIO','CARGO','ESTADO DE ASIGNACIÓN',...cols.map(k=>k==='Letra de cédula'?'letra':k)];
+ const indiceLetra=headers.indexOf('letra')+1;
+ const data=rows.map((x,i)=>[i+1,x.centro.codigo,x.centro.nombre,x.centro.estado,x.centro.municipio,'COORDINADOR DEL CENTRO',x.asignado?'ASIGNADO':'SIN ASIGNAR',...valoresPersonaReporte(x.persona,cols)]);
+ const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación de centros</title>'+estilosReporteCentros()+'<style>.report-table td{height:auto;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.3}.report-table tbody tr{break-inside:avoid;page-break-inside:avoid}.report-table th:first-child,.report-table td:first-child{width:22px!important;min-width:22px!important;max-width:22px!important;padding-left:2px!important;padding-right:2px!important;text-align:center;white-space:nowrap!important}.report-table th:nth-child('+indiceLetra+'),.report-table td:nth-child('+indiceLetra+'){width:25px!important;min-width:25px!important;max-width:25px!important;font-size:6px!important;padding:2px!important;text-align:center;white-space:normal!important;overflow-wrap:anywhere!important}.report-note strong{color:#123c69}</style></head><body>'+
  cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DE CENTROS','Relación completa de coordinadores asignados y centros pendientes de asignación')+
  '<div class="stats"><div class="stat"><span>Centros registrados</span><b>'+CACHE.centros.length+'</b></div><div class="stat"><span>Coordinadores asignados</span><b>'+asignados+'</b></div><div class="stat"><span>Centros sin coordinador</span><b>'+(rows.length-asignados)+'</b></div></div>'+
  '<p class="report-note">El documento incluye <strong>todos los '+rows.length+' centros registrados</strong>: '+asignados+' con coordinador asignado y '+(rows.length-asignados)+' sin asignación. Cada centro aparece en una fila; los datos personales quedan vacíos cuando no existe coordinador asignado.</p>'+
