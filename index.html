@@ -1296,6 +1296,7 @@ async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   `);
   const found = filas.find(x => {
     if (String(x.telefono || '').replace(/\D/g, '') !== tel) return false;
+    if (exclude.cedula && normC(x.cedula) === normC(exclude.cedula)) return false;
     return !(exclude.origen && String(x.origen) === String(exclude.origen) && String(x.id) === String(exclude.id));
   });
   return found || null;
@@ -1974,7 +1975,7 @@ async function assignCargo(codigo, idx, cedula, tel, dir, padron) {
   tel = tel ? String(tel).trim() : contacto.telefono;
   dir = dir || contacto.direccion;
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
-  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
+  if (tel) { const dupTel = await verificarDuplicidadTelefono(tel,{cedula}); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   const dupGlobal = await verificarDuplicidadPersona(cedula, 'cargo');
   if (dupGlobal) return toast(mensajeDuplicidadPersona(cedula, dupGlobal), 'err', 8000);
   const p = padBy(cedula);
@@ -1982,27 +1983,39 @@ async function assignCargo(codigo, idx, cedula, tel, dir, padron) {
   if (p && p.centro_votacion && (p.centro_votacion !== codigo && p.nombre_cv !== (targetCen ? targetCen.nombre : ''))) {
     return toast('⛔ Asignación rechazada: La persona C.I. ' + fC(p.letra, cedula) + ' está asignada en el Padrón CNE al centro "' + (p.nombre_cv || p.centro_votacion) + '". No se puede asignar a un centro distinto (' + (targetCen ? targetCen.nombre : codigo) + ').', 'err', 8000);
   }
+  const existente=CACHE.cargos.find(x=>String(x.centro_codigo)===String(codigo)&&String(x.cargo||'').trim()===String(cargo||'').trim());
+  if(existente) return toast('Este cargo ya tiene una asignación. Actualice la vista e inténtelo nuevamente.','err');
+  const optimista={id:'pending-'+Date.now(),centro_codigo:String(codigo),cargo,cedula:String(cedula),telefono:tel?normTel(tel):'',direccion:dir||'',...(p||padron||{})};
+  CACHE.cargos.push(optimista);
+  openCentro(codigo);
   try {
-    const existing = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === cargo);
-        const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'centro',centro_codigo:codigo,cargo,cedula,telefono:tel?normTel(tel):'',direccion:dir,padron:padron||undefined})});
+    const rr = await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:'centro',centro_codigo:codigo,cargo,cedula,telefono:tel?normTel(tel):'',direccion:dir,padron:padron||undefined})});
     const data = await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(data.error||'No se pudo asignar el cargo');
-    await registrarAct('user', cargo + ' asignado en centro ' + codigo + ' ? C.I. ' + cedula, USER.id);
-    await refreshAll();
+    toast('Cargo asignado','ok');
+    refreshAll().then(()=>{if(CUR==='centros'&&$('mOv')?.classList.contains('on'))openCentro(codigo)}).catch(e=>console.error('Actualización de centros:',e));
+  } catch (e) {
+    CACHE.cargos=CACHE.cargos.filter(x=>x!==optimista);
     openCentro(codigo);
-    toast('Cargo asignado', 'ok');
-  } catch (e) { toast(e.message, 'err') }
+    toast(e.message,'err',8000);
+  }
 }
 
 async function removeCargoCentro(codigo, idx) {
-  const cargo = CARGOS_CENTRO[idx];
-  const existing = CACHE.cargos.find(c => c.centro_codigo === codigo && c.cargo === cargo);
-  if (!existing) return;
+  const cargo = getCargosCentro(codigo)[idx]?.cargo || CARGOS_CENTRO[idx];
+  const pos=CACHE.cargos.findIndex(c=>String(c.centro_codigo)===String(codigo)&&String(c.cargo||'').trim()===String(cargo||'').trim());
+  if(pos<0)return;
+  const [removed]=CACHE.cargos.splice(pos,1);
+  openCentro(codigo);
   try {
-    const rr=await fetch('/api/centros/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar_cargo',id:existing.id})}); const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo remover el cargo');
-    await refreshAll();
+    const rr=await fetch('/api/centros/gestionar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'eliminar_cargo',id:removed.id})});
+    const rd=await rr.json().catch(()=>({})); if(!rr.ok) throw new Error(rd.error||'No se pudo remover el cargo');
+    toast('Cargo removido','ok');
+    refreshAll().then(()=>{if(CUR==='centros'&&$('mOv')?.classList.contains('on'))openCentro(codigo)}).catch(e=>console.error('Actualización de centros:',e));
+  } catch(e) {
+    CACHE.cargos.splice(Math.min(pos,CACHE.cargos.length),0,removed);
     openCentro(codigo);
-    toast('Cargo removido', 'ok');
-  } catch (e) { toast(e.message, 'err') }
+    toast(e.message,'err',8000);
+  }
 }
 
 function ultimaVerificacionCentro(codigo) {
@@ -2071,7 +2084,8 @@ function personaCargoCompleta(codigo, cargo) {
   const a = CACHE.cargos.find(x => String(x.centro_codigo) === String(codigo) && String(x.cargo||'').trim() === String(cargo||'').trim());
   if (!a) return null;
   const p = padBy(a.cedula) || {};
-  return { ...p, ...a, ...p, telefono: a.telefono || p.telefono || '', direccion: a.direccion || p.direccion || '' };
+  const contacto = datosContactoPersona(a.cedula);
+  return { ...p, ...a, ...p, telefono: a.telefono || contacto.telefono || p.telefono || '', direccion: a.direccion || contacto.direccion || p.direccion || '' };
 }
 function camposPersonaCentro(persona) {
   const p = persona || {};
@@ -2100,12 +2114,34 @@ function verDatosPersonaCargo(codigo, idx) {
   const k=getCargosCentro(codigo)[idx], c=cenBy(codigo);
   if(!k || !k.persona) return toast('No se encontró la asignación de este cargo','err');
   const persona=personaCargoCompleta(codigo,k.cargo);
+  const asignacion=CACHE.cargos.find(x=>String(x.centro_codigo)===String(codigo)&&String(x.cargo||'').trim()===String(k.cargo||'').trim());
   const nombre=apeP(persona)+', '+nomP(persona);
-  win(ic('user',18)+' Ficha completa de persona',
-    '<div class="person-card-head"><div><div class="person-eyebrow">CENTRO ELECTORAL</div><b>'+esc(c?.nombre||codigo)+'</b><div class="mono">'+esc(codigo)+'</div></div><div><div class="person-eyebrow">CARGO ASIGNADO</div><b>'+esc(k.cargo)+'</b></div></div>'+
+  const telefono=persona.telefono||datosContactoPersona(persona.cedula).telefono||'';
+  const campos=camposPersonaCentro({...persona,telefono:''});
+  const ficha='<div class="person-card-head"><div><div class="person-eyebrow">CENTRO ELECTORAL</div><b>'+esc(c?.nombre||codigo)+'</b><div class="mono">'+esc(codigo)+'</div></div><div><div class="person-eyebrow">CARGO ASIGNADO</div><b>'+esc(k.cargo)+'</b></div></div>'+
     '<div class="person-name">'+esc(nombre||fC(persona.letra,persona.cedula))+'</div>'+
-    bloqueDatosPersona(persona),
-    '<button class="btn btn-navy" onclick="closeModal()">Cerrar</button>',650);
+    '<div class="person-grid">'+campos.map(x=>'<div class="person-field"><span>'+esc(x.label)+'</span><b>'+esc(x.value)+'</b></div>').join('')+
+    '<div class="person-field" style="grid-column:1/-1"><label for="centroFichaTelefono" style="display:block;font-size:11px;color:var(--mut);margin-bottom:5px">TELÉFONO</label><input class="inp mono" id="centroFichaTelefono" value="'+esc(telefono)+'" placeholder="0412-2232523" inputmode="tel" maxlength="12" style="width:100%"><small style="display:block;color:var(--mut);margin-top:4px">Se acepta el mismo teléfono en registros de esta misma cédula. No se permite si pertenece a otra persona.</small></div></div>';
+  win(ic('user',18)+' Ficha completa de persona',ficha,
+    '<button class="btn btn-w" onclick="closeModal()">Cerrar</button><button class="btn btn-navy" onclick="guardarTelefonoFichaCentro(\''+esc(codigo)+'\',\''+esc(k.cargo).replace(/'/g,"\\'")+'\')">Guardar teléfono</button>',650);
+}
+async function guardarTelefonoFichaCentro(codigo,cargo) {
+  const asignacion=CACHE.cargos.find(x=>String(x.centro_codigo)===String(codigo)&&String(x.cargo||'').trim()===String(cargo||'').trim());
+  if(!asignacion) return toast('No se encontró la asignación','err');
+  const input=$('centroFichaTelefono');
+  const raw=String(input?.value||'').trim();
+  const telefono=raw?normTel(raw):'';
+  if(telefono&&!valTel(telefono)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)','err');
+  const duplicado=telefono?await verificarDuplicidadTelefono(telefono,{cedula:asignacion.cedula,origen:'CARGO DE CENTRO',id:asignacion.id}):null;
+  if(duplicado) return toast(mensajeDuplicidadTelefono(telefono,duplicado),'err',8000);
+  try {
+    const rr=await fetch('/api/personas/asignar-cargo',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'actualizar_telefono_centro',id:asignacion.id,cedula:asignacion.cedula,telefono})});
+    const data=await rr.json().catch(()=>({}));
+    if(!rr.ok) throw new Error(data.error||'No se pudo guardar el teléfono');
+    asignacion.telefono=data.telefono||'';
+    CACHE.pad.filter(x=>normC(x.cedula)===normC(asignacion.cedula)).forEach(x=>x.telefono=data.telefono||'');
+    closeModal();openCentro(codigo);toast('Teléfono guardado correctamente','ok');
+  } catch(e){toast(e.message,'err',8000);}
 }
 function cabeceraReporteCentro(titulo, subtitulo) {
  const fecha=new Date().toLocaleString('es-VE');
