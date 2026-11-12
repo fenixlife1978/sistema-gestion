@@ -779,6 +779,19 @@ async function refreshAll(skipPadron = false) {
 }
 
 function padBy(c) { const n=normC(c); return CACHE.pad.find(p => normC(p.cedula) === n); }
+
+// Recupera datos de contacto existentes en cualquier módulo para reutilizarlos.
+function datosContactoPersona(cedula) {
+  const n=normC(cedula), candidatos=[];
+  const agregar=o=>{if(o&&normC(o.cedula)===n)candidatos.push(o);};
+  agregar(padBy(n));
+  (CACHE.cargos||[]).forEach(agregar);
+  (CACHE.direccion||[]).forEach(agregar);
+  (CACHE.comite||[]).forEach(agregar);
+  (CACHE.recl||[]).forEach(r=>{agregar(r);(r.lista||[]).forEach(agregar);});
+  const primero=k=>{for(const o of candidatos){const v=String(o?.[k]??'').trim();if(v)return v;}return '';};
+  return {telefono:primero('telefono'),direccion:primero('direccion'),numero_calle:primero('numero_calle'),numero_casa:primero('numero_casa')};
+}
 function cenBy(cod) { return CACHE.centros.find(c => c.codigo === String(cod)); }
 function nomP(p) { return ((p.p_nombre || '') + ' ' + (p.s_nombre || '')).trim(); }
 function apeP(p) { return ((p.p_apellido || '') + ' ' + (p.s_apellido || '')).trim(); }
@@ -1921,7 +1934,9 @@ async function saveCargoManual(codigo, idx) {
 
 async function assignCargo(codigo, idx, cedula, tel, dir, padron) {
   const cargo = getCargosCentro(codigo)[idx]?.cargo || CARGOS_CENTRO[idx];
-  tel = tel ? String(tel).trim() : '';
+  const contacto = datosContactoPersona(cedula);
+  tel = tel ? String(tel).trim() : contacto.telefono;
+  dir = dir || contacto.direccion;
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX (11 dígitos)', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
   const dupGlobal = await verificarDuplicidadPersona(cedula, 'cargo');
@@ -2844,10 +2859,11 @@ async function saveDirAuto(cedula) {
     if (cargoSelect) { cargoSelect.style.border = '2px solid var(--red)'; cargoSelect.focus(); }
     return toast('Por favor seleccione un Cargo en el desplegable superior', 'err');
   }
-  const tel = ($('dirTel') ? $('dirTel').value : '').trim();
-  const dir = ($('dirDir') ? $('dirDir').value : '').trim();
-  const nroCalle = ($('dirNroCalle') ? $('dirNroCalle').value : '').trim();
-  const nroCasa = ($('dirNroCasa') ? $('dirNroCasa').value : '').trim();
+  const contacto = datosContactoPersona(cedula);
+  const tel = (($('dirTel') ? $('dirTel').value : '').trim() || contacto.telefono);
+  const dir = (($('dirDir') ? $('dirDir').value : '').trim() || contacto.direccion);
+  const nroCalle = (($('dirNroCalle') ? $('dirNroCalle').value : '').trim() || contacto.numero_calle);
+  const nroCasa = (($('dirNroCasa') ? $('dirNroCasa').value : '').trim() || contacto.numero_casa);
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
   if (tel) { const dupTel = await verificarDuplicidadTelefono(tel); if (dupTel) return toast(mensajeDuplicidadTelefono(tel, dupTel), 'err', 8000); }
 
@@ -4046,10 +4062,11 @@ async function saveComiteAuto(cedula) {
     if (comSelect) { comSelect.style.border = '2px solid var(--red)'; comSelect.focus(); }
     return toast('Por favor seleccione una Comunidad en el desplegable superior', 'err');
   }
-  const tel = ($('comTel') ? $('comTel').value : '').trim();
-  const dir = ($('comDir') ? $('comDir').value : '').trim();
-  const nroCalle = ($('comNroCalle') ? $('comNroCalle').value : '').trim();
-  const nroCasa = ($('comNroCasa') ? $('comNroCasa').value : '').trim();
+  const contacto = datosContactoPersona(cedula);
+  const tel = (($('comTel') ? $('comTel').value : '').trim() || contacto.telefono);
+  const dir = (($('comDir') ? $('comDir').value : '').trim() || contacto.direccion);
+  const nroCalle = (($('comNroCalle') ? $('comNroCalle').value : '').trim() || contacto.numero_calle);
+  const nroCasa = (($('comNroCasa') ? $('comNroCasa').value : '').trim() || contacto.numero_casa);
   const problematica = ($('comProblematica') ? $('comProblematica').value : '').trim();
   const problemas = selectedComiteProblemas('com');
   if (tel && !valTel(tel)) return toast('Teléfono inválido. Use formato 0XXX-XXXXXXX', 'err');
