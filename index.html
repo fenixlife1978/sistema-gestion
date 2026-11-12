@@ -2112,8 +2112,8 @@ function reporteCentro(codigo) {
  tablaPersonasReporte(['N°','CARGO','ESTADO DE ASIGNACIÓN',...cols],rows)+
  '<footer class="report-footer"><span>EDUARDO LAPI · GOBERNADOR | GUALBERTO MARTÍNEZ · ALCALDE</span><span>Sistema Integral de Gestión Electoral · Centro '+esc(codigo)+'</span></footer></body></html>';
  window.__previewDocHtml=html;vistaPreviaDocumento('Estructura del centro · '+c.nombre,html,
- '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
- '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_centro_'+String(codigo).replace(/[^a-z0-9_-]/gi,'_')+'\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
+ '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml,\'landscape\')">'+ic('print',13)+' Imprimir</button>'+
+ '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_centro_'+String(codigo).replace(/[^a-z0-9_-]/gi,'_')+'\',\'A4\',\'landscape\')">'+ic('file',13)+' Descargar PDF</button>');
 }
 
 function reporteEstructuraCoordinacion() {
@@ -2129,8 +2129,8 @@ function reporteEstructuraCoordinacion() {
  '<p class="report-note">Cada fila identifica el centro y su coordinador. Se incorporan todas las columnas de información personal, electoral y adicional existentes en los registros.</p>'+
  tablaPersonasReporte(headers,data)+'<footer class="report-footer"><span>EDUARDO LAPI · GOBERNADOR | GUALBERTO MARTÍNEZ · ALCALDE</span><span>Sistema Integral de Gestión Electoral · Consolidado general</span></footer></body></html>';
  window.__previewDocHtml=html;vistaPreviaDocumento('Estructura de coordinación de centros',html,
- '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
- '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_coordinacion_centros\',\'A4\')">'+ic('file',13)+' Descargar PDF</button>');
+ '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml,\'landscape\')">'+ic('print',13)+' Imprimir</button>'+
+ '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_coordinacion_centros\',\'A4\',\'landscape\')">'+ic('file',13)+' Descargar PDF</button>');
 }
 
 async function updateMesas(cod) {
