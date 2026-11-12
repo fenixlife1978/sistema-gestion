@@ -1985,7 +1985,7 @@ async function assignCargo(codigo, idx, cedula, tel, dir, padron) {
   }
   const existente=CACHE.cargos.find(x=>String(x.centro_codigo)===String(codigo)&&String(x.cargo||'').trim()===String(cargo||'').trim());
   if(existente) return toast('Este cargo ya tiene una asignación. Actualice la vista e inténtelo nuevamente.','err');
-  const optimista={id:'pending-'+Date.now(),centro_codigo:String(codigo),cargo,cedula:String(cedula),telefono:tel?normTel(tel):'',direccion:dir||'',...(p||padron||{})};
+  const optimista={...(p||padron||{}),id:'pending-'+Date.now(),centro_codigo:String(codigo),cargo,cedula:String(cedula),telefono:tel?normTel(tel):'',direccion:dir||''};
   CACHE.cargos.push(optimista);
   openCentro(codigo);
   try {
