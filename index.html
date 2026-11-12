@@ -2033,7 +2033,7 @@ function camposPersonaCentro(persona) {
     ['Es manual','es_manual'],['Creado','creado'],
     ['Observaciones','observacion']
   ];
-  const out = defs.map(([label,key]) => ({label,value:p[key]})).filter(x => x.value !== undefined && x.value !== null && String(x.value).trim() !== '');
+  const out = defs.map(([label,key]) => ({label,value:key==='creado'?(p.creado ?? p.created_at ?? p.asignado_en):p[key]})).filter(x => x.value !== undefined && x.value !== null && String(x.value).trim() !== '');
   const known = new Set(defs.map(x=>x[1]).concat(['id','centro_codigo','cargo','asignado_en','created_at','updated_at','estado','codigo_estado','codigo_municipio','municipio','codigo_parroquia','parroquia','centro_votacion','nombre_cv','numero_calle','numero_casa']));
   Object.keys(p).filter(k=>!known.has(k) && !/^id$/i.test(k) && p[k]!==undefined && p[k]!==null && typeof p[k]!=='object' && String(p[k]).trim()!=='').forEach(k=>{
     out.push({label:k.replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase()),value:p[k]});
