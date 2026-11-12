@@ -559,8 +559,8 @@ function imprimirHTMLPrevisualizado(html, orientacion='auto') {
 function descargarPDFPrevisualizado(html, title, formato='A4', orientacion='portrait') {
   if(typeof html2pdf!=='function') return toast('Generador PDF no disponible. Verifique la conexión y vuelva a intentarlo.','err');
   const horizontal=orientacion==='landscape';
-  const styles=(html.match(/<style[\\s\\S]*?<\\/style>/gi)||[]).join('');
-  const center=html.replace(/<!DOCTYPE html>[\\s\\S]*?<body[^>]*>/i,'').replace(/<\\/body>\\s*<\\/html>\\s*$/i,'');
+  const styles=(html.match(/<style[\s\S]*?<\/style>/gi)||[]).join('');
+  const center=html.replace(/<!DOCTYPE html>[\s\S]*?<body[^>]*>/i,'').replace(/<\/body>\s*<\/html>\s*$/i,'');
   // 1080 px se aproxima al ancho útil de A4 apaisado a 96 dpi, con márgenes de 3 mm.
   const ancho=horizontal?1080:760;
   const ajuste=horizontal
