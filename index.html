@@ -1897,15 +1897,15 @@ const CARGOS_DIRECCION = [
   'SECRETARIA DE DESARROLLO ECONOMICO','SECRETARIA DE DESARROLLO AMBIENTAL SOSTENIBLE',
   'SECRETARIA DE SALUD Y BIENESTAR HUMANO','SECRETARIA DE UNT SOLIDARIO',
   'SECRETARIA DE DERECHOS HUMANOS','SECRETARIA DE FORMACION, CAPACITACION Y DOCTRINA',
-  'SECRETARIO DE POLITICA 1','SECRETARIO DE POLITICA 2','SECRETARIO DE POLITICA 3'
+  'SECRETARIO POLITICO 1','SECRETARIO POLITICO 2','SECRETARIO POLITICO 3','SECRETARIO POLITICO 4'
 ];
 
-// Mantiene visible la asignación histórica del cargo único como Secretario de Política 1.
+// Mantiene visible la asignación histórica del cargo único como Secretario Político 1.
 function ordenarDireccionEjecutiva(registros) {
   return (registros || []).map(x => ({
     ...x,
     cargo: String(x.cargo || '').trim().toUpperCase() === 'SECRETARIOS POLITICOS'
-      ? 'SECRETARIO DE POLITICA 1' : x.cargo
+      ? 'SECRETARIO POLITICO 1' : x.cargo
   })).sort((a, b) => {
     const ia = CARGOS_DIRECCION.indexOf(String(a.cargo || '').trim().toUpperCase());
     const ib = CARGOS_DIRECCION.indexOf(String(b.cargo || '').trim().toUpperCase());
@@ -2769,6 +2769,7 @@ function renderDireccion() {
   const d = ordenarDireccionEjecutiva(CACHE.direccion || []);
 
   const cardsHtml = CARGOS_DIRECCION.map(cargo => {
+    const encabezadoGrupo = cargo === 'SECRETARIO POLITICO 1' ? '<div style="grid-column:1/-1;padding:10px 12px;background:var(--bg2);border-left:4px solid var(--teal);font-size:13px;font-weight:800;color:var(--navy);letter-spacing:.5px">SECRETARIOS POLÍTICOS</div>' : '';
     const asig = d.find(x => String(x.cargo || '').trim().toUpperCase() === String(cargo).trim().toUpperCase());
     if (asig) {
       const p = padBy(asig.cedula) || asig;
@@ -2783,7 +2784,7 @@ function renderDireccion() {
       const cvNom = p.nombre_cv || p.centro_votacion || '';
       const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
 
-      return '<div class="kcard" style="padding:14px;border-left:4px solid var(--navy);background:#ffffff">' +
+      return encabezadoGrupo + '<div class="kcard" style="padding:14px;border-left:4px solid var(--navy);background:#ffffff">'
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + esc(cargo) + '</div>' +
@@ -2805,7 +2806,7 @@ function renderDireccion() {
         '</div>' +
       '</div>';
     } else {
-      return '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2)">' +
+      return encabezadoGrupo + '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2)">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
           '<div>' +
             '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase">' + esc(cargo) + '</div>' +
@@ -3108,7 +3109,8 @@ function printDireccion() {
     const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
     const cv = p.nombre_cv || p.centro_votacion || '';
     const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
-    return '<tr><td>' + (i+1) + '</td><td><b>' + esc(x.cargo) + '</b></td><td class="mono"><b>' + ci + '</b></td>' +
+    const encabezado = x.cargo === 'SECRETARIO POLITICO 1' ? '<tr><td colspan="14" style="background:#dce8f2;color:#123c69;font-weight:bold;text-transform:uppercase">SECRETARIOS POLÍTICOS</td></tr>' : '';
+    return encabezado + '<tr><td>' + (i+1) + '</td><td><b>' + esc(x.cargo) + '</b></td><td class="mono"><b>' + ci + '</b></td>' +
       '<td>' + esc(((p.p_apellido||'')+' '+(p.s_apellido||'')).trim()) + '</td><td>' + esc(((p.p_nombre||'')+' '+(p.s_nombre||'')).trim()) + '</td>' +
       '<td>' + edad + '</td><td>' + esc(p.sexo||'') + '</td><td>' + fmtFn(p.fecha_nac) + '</td><td>' + esc(cv) + '</td>' +
       '<td>' + esc(munPar) + '</td><td>' + esc(x.telefono||'') + '</td><td>' + esc(x.numero_calle||'') + '</td><td>' + esc(x.numero_casa||'') + '</td><td>' + esc(x.direccion||'') + '</td></tr>';
@@ -3145,7 +3147,8 @@ function downloadPDFDireccion() {
     const casa = x.numero_casa || '';
     const dir = x.direccion || '';
 
-    return '<tr>' +
+    const encabezado = x.cargo === 'SECRETARIO POLITICO 1' ? '<tr><td colspan="14" style="background:#dce8f2;color:#123c69;font-weight:bold;text-transform:uppercase">SECRETARIOS POLÍTICOS</td></tr>' : '';
+    return encabezado + '<tr>' +
       '<td>' + (i + 1) + '</td>' +
       '<td><b>' + esc(x.cargo) + '</b></td>' +
       '<td class="mono"><b>' + ci + '</b></td>' +
