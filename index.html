@@ -520,10 +520,11 @@ function detectarOrientacionImpresion(html) {
 }
 function prepararHTMLImpresion(html, orientacion='auto') {
   const direccion = orientacion === 'auto' ? detectarOrientacionImpresion(html) : orientacion;
+  const pageRule = direccion === 'landscape' ? '@page{size:landscape;margin:6mm}' : '@page{size:portrait;margin:10mm}';
   const reglas = direccion === 'landscape'
-    ? '@page{size:landscape;margin:6mm}html,body{width:100%!important;max-width:100%!important;margin:0!important}table{max-width:100%;border-collapse:collapse}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}.report-table-wrap{width:100%!important;max-width:100%!important;overflow:visible!important}.report-table{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important}.report-table th,.report-table td{white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;hyphens:auto;font-size:7pt!important;line-height:1.25!important;padding:3px 2px!important}'
-    : '@page{size:portrait;margin:10mm}html,body{max-width:100%!important}table{max-width:100%}thead{display:table-header-group}';
-  const estilo = '<style id="sifer-print-layout">@media print{' + reglas + '}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>';
+    ? 'html,body{width:100%!important;max-width:100%!important;margin:0!important}table{max-width:100%;border-collapse:collapse}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}.report-table-wrap{width:100%!important;max-width:100%!important;overflow:visible!important}.report-table{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important}.report-table th,.report-table td{white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;hyphens:auto;font-size:7pt!important;line-height:1.25!important;padding:3px 2px!important}'
+    : 'html,body{max-width:100%!important}table{max-width:100%}thead{display:table-header-group}';
+  const estilo = '<style id="sifer-print-layout">' + pageRule + '@media print{' + reglas + '}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>';
   return String(html || '').includes('</head>') ? String(html).replace('</head>', estilo + '</head>') : String(html || '').replace(/<body/i, estilo + '<body');
 }
 function printSection(elId, title) {
