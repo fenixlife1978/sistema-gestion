@@ -645,7 +645,7 @@ const kc = (l, v, s, bar, full) => '<div class="kcard"><div class="kl">' + l + '
 
 /* ----------- ESTADO GLOBAL ----------- */
 let USER = null, CUR = 'dash', REG = { rec: null }, LAST_REC = null;
-let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '' };
+let PADF = { txt: '', sexo: '', centro: '', e1: '', e2: '', pg: 1 }, REPF = { municipio: '' }, CENF = { municipio: '', busqueda: '' };
 let CACHE = { pad: [], centros: [], recl: [], act: [], users: [], cargos: [], direccion: [], comite: [], verificacion: [], actasMesa: [], mesasOperativas: [], mesaMiembros: [], cortes: [] };
 // Altas de movilizadores recién confirmadas. Se conservan en memoria hasta
 // que el snapshot de Turso las refleje, evitando que la sincronización
@@ -1889,16 +1889,40 @@ function expPadron() {
 }
 
 /* ----------- CENTROS ----------- */
-function renderCentros() {
-  const munis = [...new Set(CACHE.centros.map(c => c.municipio))].sort();
-  const filtered = CACHE.centros.filter(c => !CENF.municipio || c.municipio === CENF.municipio);
+function normalizarBusquedaCentro(valor) {
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function coincideBusquedaCentro(centro, consulta) {
+  const q = normalizarBusquedaCentro(consulta);
+  if (!q) return true;
+  const texto = normalizarBusquedaCentro([
+    centro.codigo, centro.nombre, centro.municipio, centro.parroquia, centro.estado,
+    centro.direccion, centro.ubicacion, centro.nombre_cv, centro.cod_estado,
+    centro.cod_municipio, centro.cod_parroquia
+  ].filter(Boolean).join(' '));
+  return q.split(/\s+/).every(palabra => texto.includes(palabra));
+}
+function renderCentros(mantenerFoco) {
+  const activo = mantenerFoco && $('cenSearch');
+  const cursor = activo ? activo.selectionStart : null;
+  const munis = [...new Set(CACHE.centros.map(c => c.municipio).filter(Boolean))].sort();
+  const consulta = CENF.busqueda || '';
+  const filtered = CACHE.centros.filter(c =>
+    (!CENF.municipio || c.municipio === CENF.municipio) && coincideBusquedaCentro(c, consulta)
+  );
   const totalElect = filtered.reduce((a, c) => a + CACHE.pad.filter(p => p.centro_votacion === c.codigo).length, 0);
   $('sec-centros').innerHTML = panel('Centros Electorales / Catálogo CNE <div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-w btn-xs" onclick="printSection(\'cenContent\',\'Centros Electorales  Catálogo CNE\')">' + ic('file', 13) + ' Imprimir</button><button class="btn btn-navy btn-xs" onclick="downloadPDF(\'cenContent\',\'Centros Electorales  Catálogo CNE\')">' + ic('dl', 13) + ' PDF</button><button class="btn btn-navy btn-xs" onclick="reporteEstructuraCoordinacion()">' + ic('users',13) + ' Estructura de coordinación</button><span class="chip chip-b">' + filtered.length + ' centro(s)</span><span class="chip chip-y">' + totalElect + ' electores</span></div>',
+    '<div style="margin-bottom:12px"><label class="fl" for="cenSearch">Buscar centro electoral por nombre o ubicación</label><div style="display:flex;gap:7px;align-items:center"><div style="position:relative;flex:1;min-width:0"><span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--mut);pointer-events:none">' + ic('search', 17) + '</span><input class="inp" id="cenSearch" type="search" autocomplete="off" value="' + esc(consulta) + '" placeholder="Ej. Escuela Independencia, Rafael Andrade, aldea, parroquia..." style="padding-left:36px" oninput="CENF.busqueda=this.value;renderCentros(true)" onkeydown="if(event.key===\'Escape\'){CENF.busqueda=\'\';renderCentros(true)}"></div>' +
+    (consulta ? '<button class="btn btn-w" type="button" onclick="CENF.busqueda=\'\';renderCentros(true)" title="Limpiar búsqueda">' + ic('x', 14) + ' Limpiar</button>' : '') + '</div><div style="font-size:11px;color:var(--mut);margin-top:5px">Busca por palabras del nombre, código, municipio, parroquia o estado; puedes escribirlas en cualquier orden.</div></div>' +
     '<div class="filter-bar" style="margin-bottom:14px"><div style="flex:2"><label class="fl">Municipio</label><select class="inp" onchange="CENF.municipio=this.value;renderCentros()"><option value=""> TODOS </option>' + munis.map(m => '<option value="' + esc(m) + '" ' + (CENF.municipio === m ? 'selected' : '') + '>' + esc(m) + '</option>').join('') + '</select></div></div>' +
-    '<div id="cenContent"><div class="grid g3">' + filtered.map(c => {
+    '<div id="cenContent">' + (filtered.length ? '<div class="grid g3">' + filtered.map(c => {
       const list = CACHE.pad.filter(p => p.centro_votacion === c.codigo); const M = list.filter(p => p.sexo === 'M').length; const enL = list.filter(p => asignDe(p.cedula)).length;
       return '<div class="kcard" style="cursor:pointer" onclick="openCentro(\'' + c.codigo + '\')"><div style="display:flex;justify-content:space-between"><span class="mono chip chip-gr">' + c.codigo + '</span><span class="chip chip-t">' + (c.mesas || 1) + ' mesa(s)</span></div><b style="display:block;font-size:14px;color:var(--navy);margin:8px 0 2px">' + esc(c.nombre) + '</b><div style="font-size:12px;color:var(--mut)">' + ic('pin', 12) + ' ' + esc(c.municipio) + '  ' + esc(c.parroquia) + '  ' + esc(c.estado) + '</div><div style="display:flex;align-items:flex-end;gap:12px;margin-top:10px"><div><div style="font-size:27px;font-weight:700;color:var(--navy)">' + list.length + '</div><div style="font-size:10.5px;color:var(--mut);font-weight:700">ELECTORES</div></div><div style="flex:1"><div style="font-size:11px;color:var(--mut);margin-bottom:3px"><b style="color:var(--navy)">' + enL + '</b> comprometidos</div><div class="stack" style="height:12px;margin:0"><i style="width:' + (list.length ? 100 * M / list.length : 0) + '%;background:#1e88e5"></i><i style="width:' + (list.length ? 100 * (list.length - M) / list.length : 0) + '%;background:#e53935"></i></div><div style="font-size:10.5px;color:var(--mut);margin-top:3px">' + M + ' M  ' + (list.length - M) + ' F</div></div></div></div>';
-    }).join('') + '</div></div>');
+    }).join('') + '</div>' : '<div class="empty" style="padding:28px">' + ic('search', 28) + '<p style="margin-top:8px">No se encontraron centros que coincidan con la búsqueda.</p><small>Prueba con otras palabras o elimina algún término.</small></div>') + '</div>');
+  if (mantenerFoco) {
+    const nuevo = $('cenSearch');
+    if (nuevo) { nuevo.focus(); if (cursor !== null) nuevo.setSelectionRange(cursor, cursor); }
+  }
 }
 /* ----------- CARGOS POR CENTRO ----------- */
 const CARGOS_CENTRO = [
