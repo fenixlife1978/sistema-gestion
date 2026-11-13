@@ -2768,63 +2768,78 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 function renderDireccion() {
   const d = ordenarDireccionEjecutiva(CACHE.direccion || []);
 
-  const cardsHtml = CARGOS_DIRECCION.map(cargo => {
-    const encabezadoGrupo = cargo === 'SECRETARIO POLITICO 1' ? '<div style="grid-column:1/-1;padding:10px 12px;background:var(--bg2);border-left:4px solid var(--teal);font-size:13px;font-weight:800;color:var(--navy);letter-spacing:.5px">SECRETARIOS POLÍTICOS</div>' : '';
+  const filasHtml = CARGOS_DIRECCION.map(cargo => {
+    const encabezadoGrupo = cargo === 'SECRETARIO POLITICO 1'
+      ? '<div class="dir-group-title">SECRETARIOS POLÍTICOS</div>'
+      : '';
     const asig = d.find(x => String(x.cargo || '').trim().toUpperCase() === String(cargo).trim().toUpperCase());
+
     if (asig) {
       const p = padBy(asig.cedula) || asig;
-      const nomComp = (p.p_nombre || p.p_apellido) ? (apeP(p) + ', ' + nomP(p)) : (asig.nombre || asig.cedula);
+      const nomComp = (p.p_nombre || p.p_apellido)
+        ? (apeP(p) + ', ' + nomP(p))
+        : (asig.nombre || asig.cedula);
       const letra = p.letra || asig.letra || 'V';
       const ci = fC(letra, asig.cedula);
-      const tel = asig.telefono ? asig.telefono : '';
-      const dir = asig.direccion ? asig.direccion : '';
-      const nroCalle = asig.numero_calle ? asig.numero_calle : '';
-      const nroCasa = asig.numero_casa ? asig.numero_casa : '';
-      const problematica = asig.problematica_actual ? asig.problematica_actual : '';
-      const cvNom = p.nombre_cv || p.centro_votacion || '';
-      const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
+      const edad = edadDe(p.fecha_nac) || p.edad || '';
+      const tel = asig.telefono || p.telefono || '';
 
-      return encabezadoGrupo + '<div class="kcard" style="padding:14px;border-left:4px solid var(--navy);background:#ffffff;width:100%;min-width:0;box-sizing:border-box">'
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
-          '<div style="flex:1;min-width:0">' +
-            '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + esc(cargo) + '</div>' +
-            '<div style="font-size:15px;font-weight:700;color:var(--navy);margin-top:3px">' + esc(nomComp) + '</div>' +
-            '<div class="mono" style="font-size:12px;color:var(--navy-l);margin-top:4px">' +
-              '<b>C.I.:</b> ' + ci + ((p.edad || edadDe(p.fecha_nac)) ? ' &nbsp;&bull;&nbsp; <b>Edad:</b> ' + (edadDe(p.fecha_nac) || p.edad) + 'a' : '') + (p.sexo ? ' &nbsp;&bull;&nbsp; <b>Sexo:</b> ' + p.sexo : '') +
+      return encabezadoGrupo +
+        '<div class="dir-cargo-row">' +
+          '<div class="dir-cargo-main">' +
+            '<div class="dir-cargo-title">' + esc(cargo) + '</div>' +
+            '<div class="dir-person-name">' + esc(nomComp) + '</div>' +
+            '<div class="dir-person-meta"><span><b>C.I.:</b> ' + esc(ci) + '</span>' +
+              (edad ? '<span><b>Edad:</b> ' + esc(edad) + '</span>' : '') +
+              (p.sexo ? '<span><b>Sexo:</b> ' + esc(p.sexo) + '</span>' : '') +
+              (tel ? '<span><b>Tel.:</b> ' + esc(tel) + '</span>' : '') +
             '</div>' +
-            (cvNom ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('pin', 11) + ' <b>Centro:</b> ' + esc(cvNom) + (munPar ? ' (' + esc(munPar) + ')' : '') + '</div>' : '') +
-            (tel ? '<div style="font-size:11px;color:var(--mut);margin-top:3px">' + ic('chat', 11) + ' <a href="https://wa.me/58' + esc(tel.replace(/\D/g, '')) + '" target="_blank" style="color:var(--teal);font-weight:600;text-decoration:none">' + esc(tel) + '</a></div>' : '') +
-            (dir ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' ' + esc(dir) + '</div>' : '') +
-            ((nroCalle || nroCasa) ? '<div style="font-size:11px;color:var(--mut);margin-top:2px">' + ic('home', 11) + ' <b>Calle:</b> ' + esc(nroCalle || '—') + ' &nbsp; <b>Casa:</b> ' + esc(nroCasa || '—') + '</div>' : '') +
-            (problematica ? '<div style="font-size:11px;color:#8d4b00;margin-top:4px"><b>Problemática Actual:</b> ' + esc(problematica) + '</div>' : '') +
           '</div>' +
-          '<div style="display:flex;gap:4px;align-items:center">' +
-            '<button class="btn btn-navy btn-xs" onclick="openDirView(' + asig.id + ')" title="Ver Detalle y Padrón CNE">' + ic('eye', 14) + ' Ver Datos</button>' +
+          '<div class="dir-cargo-actions">' +
+            '<span class="chip chip-g">ASIGNADO</span>' +
+            '<button class="btn btn-navy btn-xs" onclick="openDirView(' + asig.id + ')" title="Ver ficha completa">' + ic('eye', 14) + ' VER</button>' +
             '<button class="btn btn-w btn-xs" onclick="openDirEdit(' + asig.id + ')" title="Editar datos">' + ic('edit', 12) + '</button>' +
-            '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delDir(' + asig.id + ')" title="Remover del cargo">' + ic('x', 12) + '</button>' +
+            '<button class="btn btn-w btn-xs" style="color:var(--red)" onclick="delDir(' + asig.id + ')" title="Eliminar asignación">' + ic('x', 12) + '</button>' +
           '</div>' +
-        '</div>' +
-      '</div>';
-    } else {
-      return encabezadoGrupo + '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2);width:100%;min-width:0;box-sizing:border-box">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
-          '<div>' +
-            '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase">' + esc(cargo) + '</div>' +
-            '<div style="font-size:13px;font-weight:600;color:var(--mut);margin-top:2px"><span class="chip chip-y">Sin Asignar / Vacante</span></div>' +
-          '</div>' +
-          '<button class="btn btn-navy btn-xs" onclick="openDirManual(\'' + esc(cargo).replace(/'/g, "\\'") + '\')">' + ic('userPlus', 12) + ' Asignar Cargo</button>' +
-        '</div>' +
-      '</div>';
+        '</div>';
     }
+
+    return encabezadoGrupo +
+      '<div class="dir-cargo-row dir-cargo-empty">' +
+        '<div class="dir-cargo-main">' +
+          '<div class="dir-cargo-title">' + esc(cargo) + '</div>' +
+          '<div class="dir-person-name dir-vacant">Sin asignar / Vacante</div>' +
+        '</div>' +
+        '<div class="dir-cargo-actions">' +
+          '<span class="chip chip-y">SIN ASIGNAR</span>' +
+          '<button class="btn btn-navy btn-xs" onclick="openDirManual(\'' + esc(cargo).replace(/'/g, "\\\\'") + '\')">' + ic('userPlus', 12) + ' Asignar Cargo</button>' +
+        '</div>' +
+      '</div>';
   }).join('');
+
+  const styles =
+    '<style>' +
+      '.dir-cargo-list{display:flex;flex-direction:column;gap:7px;width:100%;min-width:0}' +
+      '.dir-group-title{padding:9px 12px;margin-top:8px;background:#e8eef5;border-left:4px solid var(--teal);color:var(--navy);font-size:13px;font-weight:800;letter-spacing:.4px}' +
+      '.dir-cargo-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;background:#fff;border:1px solid var(--line2);border-left:4px solid var(--navy);border-radius:5px;min-width:0;width:100%}' +
+      '.dir-cargo-empty{border-left-color:#c5ced8;background:#f8fafc}' +
+      '.dir-cargo-main{flex:1;min-width:0}' +
+      '.dir-cargo-title{font-size:11px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.35px}' +
+      '.dir-person-name{font-size:14px;font-weight:700;color:var(--navy);margin-top:3px;overflow-wrap:anywhere}' +
+      '.dir-person-meta{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:3px;color:var(--mut);font-size:11px}' +
+      '.dir-vacant{font-weight:500;font-style:italic;color:var(--mut)}' +
+      '.dir-cargo-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;flex:none}' +
+      '@media(max-width:650px){.dir-cargo-row{align-items:flex-start;flex-direction:column;gap:8px;padding:10px}.dir-cargo-actions{width:100%;justify-content:flex-start}.dir-person-name{font-size:13px}.dir-cargo-actions .btn{min-height:34px}}' +
+    '</style>';
 
   $('sec-direccion').innerHTML = panel(
     'Dirección Ejecutiva <span class="chip chip-b">' + d.length + ' / ' + CARGOS_DIRECCION.length + ' asignados</span>',
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">' +
+    styles +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">' +
       '<button class="btn btn-navy" onclick="openDirManual()">' + ic('userPlus', 14) + ' Nuevo registro</button>' +
       '<button class="btn btn-w" onclick="printDireccion()">' + ic('print', 14) + ' Imprimir listado (Padrón CNE Completo)</button>' +
-          '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));align-items:start;gap:10px;width:100%;box-sizing:border-box">' + cardsHtml + '</div>', 700
+    '</div>' +
+    '<div class="dir-cargo-list">' + filasHtml + '</div>', 700
   );
 }
 
