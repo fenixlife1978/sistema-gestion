@@ -512,7 +512,7 @@ function detectarOrientacionImpresion(html) {
       }
     }
     const css = [...doc.querySelectorAll('style')].map(x => x.textContent || '').join(' ');
-    const yaHorizontal = /@page[^}]*size\\s*:[^;}]*landscape/i.test(css);
+    const yaHorizontal = /@page[^}]*size\s*:[^;}]*landscape/i.test(css);
     return (maxColumnas >= 8 || yaHorizontal || doc.querySelector('.report-table-wrap,.report-table.wide,.tabla-ancha')) ? 'landscape' : 'portrait';
   } catch (_) {
     return /landscape/i.test(String(html || '')) ? 'landscape' : 'portrait';
