@@ -2784,7 +2784,7 @@ function renderDireccion() {
       const cvNom = p.nombre_cv || p.centro_votacion || '';
       const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
 
-      return encabezadoGrupo + '<div class="kcard" style="padding:14px;border-left:4px solid var(--navy);background:#ffffff">'
+      return encabezadoGrupo + '<div class="kcard" style="padding:14px;border-left:4px solid var(--navy);background:#ffffff;width:100%;min-width:0;box-sizing:border-box">'
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:11px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:0.5px">' + esc(cargo) + '</div>' +
@@ -2806,7 +2806,7 @@ function renderDireccion() {
         '</div>' +
       '</div>';
     } else {
-      return encabezadoGrupo + '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2)">' +
+      return encabezadoGrupo + '<div class="kcard" style="padding:12px;opacity:0.85;border-left:4px solid var(--line2);width:100%;min-width:0;box-sizing:border-box">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
           '<div>' +
             '<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase">' + esc(cargo) + '</div>' +
@@ -2823,9 +2823,8 @@ function renderDireccion() {
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">' +
       '<button class="btn btn-navy" onclick="openDirManual()">' + ic('userPlus', 14) + ' Nuevo registro</button>' +
       '<button class="btn btn-w" onclick="printDireccion()">' + ic('print', 14) + ' Imprimir listado (Padrón CNE Completo)</button>' +
-      '<button class="btn btn-w" onclick="downloadPDFDireccion()">' + ic('file', 14) + ' Descargar PDF (Padrón CNE Completo)</button>' +
-    '</div>' +
-    '<div class="grid g2" style="gap:12px">' + cardsHtml + '</div>', 700
+          '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));align-items:start;gap:10px;width:100%;box-sizing:border-box">' + cardsHtml + '</div>', 700
   );
 }
 
@@ -3102,94 +3101,35 @@ async function saveDirEdit(id) {
 
 function printDireccion() {
   const d = ordenarDireccionEjecutiva(CACHE.direccion || []);
-  if (!d.length) return toast('No hay registros en Dirección Ejecutiva para imprimir', 'err');
-  const rows = d.map((x, i) => {
+  if (!CARGOS_DIRECCION.length) return toast('No hay cargos configurados para imprimir', 'err');
+  const porCargo = cargo => d.find(x => String(x.cargo || '').trim().toUpperCase() === String(cargo).trim().toUpperCase());
+  const rows = CARGOS_DIRECCION.map((cargo, i) => {
+    const x = porCargo(cargo);
+    if (!x) {
+      const encabezado = cargo === 'SECRETARIO POLITICO 1' ? '<tr class="grupo"><td colspan="15">SECRETARIOS POLÍTICOS</td></tr>' : '';
+      return encabezado + '<tr class="vacante"><td>' + (i + 1) + '</td><td><b>' + esc(cargo) + '</b></td><td>SIN ASIGNAR</td>' + '<td colspan="12">—</td></tr>';
+    }
     const p = padBy(x.cedula) || x;
-    const ci = fC(p.letra || 'V', x.cedula);
+    const ci = fC(p.letra || x.letra || 'V', x.cedula);
     const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
     const cv = p.nombre_cv || p.centro_votacion || '';
     const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
-    const encabezado = x.cargo === 'SECRETARIO POLITICO 1' ? '<tr><td colspan="14" style="background:#dce8f2;color:#123c69;font-weight:bold;text-transform:uppercase">SECRETARIOS POLÍTICOS</td></tr>' : '';
-    return encabezado + '<tr><td>' + (i+1) + '</td><td><b>' + esc(x.cargo) + '</b></td><td class="mono"><b>' + ci + '</b></td>' +
+    const encabezado = cargo === 'SECRETARIO POLITICO 1' ? '<tr class="grupo"><td colspan="15">SECRETARIOS POLÍTICOS</td></tr>' : '';
+    return encabezado + '<tr><td>' + (i + 1) + '</td><td><b>' + esc(cargo) + '</b></td><td>ASIGNADO</td><td class="mono"><b>' + ci + '</b></td>' +
       '<td>' + esc(((p.p_apellido||'')+' '+(p.s_apellido||'')).trim()) + '</td><td>' + esc(((p.p_nombre||'')+' '+(p.s_nombre||'')).trim()) + '</td>' +
-      '<td>' + edad + '</td><td>' + esc(p.sexo||'') + '</td><td>' + fmtFn(p.fecha_nac) + '</td><td>' + esc(cv) + '</td>' +
+      '<td>' + esc(edad) + '</td><td>' + esc(p.sexo||'') + '</td><td>' + fmtFn(p.fecha_nac) + '</td><td>' + esc(cv) + '</td>' +
       '<td>' + esc(munPar) + '</td><td>' + esc(x.telefono||'') + '</td><td>' + esc(x.numero_calle||'') + '</td><td>' + esc(x.numero_casa||'') + '</td><td>' + esc(x.direccion||'') + '</td></tr>';
   }).join('');
-  const html='<html><head><meta charset="utf-8"><title>Dirección Ejecutiva — Padrón CNE Completo</title>' +
-    '<style>body{font-family:sans-serif;padding:15px;font-size:11px}h2{margin:0 0 4px;color:#123c69;font-size:16px}p{margin:0 0 12px;color:#555;font-size:11px}' +
-    'table{width:100%;border-collapse:collapse;margin-top:6px}th,td{border:1px solid #aaa;padding:5px 6px;text-align:left;font-size:10px}th{background:#123c69;color:#fff;font-weight:bold}tr:nth-child(even){background:#f4f7fa}.mono{font-family:monospace}</style></head><body>' +
-    '<h2>DIRECCIÓN EJECUTIVA — COMANDO DE CAMPAÑA EDUARDO LAPI - GOBERNADOR</h2><h3 style="margin:4px 0 8px;font-size:15px">Gualberto Martínez - Alcalde Municipio Independencia del Estado Yaracuy.</h3><p>Reporte Oficial con Datos Completos del Padrón CNE &bull; Fecha: ' + new Date().toLocaleDateString('es-VE') + ' &bull; Registros: ' + d.length + '</p>' +
-    '<table><thead><tr><th>#</th><th>CARGO</th><th>C.I.</th><th>APELLIDOS</th><th>NOMBRES</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th><th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>CALLE</th><th>CASA</th><th>DIRECCIÓN</th></tr></thead><tbody>' + rows + '</tbody></table></body></html>';
-  window.__previewDocHtml=html;
-  vistaPreviaDocumento('Vista previa • Dirección Ejecutiva',html,
-    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
-    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'direccion_ejecutiva_padron_completo\')">'+ic('file',13)+' Descargar PDF</button>');
+  const html = '<!doctype html><html><head><meta charset="utf-8"><title>Dirección Ejecutiva</title><style>' +
+    '@page{size:A4 landscape;margin:9mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;padding:8px;font-size:9px;color:#243447}h2{margin:0 0 4px;color:#123c69;font-size:16px}h3{margin:4px 0 8px;font-size:12px}p{margin:0 0 10px;color:#555;font-size:9px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #aab8c6;padding:4px;text-align:left;font-size:8px;overflow-wrap:anywhere;vertical-align:top}th{background:#123c69;color:#fff}.grupo td{background:#dce8f2;color:#123c69;font-weight:bold;text-transform:uppercase}.vacante{color:#687789;background:#f5f7f9}.mono{font-family:monospace}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}@media print{body{padding:0}}</style></head><body>' +
+    '<h2>DIRECCIÓN EJECUTIVA — COMANDO DE CAMPAÑA EDUARDO LAPI - GOBERNADOR</h2><h3>Gualberto Martínez - Alcalde Municipio Independencia del Estado Yaracuy.</h3>' +
+    '<p>Reporte oficial del Padrón CNE • Fecha: ' + new Date().toLocaleDateString('es-VE') + ' • Cargos asignados: ' + d.length + ' de ' + CARGOS_DIRECCION.length + '</p>' +
+    '<table><thead><tr><th>#</th><th>CARGO</th><th>ESTADO</th><th>C.I.</th><th>APELLIDOS</th><th>NOMBRES</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th><th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>CALLE</th><th>CASA</th><th>DIRECCIÓN</th></tr></thead><tbody>' + rows + '</tbody></table></body></html>';
+  window.__previewDocHtml = html;
+  vistaPreviaDocumento('Vista previa • Dirección Ejecutiva', html,
+    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">' + ic('print',13) + ' Imprimir</button>');
 }
 
-function downloadPDFDireccion() {
-  const d = ordenarDireccionEjecutiva(CACHE.direccion || []);
-  if (!d.length) return toast('No hay registros en Dirección Ejecutiva para descargar', 'err');
-
-  const rows = d.map((x, i) => {
-    const p = padBy(x.cedula) || x;
-    const ci = fC(p.letra || 'V', x.cedula);
-    const pa = p.p_apellido || '';
-    const sa = p.s_apellido || '';
-    const pn = p.p_nombre || '';
-    const sn = p.s_nombre || '';
-    const edad = (edadDe(p.fecha_nac) || (p.edad !== undefined && p.edad !== null ? p.edad : '')) || '';
-    const sexo = p.sexo || '';
-    const fn = fmtFn(p.fecha_nac);
-    const cv = p.nombre_cv || p.centro_votacion || '';
-    const munPar = (p.municipio || '') + (p.parroquia ? ' / ' + p.parroquia : '');
-    const tel = x.telefono || '';
-    const calle = x.numero_calle || '';
-    const casa = x.numero_casa || '';
-    const dir = x.direccion || '';
-
-    const encabezado = x.cargo === 'SECRETARIO POLITICO 1' ? '<tr><td colspan="14" style="background:#dce8f2;color:#123c69;font-weight:bold;text-transform:uppercase">SECRETARIOS POLÍTICOS</td></tr>' : '';
-    return encabezado + '<tr>' +
-      '<td>' + (i + 1) + '</td>' +
-      '<td><b>' + esc(x.cargo) + '</b></td>' +
-      '<td class="mono"><b>' + ci + '</b></td>' +
-      '<td>' + esc((pa + ' ' + sa).trim()) + '</td>' +
-      '<td>' + esc((pn + ' ' + sn).trim()) + '</td>' +
-      '<td>' + edad + '</td>' +
-      '<td>' + sexo + '</td>' +
-      '<td>' + fn + '</td>' +
-      '<td>' + esc(cv) + '</td>' +
-      '<td>' + esc(munPar) + '</td>' +
-      '<td>' + esc(tel) + '</td>' +
-      '<td>' + esc(calle) + '</td>' +
-      '<td>' + esc(casa) + '</td>' +
-      '<td>' + esc(dir) + '</td>' +
-    '</tr>';
-  }).join('');
-
-  const html =
-    '<html><head><meta charset="utf-8"><title>Dirección Ejecutiva</title>' +
-    '<style>' +
-      'body{font-family:sans-serif;padding:15px;font-size:11px}' +
-      'h2{margin:0 0 4px;color:#123c69;font-size:16px}' +
-      'p{margin:0 0 12px;color:#555;font-size:11px}' +
-      'table{width:100%;border-collapse:collapse;margin-top:6px}' +
-      'th,td{border:1px solid #aaa;padding:5px 6px;text-align:left;font-size:10px}' +
-      'th{background:#123c69;color:#fff;font-weight:bold}' +
-      'tr:nth-child(even){background:#f4f7fa}' +
-      '.mono{font-family:monospace}' +
-    '</style></head><body>' +
-    '<h2>DIRECCIÓN EJECUTIVA — COMANDO DE CAMPAÑA EDUARDO LAPI - GOBERNADOR</h2>' +
-    '<h3 style="margin:4px 0 8px;font-size:15px">Gualberto Martínez - Alcalde Municipio Independencia del Estado Yaracuy.</h3>' +
-    '<p>Reporte Oficial con Datos Completos del Padrón CNE &bull; Fecha: ' + new Date().toLocaleDateString('es-VE') + ' &bull; Registros: ' + d.length + '</p>' +
-    '<table><thead><tr>' +
-      '<th>#</th><th>CARGO</th><th>C.I.</th><th>APELLIDOS</th><th>NOMBRES</th><th>EDAD</th><th>SEXO</th><th>F. NACIMIENTO</th><th>CENTRO DE VOTACIÓN</th><th>MUNICIPIO / PARROQUIA</th><th>TELÉFONO</th><th>CALLE</th><th>CASA</th><th>DIRECCIÓN</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table></body></html>';
-
-  window.__previewDocHtml=html;
-  vistaPreviaDocumento('Vista previa • Dirección Ejecutiva',html,
-    '<button class="btn btn-navy" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml)">'+ic('print',13)+' Imprimir</button>'+
-    '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'direccion_ejecutiva_padron_completo\')">'+ic('file',13)+' Descargar PDF</button>');
-}
 /* ═══════════ COMITÉS VECINALES ═══════════ */
 let COMITE_FILTER = { comunidad: '', txt: '' };
 
