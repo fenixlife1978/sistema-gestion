@@ -2159,8 +2159,8 @@ function reporteCentro(codigo) {
  const personas=cargos.filter(x=>x.persona).map(x=>personaCargoCompleta(codigo,x.cargo));
  const cols=columnasPersonasReporte(personas).filter(k=>k.toLowerCase()!=='es manual');
  if(!cols.some(k=>k.toLowerCase()==='teléfono'||k.toLowerCase()==='telefono'))cols.push('Teléfono');
- const headers=['N°','CARGO','ESTADO DE ASIGNACIÓN',...cols.map(k=>k.toLowerCase()==='letra de cédula'?'LETRA':k)];
- const idxN=1,idxLetra=headers.findIndex(k=>k==='LETRA')+1,idxSexo=headers.findIndex(k=>k.toLowerCase()==='sexo')+1,idxEdad=headers.findIndex(k=>k.toLowerCase()==='edad')+1;
+ const headers=['N°','CARGO','ESTADO DE ASIGNACIÓN',...cols];
+ const idxN=1,idxLetra=headers.findIndex(k=>k.toLowerCase()==='letra de cédula')+1,idxSexo=headers.findIndex(k=>k.toLowerCase()==='sexo')+1,idxEdad=headers.findIndex(k=>k.toLowerCase()==='edad')+1;
  const rows=cargos.map((k,i)=>{const p=k.persona?personaCargoCompleta(codigo,k.cargo):null;return [i+1,k.cargo,p?'ASIGNADO':'SIN ASIGNAR',...valoresPersonaReporte(p,cols)]});
  const edades=[[18,25,'18–25'],[26,35,'26–35'],[36,45,'36–45'],[46,55,'46–55'],[56,65,'56–65'],[66,999,'66+']];
  const promedio=pad.map(p=>Number(edadDe(p.fecha_nac)||p.edad||0)).filter(x=>x>0&&x<=120);
