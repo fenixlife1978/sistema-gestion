@@ -1897,8 +1897,21 @@ const CARGOS_DIRECCION = [
   'SECRETARIA DE DESARROLLO ECONOMICO','SECRETARIA DE DESARROLLO AMBIENTAL SOSTENIBLE',
   'SECRETARIA DE SALUD Y BIENESTAR HUMANO','SECRETARIA DE UNT SOLIDARIO',
   'SECRETARIA DE DERECHOS HUMANOS','SECRETARIA DE FORMACION, CAPACITACION Y DOCTRINA',
-  'SECRETARIOS POLITICOS'
+  'SECRETARIO DE POLITICA 1','SECRETARIO DE POLITICA 2','SECRETARIO DE POLITICA 3'
 ];
+
+// Mantiene visible la asignación histórica del cargo único como Secretario de Política 1.
+function ordenarDireccionEjecutiva(registros) {
+  return (registros || []).map(x => ({
+    ...x,
+    cargo: String(x.cargo || '').trim().toUpperCase() === 'SECRETARIOS POLITICOS'
+      ? 'SECRETARIO DE POLITICA 1' : x.cargo
+  })).sort((a, b) => {
+    const ia = CARGOS_DIRECCION.indexOf(String(a.cargo || '').trim().toUpperCase());
+    const ib = CARGOS_DIRECCION.indexOf(String(b.cargo || '').trim().toUpperCase());
+    return (ia < 0 ? Number.MAX_SAFE_INTEGER : ia) - (ib < 0 ? Number.MAX_SAFE_INTEGER : ib);
+  });
+}
 
 function getCargosCentro(codigo) {
   return catalogoCargosCentro(codigo).map(nombre => {
@@ -2753,7 +2766,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 
 /* ═══════════ DIRECCION EJECUTIVA ═══════════ */
 function renderDireccion() {
-  const d = CACHE.direccion || [];
+  const d = ordenarDireccionEjecutiva(CACHE.direccion || []);
 
   const cardsHtml = CARGOS_DIRECCION.map(cargo => {
     const asig = d.find(x => String(x.cargo || '').trim().toUpperCase() === String(cargo).trim().toUpperCase());
@@ -3087,7 +3100,7 @@ async function saveDirEdit(id) {
 }
 
 function printDireccion() {
-  const d = CACHE.direccion || [];
+  const d = ordenarDireccionEjecutiva(CACHE.direccion || []);
   if (!d.length) return toast('No hay registros en Dirección Ejecutiva para imprimir', 'err');
   const rows = d.map((x, i) => {
     const p = padBy(x.cedula) || x;
@@ -3112,7 +3125,7 @@ function printDireccion() {
 }
 
 function downloadPDFDireccion() {
-  const d = CACHE.direccion || [];
+  const d = ordenarDireccionEjecutiva(CACHE.direccion || []);
   if (!d.length) return toast('No hay registros en Dirección Ejecutiva para descargar', 'err');
 
   const rows = d.map((x, i) => {
