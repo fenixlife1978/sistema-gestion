@@ -2146,8 +2146,8 @@ function estilosReporteCentros() {
 function columnasPersonasReporte(personas) {
  const map=new Map();(personas||[]).filter(Boolean).forEach(p=>camposPersonaCentro(p).forEach(x=>{if(!map.has(x.label))map.set(x.label,x.label)}));return Array.from(map.keys());
 }
-function tablaPersonasReporte(headers,rows) {
- return '<div class="report-table-wrap"><table class="report-table"><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+esc(v===undefined||v===null?'':v)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+function tablaPersonasReporte(headers,rows,clase='') {
+ return '<div class="report-table-wrap"><table class="report-table'+(clase?' '+clase:'')+'"><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+esc(v===undefined||v===null?'':v)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
 }
 function valoresPersonaReporte(persona,columnas) {
  const vals={};camposPersonaCentro(persona||{}).forEach(x=>vals[x.label]=x.value);return columnas.map(k=>vals[k]===undefined?'':vals[k]);
@@ -2156,24 +2156,28 @@ function valoresPersonaReporte(persona,columnas) {
 function reporteCentro(codigo) {
  const c=cenBy(codigo);if(!c)return toast('Centro electoral no encontrado','err');
  const pad=CACHE.pad.filter(p=>String(p.centro_votacion)===String(codigo)),cargos=getCargosCentro(codigo);
- const personas=cargos.filter(x=>x.persona).map(x=>personaCargoCompleta(codigo,x.cargo)),cols=columnasPersonasReporte(personas);
+ const personas=cargos.filter(x=>x.persona).map(x=>personaCargoCompleta(codigo,x.cargo));
+ const cols=columnasPersonasReporte(personas).filter(k=>k.toLowerCase()!=='es manual');
+ if(!cols.some(k=>k.toLowerCase()==='teléfono'||k.toLowerCase()==='telefono'))cols.push('Teléfono');
+ const headers=['N°','CARGO','ESTADO DE ASIGNACIÓN',...cols.map(k=>k.toLowerCase()==='letra de cédula'?'LETRA':k)];
+ const idxN=1,idxLetra=headers.findIndex(k=>k==='LETRA')+1,idxSexo=headers.findIndex(k=>k.toLowerCase()==='sexo')+1,idxEdad=headers.findIndex(k=>k.toLowerCase()==='edad')+1;
  const rows=cargos.map((k,i)=>{const p=k.persona?personaCargoCompleta(codigo,k.cargo):null;return [i+1,k.cargo,p?'ASIGNADO':'SIN ASIGNAR',...valoresPersonaReporte(p,cols)]});
  const edades=[[18,25,'18–25'],[26,35,'26–35'],[36,45,'36–45'],[46,55,'46–55'],[56,65,'56–65'],[66,999,'66+']];
  const promedio=pad.map(p=>Number(edadDe(p.fecha_nac)||p.edad||0)).filter(x=>x>0&&x<=120);
  const rango=edades.map(([min,max,label])=>[label,pad.filter(p=>{const e=Number(edadDe(p.fecha_nac)||p.edad||0);return e>=min&&e<=max}).length]);
  const ver=ultimaVerificacionCentro(codigo),vd=ver?datosVerificacionCentro(ver):null;
  const cards='<div class="stats"><div class="stat"><span>Electores registrados</span><b>'+pad.length+'</b></div><div class="stat"><span>Distribución M / F</span><b>'+pad.filter(p=>p.sexo==='M').length+' / '+pad.filter(p=>p.sexo==='F').length+'</b></div><div class="stat"><span>Comprometidos</span><b>'+pad.filter(p=>asignDe(p.cedula)).length+'</b></div><div class="stat"><span>Edad promedio</span><b>'+(promedio.length?(promedio.reduce((a,b)=>a+b,0)/promedio.length).toFixed(0):'—')+'</b></div></div>';
- const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación · '+esc(c.nombre)+'</title>'+estilosReporteCentros()+'</head><body>'+
+ const cssColumnas='<style>.report-cargos{table-layout:fixed}.report-cargos th:nth-child('+idxN+'),.report-cargos td:nth-child('+idxN+'){width:20px!important;min-width:20px!important;max-width:20px!important;padding:2px!important;text-align:center;white-space:nowrap!important}.report-cargos th:nth-child('+idxLetra+'),.report-cargos td:nth-child('+idxLetra+'){width:22px!important;min-width:22px!important;max-width:22px!important;padding:2px!important;text-align:center;font-size:6px!important;overflow-wrap:anywhere}.report-cargos th:nth-child('+idxSexo+'),.report-cargos td:nth-child('+idxSexo+'){width:24px!important;min-width:24px!important;max-width:24px!important;padding:2px!important;text-align:center}.report-cargos th:nth-child('+idxEdad+'),.report-cargos td:nth-child('+idxEdad+'){width:27px!important;min-width:27px!important;max-width:27px!important;padding:2px!important;text-align:center}</style>';
+ const html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estructura de coordinación · '+esc(c.nombre)+'</title>'+estilosReporteCentros()+cssColumnas+'</head><body>'+
  cabeceraReporteCentro('ESTRUCTURA DE COORDINACIÓN DEL CENTRO','Reporte individual del centro electoral')+
  '<div class="meta-grid"><div class="meta"><span>Centro electoral</span><b>'+esc(c.nombre)+'</b></div><div class="meta"><span>Código CNE</span><b>'+esc(c.codigo)+'</b></div><div class="meta"><span>Estado</span><b>'+esc(c.estado)+'</b></div><div class="meta"><span>Municipio / Parroquia</span><b>'+esc(c.municipio)+' / '+esc(c.parroquia)+'</b></div><div class="meta"><span>Mesas de votación</span><b>'+esc(c.mesas||1)+'</b></div></div>'+
  '<h2>Resumen electoral</h2>'+cards+'<h2>Distribución por rango etario</h2>'+tablaPersonasReporte(['RANGO DE EDAD','CANTIDAD DE ELECTORES'],rango)+
  '<h2>Última verificación del centro</h2>'+(vd?tablaPersonasReporte(['PERSONA VERIFICADA','CÉDULA','MESA','HORA','OPERADOR'],[[vd.persona,fC((padBy(vd.ci)||{}).letra||'V',vd.ci),vd.mesa||'No registrada',vd.hora,vd.operador]]):'<p class="report-note">No hay verificaciones registradas para este centro.</p>')+
  '<h2>Conformación completa de cargos y datos de las personas asignadas</h2><p class="report-note">Cada fila corresponde a un cargo. Se incluyen todas las columnas de información personal, electoral y adicional que estén registradas. Campos no informados quedan vacíos. Cargos ocupados: '+personas.length+' de '+cargos.length+'.</p>'+
- tablaPersonasReporte(['N°','CARGO','ESTADO DE ASIGNACIÓN',...cols],rows)+
+ tablaPersonasReporte(headers,rows,'report-cargos')+
  '<footer class="report-footer"><span>EDUARDO LAPI · GOBERNADOR | GUALBERTO MARTÍNEZ · ALCALDE</span><span>Sistema Integral de Gestión Electoral · Centro '+esc(codigo)+'</span></footer></body></html>';
  window.__previewDocHtml=html;vistaPreviaDocumento('Estructura del centro · '+c.nombre,html,
- '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml,\'landscape\')">'+ic('print',13)+' Imprimir</button>'+
- '<button class="btn btn-navy" onclick="descargarPDFPrevisualizado(window.__previewDocHtml,\'estructura_centro_'+String(codigo).replace(/[^a-z0-9_-]/gi,'_')+'\',\'A4\',\'landscape\')">'+ic('file',13)+' Descargar PDF</button>');
+ '<button class="btn btn-w" onclick="imprimirHTMLPrevisualizado(window.__previewDocHtml,\'landscape\')">'+ic('print',13)+' Imprimir</button>');
 }
 
 function reporteEstructuraCoordinacion() {
