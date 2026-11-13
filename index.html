@@ -500,12 +500,39 @@ function _pdfTable(headers, rows) {
   h += '</tbody></table>';
   return h;
 }
+function detectarOrientacionImpresion(html) {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(String(html || ''), 'text/html');
+    const tablas = [...doc.querySelectorAll('table')];
+    let maxColumnas = 0;
+    for (const tabla of tablas) {
+      for (const fila of [...tabla.rows].slice(0, 2)) {
+        maxColumnas = Math.max(maxColumnas, fila.cells.length);
+      }
+    }
+    const css = [...doc.querySelectorAll('style')].map(x => x.textContent || '').join(' ');
+    const yaHorizontal = /@page[^}]*size\\s*:[^;}]*landscape/i.test(css);
+    return (maxColumnas >= 8 || yaHorizontal || doc.querySelector('.report-table-wrap,.report-table.wide,.tabla-ancha')) ? 'landscape' : 'portrait';
+  } catch (_) {
+    return /landscape/i.test(String(html || '')) ? 'landscape' : 'portrait';
+  }
+}
+function prepararHTMLImpresion(html, orientacion='auto') {
+  const direccion = orientacion === 'auto' ? detectarOrientacionImpresion(html) : orientacion;
+  const reglas = direccion === 'landscape'
+    ? '@page{size:landscape;margin:6mm}html,body{width:100%!important;max-width:100%!important;margin:0!important}table{max-width:100%;border-collapse:collapse}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}.report-table-wrap{width:100%!important;max-width:100%!important;overflow:visible!important}.report-table{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important}.report-table th,.report-table td{white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;hyphens:auto;font-size:7pt!important;line-height:1.25!important;padding:3px 2px!important}'
+    : '@page{size:portrait;margin:10mm}html,body{max-width:100%!important}table{max-width:100%}thead{display:table-header-group}';
+  const estilo = '<style id="sifer-print-layout">@media print{' + reglas + '}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>';
+  return String(html || '').includes('</head>') ? String(html).replace('</head>', estilo + '</head>') : String(html || '').replace(/<body/i, estilo + '<body');
+}
 function printSection(elId, title) {
   const el = document.getElementById(elId);
   if (!el) return toast('No se encontró el contenido del reporte para imprimir','err');
-  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(title)+'</title>' +
+  const base='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(title)+'</title>' +
     '<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">' +
-    '<style>body{font:12px/1.5 Roboto,Arial,sans-serif;color:#22303e;padding:0;margin:0}.tbl{width:100%;border-collapse:collapse;font-size:10.5px}.tbl th{background:#123c69;color:#fff;padding:6px 8px;text-align:left;border:1px solid #0d2f52;print-color-adjust:exact;-webkit-print-color-adjust:exact}.tbl td{padding:5px 7px;border:1px solid #ddd}.tbl tr:nth-child(even){background:#f4f6f9}.chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:600}.chip-b{background:#e3f2fd;color:#1565c0}.chip-g{background:#e8f5e9;color:#2e7d32}.chip-gr{background:#f1f3f4;color:#5c6b7a}.chip-r{background:#ffebee;color:#c62828}.chip-y{background:#fff8e1;color:#f57f17}.mono{font-family:Consolas,monospace}.no-print,button,.btn{display:none!important}@page{size:auto;margin:10mm}@media print{body{padding:0;margin:0}thead{display:table-header-group}tr,img,svg{break-inside:avoid}table{break-inside:auto}}</style></head><body>'+el.innerHTML+'</body></html>';
+    '<style>body{font:12px/1.5 Roboto,Arial,sans-serif;color:#22303e;padding:0;margin:0}.tbl{width:100%;border-collapse:collapse;font-size:10.5px}.tbl th{background:#123c69;color:#fff;padding:6px 8px;text-align:left;border:1px solid #0d2f52;print-color-adjust:exact;-webkit-print-color-adjust:exact}.tbl td{padding:5px 7px;border:1px solid #ddd}.tbl tr:nth-child(even){background:#f4f6f9}.chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:600}.chip-b{background:#e3f2fd;color:#1565c0}.chip-g{background:#e8f5e9;color:#2e7d32}.chip-gr{background:#f1f3f4;color:#5c6b7a}.chip-r{background:#ffebee;color:#c62828}.chip-y{background:#fff8e1;color:#f57f17}.mono{font-family:Consolas,monospace}.no-print,button,.btn{display:none!important}@media print{body{padding:0;margin:0}thead{display:table-header-group}table{break-inside:auto}}</style></head><body>'+el.innerHTML+'</body></html>';
+  const html=prepararHTMLImpresion(base, 'auto');
   const w=window.open('','_blank');
   if(!w) return toast('El navegador bloqueó la ventana de impresión. Permita ventanas emergentes para este sistema.','err');
   w.document.open(); w.document.write(html); w.document.close();
@@ -552,9 +579,9 @@ function vistaPreviaDocumento(titulo, html, acciones) {
 function imprimirHTMLPrevisualizado(html, orientacion='auto') {
   const w=window.open('','_blank');
   if(!w) return toast('El navegador bloqueó la ventana de impresión. Permita ventanas emergentes para este sistema.','err');
-  let documento=html||'';
-  if(orientacion==='landscape') documento=documento.replace('</head>','<style>@page{size:A4 landscape;margin:6mm}html,body{width:100%;max-width:100%;margin:0!important}.report-table-wrap{width:100%!important;max-width:100%!important;overflow:visible!important}.report-table{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important}.report-table th,.report-table td{white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;hyphens:auto;font-size:6.5pt!important;line-height:1.25!important;padding:3px 2px!important}.report-table tr{break-inside:avoid;page-break-inside:avoid}thead{display:table-header-group}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head>');
-  w.document.write(documento); w.document.close(); w.onload=()=>setTimeout(()=>{w.focus();w.print();},350);
+  const documento=prepararHTMLImpresion(html || '', orientacion);
+  w.document.open(); w.document.write(documento); w.document.close();
+  w.onload=()=>setTimeout(()=>{w.focus();w.print();},350);
 }
 function descargarPDFPrevisualizado(html, title, formato='A4', orientacion='portrait') {
   if(typeof html2pdf!=='function') return toast('Generador PDF no disponible. Verifique la conexión y vuelva a intentarlo.','err');
