@@ -1302,18 +1302,18 @@ async function verificarDuplicidadTelefono(telefono, exclude = {}) {
   if (!tel) return null;
 
   const filas = await q(`
-    SELECT 'USUARIO' AS origen, id, telefono, NULL AS cedula, nombre AS descripcion FROM usuarios WHERE telefono IS NOT NULL AND telefono != ''
+    SELECT 'USUARIO' AS origen, id, telefono, NULL AS cedula, nombre AS descripcion FROM usuarios WHERE telefono IS NOT NULL AND telefono <> ?
     UNION ALL
-    SELECT 'MOVILIZADOR', id, telefono, cedula, estructura FROM reclutadores WHERE telefono IS NOT NULL AND telefono != ''
+    SELECT 'MOVILIZADOR', id, telefono, cedula, estructura FROM reclutadores WHERE telefono IS NOT NULL AND telefono <> ?
     UNION ALL
-    SELECT 'COMPROMETIDO', a.id, a.telefono, a.cedula, CAST(a.reclutador_id AS TEXT) FROM asignaciones a WHERE a.telefono IS NOT NULL AND a.telefono != ''
+    SELECT 'COMPROMETIDO', a.id, a.telefono, a.cedula, CAST(a.reclutador_id AS TEXT) FROM asignaciones a WHERE a.telefono IS NOT NULL AND a.telefono <> ?
     UNION ALL
-    SELECT 'DIRECCIÓN EJECUTIVA', id, telefono, cedula, cargo FROM direccion_ejecutiva WHERE telefono IS NOT NULL AND telefono != ''
+    SELECT 'DIRECCIÓN EJECUTIVA', id, telefono, cedula, cargo FROM direccion_ejecutiva WHERE telefono IS NOT NULL AND telefono <> ?
     UNION ALL
-    SELECT 'COMITÉ VECINAL', id, telefono, cedula, comunidad FROM comite_vecinal WHERE telefono IS NOT NULL AND telefono != ''
+    SELECT 'COMITÉ VECINAL', id, telefono, cedula, comunidad FROM comite_vecinal WHERE telefono IS NOT NULL AND telefono <> ?
     UNION ALL
-    SELECT 'CARGO DE CENTRO', id, telefono, cedula, cargo FROM centro_cargos WHERE telefono IS NOT NULL AND telefono != ''
-  `);
+    SELECT 'CARGO DE CENTRO', id, telefono, cedula, cargo FROM centro_cargos WHERE telefono IS NOT NULL AND telefono <> ?
+  `, ['', '', '', '', '', '']);
   const found = filas.find(x => {
     if (String(x.telefono || '').replace(/\D/g, '') !== tel) return false;
     if (exclude.cedula && normC(x.cedula) === normC(exclude.cedula)) return false;
